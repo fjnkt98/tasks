@@ -1,0 +1,22 @@
+{{ template "base" . }} {{ define "content" }}
+<div class="navbar bg-base-100 shadow-sm">
+  <div class="flex-1">
+    <a href="/" class="btn btn-ghost text-xl">Tasks</a>
+  </div>
+  <div class="flex gap-2">
+    <input type="text" placeholder="Search" class="input w-24 md:w-auto" />
+  </div>
+</div>
+
+<div class="container mx-auto py-4">
+  <ul class="list bg-base-100 rounded-box shadow-md">
+    <li class="p-4 pb-2 text-xs opacity-60 tracking-wide">Tasks</li>
+    {{ range .Tasks }}
+    <li class="list-row">
+      <div class="list-col-grow">{{ .Name }}</div>
+      <div>{{ .Status }}</div>
+    </li>
+    {{ end }}
+  </ul>
+</div>
+{{ end }}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -109,7 +110,12 @@ func serve(ctx context.Context) error {
 		return fmt.Errorf("parse port: %w", err)
 	}
 
-	s, err := server.NewServer(port)
+	db, err := sql.Open("sqlite3", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+
+	s, err := server.NewServer(port, db)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}

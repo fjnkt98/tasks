@@ -15,7 +15,7 @@ func TestGetIndex(t *testing.T) {
 	handler := &server.IndexHandler{}
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status ok, but got %d", rec.Code)
+	if rec.Code != http.StatusSeeOther {
+		t.Errorf("expected status see other, but got %d", rec.Code)
 	}
 }

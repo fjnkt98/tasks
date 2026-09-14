@@ -2,6 +2,7 @@
 package server
 
 import (
+	"database/sql"
 	"embed"
 	"fmt"
 	"net/http"
@@ -16,10 +17,13 @@ var templates embed.FS
 //go:embed static
 var statics embed.FS
 
-func NewServer(port int) (*http.Server, error) {
+func NewServer(port int, db *sql.DB) (*http.Server, error) {
 	mux := http.NewServeMux()
 
+	tasksHandler := NewTasksHandler(db)
+
 	mux.Handle("GET /", &IndexHandler{})
+	mux.HandleFunc("GET /tasks/", tasksHandler.HandleGet)
 	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
 
 	handler := RecoveryMiddleware(mux)

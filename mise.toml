@@ -14,8 +14,8 @@ PORT = { default = 8000 }
 
 DATABASE_URL = { required = true, redact = true }
 DBMATE_DRIVER = "sqlite3"
-DBMATE_MIGRATIONS_DIR = "migrations"
-DBMATE_SCHEMA_FILE = "schema.sql"
+DBMATE_MIGRATIONS_DIR = "repository/migrations"
+DBMATE_SCHEMA_FILE = "repository/schema.sql"
 DBMATE_STRICT = "1"
 
 COLLECTOR_URL = { required = true }

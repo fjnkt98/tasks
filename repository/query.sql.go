@@ -9,6 +9,29 @@ import (
 	"context"
 )
 
+const createTask = `-- name: CreateTask :one
+INSERT INTO tasks (title, description, status) VALUES (?, ?, 'created') RETURNING id, title, description, status, created_at, updated_at
+`
+
+type CreateTaskParams struct {
+	Title       string `db:"title"`
+	Description string `db:"description"`
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
+	row := q.db.QueryRowContext(ctx, createTask, arg.Title, arg.Description)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (name) VALUES (?) RETURNING id, name
 `
@@ -25,6 +48,15 @@ func (q *Queries) CreateUser(ctx context.Context, name string) (CreateUserRow, e
 	return i, err
 }
 
+const deleteTask = `-- name: DeleteTask :exec
+DELETE FROM tasks WHERE id = ?
+`
+
+func (q *Queries) DeleteTask(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteTask, id)
+	return err
+}
+
 const deleteUser = `-- name: DeleteUser :exec
 DELETE FROM users WHERE id = ?
 `
@@ -34,8 +66,26 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 	return err
 }
 
+const getTaskByID = `-- name: GetTaskByID :one
+SELECT id, title, description, status, created_at, updated_at FROM tasks WHERE id = ? LIMIT 1
+`
+
+func (q *Queries) GetTaskByID(ctx context.Context, id int64) (Task, error) {
+	row := q.db.QueryRowContext(ctx, getTaskByID, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUser = `-- name: GetUser :one
-SELECT id, name, created_at, updated_at FROM users WHERE id = ? LIMIT 1
+SELECT id, name, password, created_at, updated_at FROM users WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
@@ -44,28 +94,31 @@ func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.Password,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const listUsers = `-- name: ListUsers :many
-SELECT id, name, created_at, updated_at FROM users ORDER BY id ASC
+const listTasks = `-- name: ListTasks :many
+SELECT id, title, description, status, created_at, updated_at FROM tasks ORDER BY id ASC
 `
 
-func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, listUsers)
+func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, listTasks)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []Task
 	for rows.Next() {
-		var i User
+		var i Task
 		if err := rows.Scan(
 			&i.ID,
-			&i.Name,
+			&i.Title,
+			&i.Description,
+			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -82,8 +135,62 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const listUsers = `-- name: ListUsers :many
+SELECT id, name, password, created_at, updated_at FROM users ORDER BY id ASC
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Password,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateTask = `-- name: UpdateTask :exec
+UPDATE tasks SET title = ?, description = ?, status = ? WHERE id = ?
+`
+
+type UpdateTaskParams struct {
+	Title       string `db:"title"`
+	Description string `db:"description"`
+	Status      string `db:"status"`
+	ID          int64  `db:"id"`
+}
+
+func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) error {
+	_, err := q.db.ExecContext(ctx, updateTask,
+		arg.Title,
+		arg.Description,
+		arg.Status,
+		arg.ID,
+	)
+	return err
+}
+
 const updateUser = `-- name: UpdateUser :exec
-UPDATE users set name = ? WHERE id = ?
+UPDATE users SET name = ? WHERE id = ?
 `
 
 type UpdateUserParams struct {

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func ChainedMiddleware(h http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
+func ChainMiddleware(h http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
 	for _, m := range middlewares {
 		h = m(h)
 	}

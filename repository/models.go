@@ -4,17 +4,35 @@
 
 package repository
 
-import (
-	"time"
-)
+type Role struct {
+	ID        int64  `db:"id"`
+	Name      string `db:"name"`
+	CreatedAt int64  `db:"created_at"`
+}
 
 type SchemaMigration struct {
 	Version string `db:"version"`
 }
 
+type Task struct {
+	ID          int64  `db:"id"`
+	Title       string `db:"title"`
+	Description string `db:"description"`
+	Status      string `db:"status"`
+	CreatedAt   int64  `db:"created_at"`
+	UpdatedAt   int64  `db:"updated_at"`
+}
+
 type User struct {
-	ID        int64      `db:"id"`
-	Name      string     `db:"name"`
-	CreatedAt time.Time  `db:"created_at"`
-	UpdatedAt *time.Time `db:"updated_at"`
+	ID        int64  `db:"id"`
+	Name      string `db:"name"`
+	Password  string `db:"password"`
+	CreatedAt int64  `db:"created_at"`
+	UpdatedAt int64  `db:"updated_at"`
+}
+
+type UserRoleRelation struct {
+	UserID    int64 `db:"user_id"`
+	RoleID    int64 `db:"role_id"`
+	CreatedAt int64 `db:"created_at"`
 }
