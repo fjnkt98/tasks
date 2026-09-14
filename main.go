@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,7 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"syscall"
 
+	"github.com/XSAM/otelsql"
 	"github.com/fjnkt98/tasks/server"
 	_ "github.com/mattn/go-sqlite3"
 
@@ -44,10 +45,11 @@ func (h *traceHandler) Handle(ctx context.Context, record slog.Record) error {
 	return h.Handler.Handle(ctx, record)
 }
 
-func setup(ctx context.Context, target string) (func(context.Context) error, error) {
+func setup(target string) (func() error, error) {
 	var shutdowns []func(context.Context) error
 
-	shutdown := func(ctx context.Context) error {
+	shutdown := func() error {
+		ctx := context.Background()
 		var err error
 		for _, fn := range shutdowns {
 			err = errors.Join(err, fn(ctx))
@@ -64,6 +66,8 @@ func setup(ctx context.Context, target string) (func(context.Context) error, err
 	if err != nil {
 		return shutdown, fmt.Errorf("create grpc connection to otel collector: %w", err)
 	}
+
+	ctx := context.Background()
 
 	// resource
 	res, err := resource.New(
@@ -104,31 +108,34 @@ func setup(ctx context.Context, target string) (func(context.Context) error, err
 	return shutdown, nil
 }
 
-func serve(ctx context.Context) error {
+func serve(ctx context.Context) (err error) {
 	port, err := strconv.Atoi(os.Getenv("PORT"))
 	if err != nil {
 		return fmt.Errorf("parse port: %w", err)
 	}
 
-	db, err := sql.Open("sqlite3", os.Getenv("DATABASE_URL"))
+	db, err := otelsql.Open("sqlite3", os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
+	defer func() {
+		err = errors.Join(err, db.Close())
+	}()
 
 	s, err := server.NewServer(port, db)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}
 
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	shutdown, err := setup(ctx, os.Getenv("COLLECTOR_URL"))
+	shutdown, err := setup(os.Getenv("COLLECTOR_URL"))
 	if err != nil {
 		return err
 	}
 	defer func() {
-		err = errors.Join(err, shutdown(ctx))
+		err = errors.Join(err, shutdown())
 	}()
 
 	errs := make(chan error, 1)
