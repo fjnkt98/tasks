@@ -10,6 +10,8 @@ jobs:
       contents: read
     env:
       DATABASE_URL: "file:app.db"
+      COLLECTOR_URL: "localhost:4317"
+      GCP_PROJECT: "tasks"
     steps:
       - name: checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
