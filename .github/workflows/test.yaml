@@ -26,4 +26,4 @@ jobs:
       - name: lint
         run: mise tasks run 'lint:*'
       - name: test
-        run: mise tasks test
+        run: mise tasks run test
