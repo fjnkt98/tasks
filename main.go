@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"strconv"
 
-	"github.com/fjnkt98/todo-go/server"
+	"github.com/fjnkt98/tasks/server"
 	_ "github.com/mattn/go-sqlite3"
 
 	"go.opentelemetry.io/otel"
@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var serviceName = semconv.ServiceNameKey.String("todo-go")
+var serviceName = semconv.ServiceNameKey.String("tasks")
 
 type traceHandler struct {
 	slog.Handler

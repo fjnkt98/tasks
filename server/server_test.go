@@ -3,7 +3,7 @@ package server_test
 import (
 	"testing"
 
-	"github.com/fjnkt98/todo-go/server"
+	"github.com/fjnkt98/tasks/server"
 )
 
 func TestNewServer(t *testing.T) {

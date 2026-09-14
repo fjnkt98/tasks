@@ -1,4 +1,4 @@
-module github.com/fjnkt98/todo-go
+module github.com/fjnkt98/tasks
 
 go 1.26.5
 
