@@ -1,7 +1,7 @@
 version: "2"
 sql:
   - engine: "sqlite"
-    queries: "repository/query.sql"
+    queries: "repository/queries"
     schema: "repository/schema.sql"
     database:
       uri: ${DATABASE_URL}
