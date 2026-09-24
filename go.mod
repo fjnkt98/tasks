@@ -3,6 +3,7 @@ module github.com/fjnkt98/tasks
 go 1.26.5
 
 require (
+	github.com/XSAM/otelsql v0.44.0
 	github.com/amacneil/dbmate/v2 v2.35.1
 	github.com/mattn/go-sqlite3 v1.14.49
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	github.com/XSAM/otelsql v0.44.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
