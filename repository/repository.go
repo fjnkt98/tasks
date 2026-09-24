@@ -46,6 +46,10 @@ func applyMigrations(db *dbmate.DB) (sqlDB *sql.DB, err error) {
 		}
 	}()
 
+	if _, err := sqlDB.Exec("PRAGMA foreign_keys = true"); err != nil {
+		return nil, fmt.Errorf("activate foreign keys constraint: %w", err)
+	}
+
 	if err := drv.CreateMigrationsTable(sqlDB); err != nil {
 		return nil, fmt.Errorf("create migration table: %w", err)
 	}

@@ -122,6 +122,10 @@ func serve(ctx context.Context) (err error) {
 		err = errors.Join(err, db.Close())
 	}()
 
+	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = true"); err != nil {
+		return fmt.Errorf("activate foreign keys constraint: %w", err)
+	}
+
 	s, err := server.NewServer(port, db)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
