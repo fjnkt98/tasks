@@ -1,20 +1,11 @@
 {{ template "base" . }} {{ define "content" }}
-<div class="navbar bg-base-100 shadow-sm">
-  <div class="flex-1">
-    <a href="/" class="btn btn-ghost text-xl">Tasks</a>
-  </div>
-  <div class="flex gap-2">
-    <input type="text" placeholder="Search" class="input w-24 md:w-auto" />
-  </div>
-</div>
-
 <div class="container mx-auto py-4 px-8">
   <ul id="tasks" class="list bg-base-100 rounded-box shadow-md">
     {{ range $task := .Tasks }}
     <li id="task-{{ $task.ID }}" class="list-row items-center">
-      <div id="task-{{ $task.ID }}-title" class="text-lg">
+      <a id="task-{{ $task.ID }}-title" class="text-lg link link-hover" href="/tasks/{{ $task.ID }}/edit">
         {{ $task.Title }}
-      </div>
+      </a>
       <div
         id="task-{{ $task.ID }}-description"
         class="list-col-grow text-xs text-wrap opacity-60"

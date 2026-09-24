@@ -1,0 +1,34 @@
+{{ template "base" . }} {{ define "content" }}
+
+<div class="container mx-auto py-4 px-8">
+  <form action="/tasks/{{ .ID }}/edit" method="post" class="card w-2/3">
+    <div class="card-body">
+      <fieldset class="fieldset">
+        <label class="label" for="title">Title</label>
+        <input
+          type="text"
+          name="title"
+          id="title"
+          class="input"
+          value="{{ .Title }}"
+        />
+
+        <label class="label" for="description">Description</label>
+        <input
+          type="text"
+          name="description"
+          id="description"
+          class="input"
+          value="{{ .Description }}"
+        />
+
+        <label class="label" for="status">Status</label>
+        <input type="checkbox" name="status" id="status" class="checkbox" {{ if eq .Status "done" }}checked{{ end }}>
+      </fieldset>
+      <div class="card-actions justify-end">
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+  </form>
+</div>
+{{ end }}

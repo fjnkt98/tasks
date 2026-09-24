@@ -17,9 +17,15 @@
       integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V"
       crossorigin="anonymous"
     ></script>
-    <title>{{ .Title }}</title>
+    <title>Tasks</title>
   </head>
   <body>
+    <div class="navbar bg-base-100 shadow-sm">
+      <div class="flex-1">
+        <a href="/" class="btn btn-ghost text-xl">Tasks</a>
+      </div>
+    </div>
+
     {{template "content" . }}
   </body>
 </html>
