@@ -4,14 +4,12 @@
 
 package repository
 
-type Role struct {
-	ID        int64  `db:"id"`
-	Name      string `db:"name"`
-	CreatedAt int64  `db:"created_at"`
-}
-
 type SchemaMigration struct {
 	Version string `db:"version"`
+}
+
+type Status struct {
+	Name string `db:"name"`
 }
 
 type Task struct {
@@ -29,10 +27,4 @@ type User struct {
 	Password  string `db:"password"`
 	CreatedAt int64  `db:"created_at"`
 	UpdatedAt int64  `db:"updated_at"`
-}
-
-type UserRoleRelation struct {
-	UserID    int64 `db:"user_id"`
-	RoleID    int64 `db:"role_id"`
-	CreatedAt int64 `db:"created_at"`
 }
