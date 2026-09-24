@@ -15,17 +15,21 @@ import (
 //go:embed migrations/*.sql
 var fs embed.FS
 
-func CreateTestDB() (sqlDB *sql.DB, err error) {
+func createTestDB() (db *dbmate.DB, err error) {
 	u, err := url.Parse("sqlite3::memory:")
 	if err != nil {
 		return nil, fmt.Errorf("parse url: %w", err)
 	}
 
-	db := dbmate.New(u)
+	db = dbmate.New(u)
 	db.AutoDumpSchema = false
 	db.FS = fs
 	db.MigrationsDir = []string{"migrations"}
 
+	return db, nil
+}
+
+func applyMigrations(db *dbmate.DB) (sqlDB *sql.DB, err error) {
 	drv, err := db.Driver()
 	if err != nil {
 		return nil, fmt.Errorf("get driver: %w", err)
@@ -36,9 +40,15 @@ func CreateTestDB() (sqlDB *sql.DB, err error) {
 	}
 	defer func() {
 		if err != nil {
-			err = errors.Join(err, sqlDB.Close())
+			if closeErr := sqlDB.Close(); closeErr != nil {
+				err = errors.Join(err, closeErr)
+			}
 		}
 	}()
+
+	if err := drv.CreateMigrationsTable(sqlDB); err != nil {
+		return nil, fmt.Errorf("create migration table: %w", err)
+	}
 
 	migrations, err := db.FindMigrations()
 	if err != nil {
@@ -56,6 +66,20 @@ func CreateTestDB() (sqlDB *sql.DB, err error) {
 				return nil, fmt.Errorf("exec migration: %w", err)
 			}
 		}
+	}
+
+	return sqlDB, nil
+}
+
+func CreateTestDB() (*sql.DB, error) {
+	db, err := createTestDB()
+	if err != nil {
+		return nil, fmt.Errorf("create test db: %w", err)
+	}
+
+	sqlDB, err := applyMigrations(db)
+	if err != nil {
+		return nil, fmt.Errorf("apply migrations: %w", err)
 	}
 
 	return sqlDB, nil

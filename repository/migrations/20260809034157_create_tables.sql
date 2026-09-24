@@ -42,10 +42,9 @@ BEGIN
 END;
 
 -- migrate:down
-DROP TRIGGER trigger_users_updated_at;
-DROP TABLE users;
-DROP TABLE roles;
-DROP TABLE user_role_relations;
 DROP TRIGGER trigger_tasks_updated_at;
 DROP TABLE tasks;
-
+DROP TABLE user_role_relations;
+DROP TABLE roles;
+DROP TRIGGER trigger_users_updated_at;
+DROP TABLE users;
