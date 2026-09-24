@@ -30,15 +30,7 @@ func (h *TasksHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	type Data struct {
 		Title string
-		Statuses []string
 		Tasks []repository.Task
-	}
-
-	statuses, err := h.q.ListStatuses(r.Context())
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		slog.ErrorContext(r.Context(), "get statuses", slog.Any("error", err))
-		return
 	}
 
 	tasks, err := h.q.ListTasks(r.Context(), repository.ListTasksParams{
@@ -54,7 +46,6 @@ func (h *TasksHandler) Index(w http.ResponseWriter, r *http.Request) {
 	data := Data{
 		Title: "Tasks",
 		Tasks: tasks,
-		Statuses: statuses,
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -79,6 +70,22 @@ func (h *TasksHandler) UpdateTaskStatus(w http.ResponseWriter, r *http.Request) 
 	}); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		slog.ErrorContext(r.Context(), "update task status", slog.Any("error", err))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *TasksHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid input", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.q.DeleteTask(r.Context(), id); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
 		return
 	}
 

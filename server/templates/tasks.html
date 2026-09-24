@@ -21,19 +21,24 @@
       >
         {{ $task.Description }}
       </div>
-      <select
+      <input
         id="task-{{ $task.ID }}-status"
-        name="status"
-        class="select select-ghost"
+        type="checkbox"
+        class="checkbox"
         hx-put="/api/tasks/{{ $task.ID }}/status"
         hx-swap="none"
-      >
-        {{ range $status := $.Statuses}}
-        <option {{ if eq $status $task.Status }}selected{{ end }}>
-          {{ $status }}
-        </option>
-        {{ end }}
-      </select>
+        hx-vals="js:{status: this.checked ? 'done' : 'created'}"
+        {{ if eq $task.Status "done" }}checked{{ end }}
+      />
+      <button
+          id="task-{{ $task.ID }}-delete"
+          type="button"
+          class="btn btn-outline btn-square btn-error btn-xs"
+          hx-delete="/api/tasks/{{ $task.ID }}"
+          hx-target="#task-{{ $task.ID }}"
+          hx-confirm="Sure?"
+          hx-swap="outerHTML"
+      >X</button>
     </li>
     {{ end }}
   </ul>

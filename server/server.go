@@ -25,6 +25,7 @@ func NewServer(port int, db *sql.DB) (*http.Server, error) {
 	mux.Handle("GET /", &IndexHandler{})
 	mux.HandleFunc("GET /tasks/", tasksHandler.Index)
 	mux.HandleFunc("PUT /api/tasks/{id}/status", tasksHandler.UpdateTaskStatus)
+	mux.HandleFunc("DELETE /api/tasks/{id}", tasksHandler.DeleteTask)
 	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
 
 	handler := RecoveryMiddleware(mux)
