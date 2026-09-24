@@ -8,13 +8,32 @@
   </div>
 </div>
 
-<div class="container mx-auto py-4">
-  <ul class="list bg-base-100 rounded-box shadow-md">
-    <li class="p-4 pb-2 text-xs opacity-60 tracking-wide">Tasks</li>
-    {{ range .Tasks }}
-    <li class="list-row">
-      <div class="list-col-grow">{{ .Name }}</div>
-      <div>{{ .Status }}</div>
+<div class="container mx-auto py-4 px-8">
+  <ul id="tasks" class="list bg-base-100 rounded-box shadow-md">
+    {{ range $task := .Tasks }}
+    <li id="task-{{ $task.ID }}" class="list-row items-center">
+      <div id="task-{{ $task.ID }}-title" class="text-lg">
+        {{ $task.Title }}
+      </div>
+      <div
+        id="task-{{ $task.ID }}-description"
+        class="list-col-grow text-xs text-wrap opacity-60"
+      >
+        {{ $task.Description }}
+      </div>
+      <select
+        id="task-{{ $task.ID }}-status"
+        name="status"
+        class="select select-ghost"
+        hx-put="/api/tasks/{{ $task.ID }}/status"
+        hx-swap="none"
+      >
+        {{ range $status := $.Statuses}}
+        <option {{ if eq $status $task.Status }}selected{{ end }}>
+          {{ $status }}
+        </option>
+        {{ end }}
+      </select>
     </li>
     {{ end }}
   </ul>
