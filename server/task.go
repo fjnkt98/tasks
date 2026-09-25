@@ -3,10 +3,10 @@ package server
 import (
 	"database/sql"
 	"errors"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"strconv"
-	"text/template"
 
 	"github.com/fjnkt98/tasks/repository"
 )

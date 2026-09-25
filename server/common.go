@@ -1,9 +1,9 @@
 package server
 
 import (
+	"html/template"
 	"log/slog"
 	"net/http"
-	"text/template"
 )
 
 func Handle400(w http.ResponseWriter, r *http.Request) {
