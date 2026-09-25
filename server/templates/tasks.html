@@ -7,7 +7,22 @@
     </ul>
   </div>
 
-  <a class="btn btn-primary" href="/tasks/new">New</a>
+  <div class="flex justify-between">
+    <a class="btn btn-primary" href="/tasks/new">New</a>
+    <form
+      class="filter"
+      hx-get="/api/tasks"
+      hx-target="#tasks"
+      hx-trigger="input changed"
+    >
+      <input type="hidden" name="page" value="1" />
+      <select name="status" class="select">
+        <option selected>all</option>
+        <option>created</option>
+        <option>done</option>
+      </select>
+    </form>
+  </div>
 
   <ul id="tasks" class="list bg-base-100 rounded-box shadow-md">
     {{ template "tasks" .}}

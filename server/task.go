@@ -45,12 +45,14 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		Tasks []repository.Task
 		LastIndex int
 		NextPage int
+		Status string
 	}
 
 	data := Data{
 		Tasks: tasks,
 		LastIndex: len(tasks) - 1,
 		NextPage: 2,
+		Status: "",
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -65,17 +67,28 @@ func (h *TasksHandler) GetTaskParts(w http.ResponseWriter, r *http.Request) {
 	values := r.URL.Query()
 	page, err := strconv.ParseInt(values.Get("page"), 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		page = 1
 	}
 	if page <= 0 {
 		page = 1
 	}
 
-	tasks, err := h.q.ListTasks(r.Context(), repository.ListTasksParams{
-		Offset: LIMIT * (page - 1),
-		Limit: LIMIT,
-	})
+	status := values.Get("status")
+
+	var tasks []repository.Task
+	if status == "" || status == "all" {
+		tasks, err = h.q.ListTasks(r.Context(), repository.ListTasksParams{
+			Offset: LIMIT * (page - 1),
+			Limit: LIMIT,
+		})
+	} else {
+		tasks, err = h.q.ListTasksByStatus(r.Context(), repository.ListTasksByStatusParams{
+			Status: status,
+			Offset: LIMIT * (page - 1),
+			Limit: LIMIT,
+		})
+	}
+
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		slog.ErrorContext(r.Context(), "get tasks", slog.Any("error", err))
@@ -89,12 +102,14 @@ func (h *TasksHandler) GetTaskParts(w http.ResponseWriter, r *http.Request) {
 		Tasks []repository.Task
 		LastIndex int
 		NextPage int
+		Status string
 	}
 
 	data := Data{
 		Tasks: tasks,
 		LastIndex: len(tasks) - 1,
 		NextPage: int(page) + 1,
+		Status: status,
 	}
 
 	t, err := template.ParseFS(templates, "templates/task_parts.html", "templates/partials/tasks.html")

@@ -4,7 +4,7 @@
   id="task-{{ $task.ID }}"
   class="list-row items-center"
   {{ if eq $index $.LastIndex}}
-  hx-get="/api/tasks?page={{ $.NextPage }}"
+  hx-get="/api/tasks?page={{ $.NextPage }}&status={{ $.Status }}"
   hx-trigger="revealed delay:200ms"
   hx-swap="afterend"
   {{ end }}
