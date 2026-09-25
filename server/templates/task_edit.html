@@ -1,6 +1,12 @@
 {{ template "base" . }} {{ define "content" }}
-
 <div class="container mx-auto py-4 px-8">
+  <div class="breadcrumbs text-sm">
+    <ul>
+      <li><a class="link" href="/">Top</a></li>
+      <li><a class="link" href="/tasks">Tasks</a></li>
+    </ul>
+  </div>
+
   <form action="/tasks/{{ .ID }}/edit" method="post" class="card w-2/3">
     <div class="card-body">
       <fieldset class="fieldset">

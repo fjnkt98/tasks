@@ -1,5 +1,11 @@
 {{ template "base" . }} {{ define "content" }}
 <div class="container mx-auto py-4 px-8">
+  <div class="breadcrumbs text-sm">
+    <ul>
+      <li><a class="link" href="/">Top</a></li>
+    </ul>
+  </div>
+
   <ul id="tasks" class="list bg-base-100 rounded-box shadow-md">
     {{ range $task := .Tasks }}
     <li id="task-{{ $task.ID }}" class="list-row items-center">
