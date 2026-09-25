@@ -24,7 +24,7 @@ func NewTasksHandler(db *sql.DB) *TasksHandler {
 func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 	t, err := template.ParseFS(templates, "templates/tasks.html", "templates/base.html")
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
 		return
 	}
@@ -38,7 +38,7 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		Limit: 100,
 	})
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "get tasks", slog.Any("error", err))
 		return
 	}
@@ -49,7 +49,7 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	if err := t.Execute(w, &data); err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -58,36 +58,25 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 func (h *TasksHandler) GetTaskEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
+		Handle400(w, r)
 		return
 	}
 
 	task, err := h.q.GetTaskByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			t, err := template.ParseFS(templates, "templates/not_found.html", "templates/base.html")
-			if err != nil {
-				http.Error(w, "server error", http.StatusInternalServerError)
-				slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-				return
-			}
-
-			w.WriteHeader(http.StatusNotFound)
-			if err := t.Execute(w, nil); err != nil {
-				http.Error(w, "server error", http.StatusInternalServerError)
-				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
-			}
+			Handle404(w, r)
 			return
 		}
 
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "get task by id", slog.Any("error", err))
 		return
 	}
 
 	t, err := template.ParseFS(templates, "templates/task_edit.html", "templates/base.html")
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
 		return
 	}
@@ -108,7 +97,7 @@ func (h *TasksHandler) GetTaskEdit(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	if err := t.Execute(w, &data); err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
 		return
 	}
@@ -117,7 +106,7 @@ func (h *TasksHandler) GetTaskEdit(w http.ResponseWriter, r *http.Request) {
 func (h *TasksHandler) PostTaskEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
+		Handle400(w, r)
 		return
 	}
 
@@ -134,7 +123,7 @@ func (h *TasksHandler) PostTaskEdit(w http.ResponseWriter, r *http.Request) {
 		Status: status,
 		ID: id,
 	}); err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "update task", slog.Any("error", err))
 		return
 	}
@@ -145,7 +134,7 @@ func (h *TasksHandler) PostTaskEdit(w http.ResponseWriter, r *http.Request) {
 func (h *TasksHandler) PutTaskStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
+		Handle400(w, r)
 		return
 	}
 	status := r.FormValue("status")
@@ -154,7 +143,7 @@ func (h *TasksHandler) PutTaskStatus(w http.ResponseWriter, r *http.Request) {
 		Status: status,
 		ID: id,
 	}); err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "update task status", slog.Any("error", err))
 		return
 	}
@@ -165,12 +154,12 @@ func (h *TasksHandler) PutTaskStatus(w http.ResponseWriter, r *http.Request) {
 func (h *TasksHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
+		Handle400(w, r)
 		return
 	}
 
 	if err := h.q.DeleteTask(r.Context(), id); err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
 		return
 	}
