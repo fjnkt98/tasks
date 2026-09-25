@@ -6,7 +6,7 @@ import (
 )
 
 func TestCreateTestDB(t *testing.T) {
-	db, err := CreateTestDB()
+	db, err := NewTestDB()
 	if err != nil {
 		t.Fatalf("failed create test database: %s", err)
 	}
@@ -14,7 +14,7 @@ func TestCreateTestDB(t *testing.T) {
 }
 
 func TestMigrations(t *testing.T) {
-	db, err := createTestDB()
+	db, err := newTestDB()
 	if err != nil {
 		t.Fatalf("failed to create test database: %s", err)
 	}

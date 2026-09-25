@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/XSAM/otelsql"
+	"github.com/fjnkt98/tasks/repository"
 	"github.com/fjnkt98/tasks/server"
 	_ "github.com/mattn/go-sqlite3"
 
@@ -114,17 +114,13 @@ func serve(ctx context.Context) (err error) {
 		return fmt.Errorf("parse port: %w", err)
 	}
 
-	db, err := otelsql.Open("sqlite3", os.Getenv("DATABASE_URL"))
+	db, err := repository.NewDB(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
 	defer func() {
 		err = errors.Join(err, db.Close())
 	}()
-
-	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = true"); err != nil {
-		return fmt.Errorf("activate foreign keys constraint: %w", err)
-	}
 
 	s, err := server.NewServer(port, db)
 	if err != nil {
