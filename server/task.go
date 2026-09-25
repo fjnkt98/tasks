@@ -55,6 +55,38 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *TasksHandler) GetNewTask(w http.ResponseWriter, r *http.Request) {
+	t, err := template.ParseFS(templates, "templates/task_new.html", "templates/base.html")
+	if err != nil {
+		Handle500(w, r)
+		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := t.Execute(w, nil); err != nil {
+		Handle500(w, r)
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
+}
+
+func (h *TasksHandler) PostNewTask(w http.ResponseWriter, r *http.Request) {
+	title := r.FormValue("title")
+	description := r.FormValue("description")
+
+	if _, err := h.q.CreateTask(r.Context(), repository.CreateTaskParams{
+		Title: title,
+		Description: description,
+	}); err != nil {
+		Handle500(w, r)
+		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
+		return
+	}
+
+	http.Redirect(w, r, "/tasks", http.StatusSeeOther)
+}
+
 func (h *TasksHandler) GetTaskEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {

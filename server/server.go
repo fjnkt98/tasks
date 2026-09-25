@@ -24,6 +24,8 @@ func NewServer(port int, db *sql.DB) (*http.Server, error) {
 
 	mux.Handle("GET /", &IndexHandler{})
 	mux.HandleFunc("GET /tasks/", tasksHandler.GetTasks)
+	mux.HandleFunc("POST /tasks/", tasksHandler.PostNewTask)
+	mux.HandleFunc("GET /tasks/new", tasksHandler.GetNewTask)
 	mux.HandleFunc("GET /tasks/{id}/edit", tasksHandler.GetTaskEdit)
 	mux.HandleFunc("POST /tasks/{id}/edit", tasksHandler.PostTaskEdit)
 	mux.HandleFunc("PUT /api/tasks/{id}/status", tasksHandler.PutTaskStatus)

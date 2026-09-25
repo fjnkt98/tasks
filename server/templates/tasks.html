@@ -3,8 +3,11 @@
   <div class="breadcrumbs text-sm">
     <ul>
       <li><a class="link" href="/">Top</a></li>
+      <li>Tasks</li>
     </ul>
   </div>
+
+  <a class="btn btn-primary" href="/tasks/new">New</a>
 
   <ul id="tasks" class="list bg-base-100 rounded-box shadow-md">
     {{ range $task := .Tasks }}

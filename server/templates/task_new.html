@@ -4,11 +4,11 @@
     <ul>
       <li><a class="link" href="/">Top</a></li>
       <li><a class="link" href="/tasks">Tasks</a></li>
-      <li>{{ .Title }}</li>
+      <li>New Task</li>
     </ul>
   </div>
 
-  <form action="/tasks/{{ .ID }}/edit" method="post" class="card w-2/3">
+  <form action="/tasks" method="post" class="card w-2/3">
     <div class="card-body">
       <fieldset class="fieldset">
         <label class="label" for="title">Title</label>
@@ -16,21 +16,13 @@
           type="text"
           name="title"
           id="title"
-          class="input"
-          value="{{ .Title }}"
+          class="input validator"
+          required
         />
+        <div class="validator-hint">Title required.</div>
 
         <label class="label" for="description">Description</label>
-        <input
-          type="text"
-          name="description"
-          id="description"
-          class="input"
-          value="{{ .Description }}"
-        />
-
-        <label class="label" for="status">Status</label>
-        <input type="checkbox" name="status" id="status" class="checkbox" {{ if eq .Status "done" }}checked{{ end }}>
+        <input type="text" name="description" id="description" class="input" />
       </fieldset>
       <div class="card-actions justify-end">
         <button type="submit" class="btn btn-primary">Submit</button>
