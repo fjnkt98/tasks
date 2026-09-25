@@ -1,0 +1,41 @@
+{{ define "tasks" }}
+{{ range $index, $task := .Tasks }}
+<li
+  id="task-{{ $task.ID }}"
+  class="list-row items-center"
+  {{ if eq $index $.LastIndex}}
+  hx-get="/api/tasks?page={{ $.NextPage }}"
+  hx-trigger="revealed delay:200ms"
+  hx-swap="afterend"
+  {{ end }}
+>
+  <a id="task-{{ $task.ID }}-title" class="text-lg link link-hover" href="/tasks/{{ $task.ID }}/edit">
+    {{ $task.Title }}
+  </a>
+  <div
+    id="task-{{ $task.ID }}-description"
+    class="list-col-grow text-xs text-wrap opacity-60"
+  >
+    {{ $task.Description }}
+  </div>
+  <input
+    id="task-{{ $task.ID }}-status"
+    type="checkbox"
+    class="checkbox"
+    hx-put="/api/tasks/{{ $task.ID }}/status"
+    hx-swap="none"
+    hx-vals="js:{status: this.checked ? 'done' : 'created'}"
+    {{ if eq $task.Status "done" }}checked{{ end }}
+  />
+  <button
+      id="task-{{ $task.ID }}-delete"
+      type="button"
+      class="btn btn-outline btn-square btn-error btn-xs"
+      hx-delete="/api/tasks/{{ $task.ID }}"
+      hx-target="#task-{{ $task.ID }}"
+      hx-confirm="Sure?"
+      hx-swap="outerHTML"
+  >X</button>
+</li>
+{{ end }}
+{{ end }}

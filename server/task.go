@@ -21,21 +21,19 @@ func NewTasksHandler(db *sql.DB) *TasksHandler {
 	}
 }
 
+const LIMIT = 10
+
 func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFS(templates, "templates/layout.html", "templates/tasks.html")
+	t, err := template.ParseFS(templates, "templates/layout.html", "templates/tasks.html", "templates/partials/tasks.html")
 	if err != nil {
 		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
 		return
 	}
 
-	type Data struct {
-		Tasks []repository.Task
-	}
-
 	tasks, err := h.q.ListTasks(r.Context(), repository.ListTasksParams{
 		Offset: 0,
-		Limit: 100,
+		Limit: LIMIT,
 	})
 	if err != nil {
 		Handle500(w, r)
@@ -43,13 +41,72 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	type Data struct {
+		Tasks []repository.Task
+		LastIndex int
+		NextPage int
+	}
+
 	data := Data{
 		Tasks: tasks,
+		LastIndex: len(tasks) - 1,
+		NextPage: 2,
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if err := t.Execute(w, &data); err != nil {
 		Handle500(w, r)
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
+}
+
+func (h *TasksHandler) GetTaskParts(w http.ResponseWriter, r *http.Request) {
+	values := r.URL.Query()
+	page, err := strconv.ParseInt(values.Get("page"), 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if page <= 0 {
+		page = 1
+	}
+
+	tasks, err := h.q.ListTasks(r.Context(), repository.ListTasksParams{
+		Offset: LIMIT * (page - 1),
+		Limit: LIMIT,
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "get tasks", slog.Any("error", err))
+		return
+	}
+	if len(tasks) == 0 {
+		return
+	}
+
+	type Data struct {
+		Tasks []repository.Task
+		LastIndex int
+		NextPage int
+	}
+
+	data := Data{
+		Tasks: tasks,
+		LastIndex: len(tasks) - 1,
+		NextPage: int(page) + 1,
+	}
+
+	t, err := template.ParseFS(templates, "templates/task_parts.html", "templates/partials/tasks.html")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := t.Execute(w, &data); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
