@@ -22,7 +22,7 @@ func NewTasksHandler(db *sql.DB) *TasksHandler {
 }
 
 func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFS(templates, "templates/tasks.html", "templates/base.html")
+	t, err := template.ParseFS(templates, "templates/layout.html", "templates/tasks.html")
 	if err != nil {
 		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
@@ -56,7 +56,7 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TasksHandler) GetNewTask(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFS(templates, "templates/task_new.html", "templates/base.html")
+	t, err := template.ParseFS(templates, "templates/layout.html", "templates/task_new.html")
 	if err != nil {
 		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
@@ -106,7 +106,7 @@ func (h *TasksHandler) GetTaskEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t, err := template.ParseFS(templates, "templates/task_edit.html", "templates/base.html")
+	t, err := template.ParseFS(templates, "templates/layout.html", "templates/task_edit.html")
 	if err != nil {
 		Handle500(w, r)
 		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
