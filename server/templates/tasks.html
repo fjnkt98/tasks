@@ -7,20 +7,25 @@
     </ul>
   </div>
 
-  <div class="flex justify-between">
-    <a class="btn btn-primary" href="/tasks/new">New</a>
+  <div class="flex flex-row justify-end">
     <form
-      class="filter"
-      hx-get="/api/tasks"
+      hx-get="/tasks"
       hx-target="#tasks"
       hx-trigger="input changed"
+      hx-push-url="true"
     >
-      <input type="hidden" name="page" value="1" />
-      <select name="status" class="select">
-        <option selected>all</option>
-        <option>created</option>
-        <option>done</option>
-      </select>
+      <div class="join">
+        <select name="limit" class="select appearance-none join-item">
+          <option value="10">10</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <select name="status" class="select appearance-none join-item">
+          <option value="all">all</option>
+          <option value="created">created</option>
+          <option value="done">done</option>
+        </select>
+      </div>
     </form>
   </div>
 
