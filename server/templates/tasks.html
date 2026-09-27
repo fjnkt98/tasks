@@ -7,7 +7,7 @@
     </ul>
   </div>
 
-  <div class="flex flex-row justify-end">
+  <div class="flex flex-row justify-between">
     <form
       hx-get="/tasks"
       hx-target="#tasks"
@@ -26,6 +26,24 @@
           <option value="done">done</option>
         </select>
       </div>
+    </form>
+
+    <form
+      class="join items-center"
+      hx-post="/tasks"
+      hx-target="#tasks"
+      hx-swap="afterbegin"
+      hx-on::after-request="if(event.detail.successful) this.reset()"
+    >
+      <input
+        type="text"
+        name="title"
+        class="input validator join-item"
+        placeholder="Title..."
+        required
+      />
+      <input type="hidden" name="status" value="created" />
+      <button type="submit" class="btn btn-primary join-item">Add</button>
     </form>
   </div>
 

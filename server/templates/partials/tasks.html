@@ -9,29 +9,37 @@
   hx-swap="afterend"
   {{ end }}
 >
-  <a id="task-{{ $task.ID }}-title" class="text-lg link link-hover" href="/tasks/{{ $task.ID }}/edit">
+  <div id="task-{{ $task.ID }}-title" class="text-lg list-col-grow">
     {{ $task.Title }}
-  </a>
-  <div
-    id="task-{{ $task.ID }}-description"
-    class="list-col-grow text-xs text-wrap opacity-60"
-  >
-    {{ $task.Description }}
   </div>
+
+  <button
+    class="btn btn-square btn-ghost btn-xs"
+    hx-get="/tasks/{{ $task.ID }}/edit"
+    hx-target="#task-{{ $task.ID }}"
+    hx-swap="outerHTML"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="gray" class="size-6">
+      <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.848 2.047a.75.75 0 0 0 .98.98l2.047-.848a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.474Z" />
+      <path d="M4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z" />
+    </svg>
+  </button>
+
   <input
     id="task-{{ $task.ID }}-status"
     type="checkbox"
     class="checkbox"
-    hx-put="/api/tasks/{{ $task.ID }}/status"
+    hx-put="/tasks/{{ $task.ID }}"
     hx-swap="none"
     hx-vals="js:{status: this.checked ? 'done' : 'created'}"
     {{ if eq $task.Status "done" }}checked{{ end }}
   />
+
   <button
       id="task-{{ $task.ID }}-delete"
       type="button"
       class="btn btn-outline btn-square btn-error btn-xs"
-      hx-delete="/api/tasks/{{ $task.ID }}"
+      hx-delete="/tasks/{{ $task.ID }}"
       hx-target="#task-{{ $task.ID }}"
       hx-confirm="Sure?"
       hx-swap="outerHTML"

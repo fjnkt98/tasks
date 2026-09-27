@@ -21,7 +21,15 @@ func NewTasksHandler(db *sql.DB) *TasksHandler {
 	}
 }
 
-func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
+type TaskData struct {
+		Tasks []repository.Task
+		LastIndex int
+		NextPage int64
+		Limit int64
+		Status string
+}
+
+func (h *TasksHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	values := r.URL.Query()
 
 	var err error
@@ -78,15 +86,7 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type Data struct {
-		Tasks []repository.Task
-		LastIndex int
-		NextPage int64
-		Limit int64
-		Status string
-	}
-
-	data := Data{
+	data := TaskData{
 		Tasks: tasks,
 		LastIndex: len(tasks) - 1,
 		NextPage: page + 1,
@@ -126,143 +126,176 @@ func (h *TasksHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *TasksHandler) GetNewTask(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFS(templates, "templates/layout.html", "templates/task_new.html")
-	if err != nil {
-		Handle500(w, r)
-		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if err := t.Execute(w, nil); err != nil {
-		Handle500(w, r)
-		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
-		return
-	}
-}
-
-func (h *TasksHandler) PostNewTask(w http.ResponseWriter, r *http.Request) {
-	title := r.FormValue("title")
-	description := r.FormValue("description")
-
-	if _, err := h.q.CreateTask(r.Context(), repository.CreateTaskParams{
-		Title: title,
-		Description: description,
-	}); err != nil {
-		Handle500(w, r)
-		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
-		return
-	}
-
-	http.Redirect(w, r, "/tasks", http.StatusSeeOther)
-}
-
-func (h *TasksHandler) GetTaskEdit(w http.ResponseWriter, r *http.Request) {
+func (h *TasksHandler) GetTask(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		Handle400(w, r)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
 	task, err := h.q.GetTaskByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			Handle404(w, r)
+			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
 
-		Handle500(w, r)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		slog.ErrorContext(r.Context(), "get task by id", slog.Any("error", err))
 		return
 	}
 
-	t, err := template.ParseFS(templates, "templates/layout.html", "templates/task_edit.html")
+	data := TaskData{
+		Tasks: []repository.Task{task},
+		LastIndex: -1,
+	}
+
+	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
 	if err != nil {
-		Handle500(w, r)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
 		return
 	}
 
-	type Data struct {
-		ID int64
-		Title string
-		Description string
-		Status string
-	}
-
-	data := Data{
-		ID: task.ID,
-		Title: task.Title,
-		Description: task.Description,
-		Status: task.Status,
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if err := t.Execute(w, &data); err != nil {
-		Handle500(w, r)
-		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
+	w.WriteHeader(http.StatusCreated)
+	if err := t.ExecuteTemplate(w, "tasks", &data); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
 
-func (h *TasksHandler) PostTaskEdit(w http.ResponseWriter, r *http.Request) {
+func (h *TasksHandler) GetTaskEdit(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		Handle400(w, r)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
-	title := r.FormValue("title")
-	description := r.FormValue("description")
-	status := "created"
-	if r.FormValue("status") == "on" {
-		status = "done"
+	task, err := h.q.GetTaskByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "get task by id", slog.Any("error", err))
+		return
 	}
 
-	if err := h.q.UpdateTask(r.Context(), repository.UpdateTaskParams{
-		Title: title,
-		Description: description,
-		Status: status,
-		ID: id,
-	}); err != nil {
-		Handle500(w, r)
+	t, err := template.ParseFS(templates, "templates/partials/task_edit.html")
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	if err := t.ExecuteTemplate(w, "task_edit", &task); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
+}
+
+func (h *TasksHandler) PostTask(w http.ResponseWriter, r *http.Request) {
+	title := r.FormValue("title")
+
+	task, err := h.q.CreateTask(r.Context(), title)
+	if  err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
+		return
+	}
+
+	data := TaskData{
+		Tasks: []repository.Task{task},
+		LastIndex: -1,
+	}
+
+	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	if err := t.ExecuteTemplate(w, "tasks", &data); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
+}
+
+func (h *TasksHandler) PutTask(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	task, err := h.q.GetTaskByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "get task by id", slog.Any("error", err))
+		return
+	}
+
+	params := repository.UpdateTaskParams{ID: id}
+	if title := r.FormValue("title"); title != "" {
+		params.Title = title
+	} else {
+		params.Title = task.Title
+	}
+	if status := r.FormValue("status"); status != "" {
+		params.Status = status
+	} else {
+		params.Status = task.Status
+	}
+
+	task, err = h.q.UpdateTask(r.Context(), params)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
 		slog.ErrorContext(r.Context(), "update task", slog.Any("error", err))
 		return
 	}
 
-	http.Redirect(w, r, "/tasks", http.StatusSeeOther)
-}
-
-func (h *TasksHandler) PutTaskStatus(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		Handle400(w, r)
-		return
+	data := TaskData{
+		Tasks: []repository.Task{task},
+		LastIndex: -1,
 	}
-	status := r.FormValue("status")
 
-	if err := h.q.UpdateTaskStatus(r.Context(), repository.UpdateTaskStatusParams{
-		Status: status,
-		ID: id,
-	}); err != nil {
-		Handle500(w, r)
-		slog.ErrorContext(r.Context(), "update task status", slog.Any("error", err))
+	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+	if err := t.ExecuteTemplate(w, "tasks", &data); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
 }
 
 func (h *TasksHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		Handle400(w, r)
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
 	if err := h.q.DeleteTask(r.Context(), id); err != nil {
-		Handle500(w, r)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
 		return
 	}

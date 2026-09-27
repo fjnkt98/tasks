@@ -16,7 +16,6 @@ CREATE TABLE statuses (
 CREATE TABLE tasks (
   id INTEGER PRIMARY KEY,
   title TEXT NOT NULL,
-  description TEXT NOT NULL,
   status TEXT NOT NULL,
   created_at INTEGER NOT NULL DEFAULT (UNIXEPOCH()),
   updated_at INTEGER NOT NULL DEFAULT (UNIXEPOCH()),
@@ -29,5 +28,4 @@ END;
 -- Dbmate schema migrations
 INSERT INTO "schema_migrations" (version) VALUES
   ('20260809033946'),
-  ('20260809034157'),
-  ('20260924105708');
+  ('20260809034157');
