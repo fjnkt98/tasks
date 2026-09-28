@@ -10,7 +10,7 @@ func TestNewDB(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to create database: %s", err)
 	}
-	defer db.Close()  // nolint:errcheck
+	defer db.Close() // nolint:errcheck
 }
 
 func TestNewTestDB(t *testing.T) {

@@ -20,15 +20,13 @@ var statics embed.FS
 func NewServer(port int, db *sql.DB) (*http.Server, error) {
 	mux := http.NewServeMux()
 
-	tasksHandler := NewTasksHandler(db)
-
 	mux.Handle("GET /", &IndexHandler{})
-	mux.HandleFunc("GET /tasks/", tasksHandler.ListTasks)
-	mux.HandleFunc("GET /tasks/{id}", tasksHandler.GetTask)
-	mux.HandleFunc("GET /tasks/{id}/edit", tasksHandler.GetTaskEdit)
-	mux.HandleFunc("POST /tasks/", tasksHandler.PostTask)
-	mux.HandleFunc("PUT /tasks/{id}", tasksHandler.PutTask)
-	mux.HandleFunc("DELETE /tasks/{id}", tasksHandler.DeleteTask)
+	mux.Handle("GET /tasks/", NewListTaskService(db))
+	mux.Handle("GET /tasks/{id}", NewGetTaskService(db))
+	mux.Handle("GET /tasks/{id}/edit", NewGetTaskEditService(db))
+	mux.Handle("POST /tasks/", NewPostTaskService(db))
+	mux.Handle("PUT /tasks/{id}", NewPutTaskService(db))
+	mux.Handle("DELETE /tasks/{id}", NewDeleteTaskService(db))
 	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
 
 	handler := RecoveryMiddleware(mux)
