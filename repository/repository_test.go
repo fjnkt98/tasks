@@ -5,7 +5,15 @@ import (
 	"testing"
 )
 
-func TestCreateTestDB(t *testing.T) {
+func TestNewDB(t *testing.T) {
+	db, err := NewDB(":memory:")
+	if err != nil {
+		t.Errorf("failed to create database: %s", err)
+	}
+	defer db.Close()  // nolint:errcheck
+}
+
+func TestNewTestDB(t *testing.T) {
 	db, err := NewTestDB()
 	if err != nil {
 		t.Fatalf("failed create test database: %s", err)

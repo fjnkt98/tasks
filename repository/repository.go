@@ -30,6 +30,25 @@ func NewDB(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
+func NewTestDB() (*sql.DB, error) {
+	db, err := newTestDB()
+	if err != nil {
+		return nil, fmt.Errorf("create test db: %w", err)
+	}
+
+	sqlDB, err := applyMigrations(db)
+	if err != nil {
+		return nil, fmt.Errorf("apply migrations: %w", err)
+	}
+
+	if err := applyPragma(sqlDB); err != nil {
+		err = errors.Join(err, sqlDB.Close())
+		return nil, fmt.Errorf("apply pragma: %w", err)
+	}
+
+	return sqlDB, nil
+}
+
 func applyPragma(db *sql.DB) error {
 	if _, err := db.Exec("PRAGMA foreign_keys = true"); err != nil {
 		return fmt.Errorf("activate foreign keys constraint: %w", err)
@@ -92,25 +111,6 @@ func applyMigrations(db *dbmate.DB) (sqlDB *sql.DB, err error) {
 				return nil, fmt.Errorf("exec migration: %w", err)
 			}
 		}
-	}
-
-	return sqlDB, nil
-}
-
-func NewTestDB() (*sql.DB, error) {
-	db, err := newTestDB()
-	if err != nil {
-		return nil, fmt.Errorf("create test db: %w", err)
-	}
-
-	sqlDB, err := applyMigrations(db)
-	if err != nil {
-		return nil, fmt.Errorf("apply migrations: %w", err)
-	}
-
-	if err := applyPragma(sqlDB); err != nil {
-		err = errors.Join(err, sqlDB.Close())
-		return nil, fmt.Errorf("apply pragma: %w", err)
 	}
 
 	return sqlDB, nil
