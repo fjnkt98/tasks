@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/XSAM/otelsql"
 	"github.com/amacneil/dbmate/v2/pkg/dbmate"
 	_ "github.com/amacneil/dbmate/v2/pkg/driver/sqlite"
 )
@@ -15,7 +16,28 @@ import (
 //go:embed migrations/*.sql
 var fs embed.FS
 
-func createTestDB() (db *dbmate.DB, err error) {
+func NewDB(dsn string) (*sql.DB, error) {
+	db, err := otelsql.Open("sqlite3", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+
+	if err := applyPragma(db); err != nil {
+		err = errors.Join(err, db.Close())
+		return nil, fmt.Errorf("apply pragma: %w", err)
+	}
+
+	return db, nil
+}
+
+func applyPragma(db *sql.DB) error {
+	if _, err := db.Exec("PRAGMA foreign_keys = true"); err != nil {
+		return fmt.Errorf("activate foreign keys constraint: %w", err)
+	}
+	return nil
+}
+
+func newTestDB() (db *dbmate.DB, err error) {
 	u, err := url.Parse("sqlite3::memory:")
 	if err != nil {
 		return nil, fmt.Errorf("parse url: %w", err)
@@ -46,6 +68,10 @@ func applyMigrations(db *dbmate.DB) (sqlDB *sql.DB, err error) {
 		}
 	}()
 
+	if _, err := sqlDB.Exec("PRAGMA foreign_keys = true"); err != nil {
+		return nil, fmt.Errorf("activate foreign keys constraint: %w", err)
+	}
+
 	if err := drv.CreateMigrationsTable(sqlDB); err != nil {
 		return nil, fmt.Errorf("create migration table: %w", err)
 	}
@@ -71,8 +97,8 @@ func applyMigrations(db *dbmate.DB) (sqlDB *sql.DB, err error) {
 	return sqlDB, nil
 }
 
-func CreateTestDB() (*sql.DB, error) {
-	db, err := createTestDB()
+func NewTestDB() (*sql.DB, error) {
+	db, err := newTestDB()
 	if err != nil {
 		return nil, fmt.Errorf("create test db: %w", err)
 	}
@@ -80,6 +106,11 @@ func CreateTestDB() (*sql.DB, error) {
 	sqlDB, err := applyMigrations(db)
 	if err != nil {
 		return nil, fmt.Errorf("apply migrations: %w", err)
+	}
+
+	if err := applyPragma(sqlDB); err != nil {
+		err = errors.Join(err, sqlDB.Close())
+		return nil, fmt.Errorf("apply pragma: %w", err)
 	}
 
 	return sqlDB, nil

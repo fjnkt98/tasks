@@ -10,21 +10,15 @@ import (
 )
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (title, description, status) VALUES (?1, ?2, 'created') RETURNING id, title, description, status, created_at, updated_at
+INSERT INTO tasks (title, status) VALUES (?1, 'created') RETURNING id, title, status, created_at, updated_at
 `
 
-type CreateTaskParams struct {
-	Title       string `db:"title"`
-	Description string `db:"description"`
-}
-
-func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
-	row := q.db.QueryRowContext(ctx, createTask, arg.Title, arg.Description)
+func (q *Queries) CreateTask(ctx context.Context, title string) (Task, error) {
+	row := q.db.QueryRowContext(ctx, createTask, title)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
-		&i.Description,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -42,7 +36,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id int64) error {
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, title, description, status, created_at, updated_at FROM tasks WHERE id = ?1 LIMIT 1
+SELECT id, title, status, created_at, updated_at FROM tasks WHERE id = ?1 LIMIT 1
 `
 
 func (q *Queries) GetTaskByID(ctx context.Context, id int64) (Task, error) {
@@ -51,7 +45,6 @@ func (q *Queries) GetTaskByID(ctx context.Context, id int64) (Task, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
-		&i.Description,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -60,7 +53,7 @@ func (q *Queries) GetTaskByID(ctx context.Context, id int64) (Task, error) {
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, description, status, created_at, updated_at FROM tasks ORDER BY id ASC LIMIT ?2 OFFSET ?1
+SELECT id, title, status, created_at, updated_at FROM tasks ORDER BY status ASC, id DESC LIMIT ?2 OFFSET ?1
 `
 
 type ListTasksParams struct {
@@ -80,7 +73,6 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
-			&i.Description,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -99,7 +91,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 }
 
 const listTasksByStatus = `-- name: ListTasksByStatus :many
-SELECT id, title, description, status, created_at, updated_at FROM tasks WHERE status = ?1 ORDER BY id ASC LIMIT ?3 OFFSET ?2
+SELECT id, title, status, created_at, updated_at FROM tasks WHERE status = ?1 ORDER BY status ASC, id DESC LIMIT ?3 OFFSET ?2
 `
 
 type ListTasksByStatusParams struct {
@@ -120,7 +112,6 @@ func (q *Queries) ListTasksByStatus(ctx context.Context, arg ListTasksByStatusPa
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
-			&i.Description,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -138,44 +129,25 @@ func (q *Queries) ListTasksByStatus(ctx context.Context, arg ListTasksByStatusPa
 	return items, nil
 }
 
-const updateTaskDescription = `-- name: UpdateTaskDescription :exec
-UPDATE tasks SET description = ?1 WHERE id = ?2
+const updateTask = `-- name: UpdateTask :one
+UPDATE tasks SET title = ?1, status = ?2 WHERE id = ?3 RETURNING id, title, status, created_at, updated_at
 `
 
-type UpdateTaskDescriptionParams struct {
-	Description string `db:"description"`
-	ID          int64  `db:"id"`
-}
-
-func (q *Queries) UpdateTaskDescription(ctx context.Context, arg UpdateTaskDescriptionParams) error {
-	_, err := q.db.ExecContext(ctx, updateTaskDescription, arg.Description, arg.ID)
-	return err
-}
-
-const updateTaskStatus = `-- name: UpdateTaskStatus :exec
-UPDATE tasks SET status = ?1 WHERE id = ?2
-`
-
-type UpdateTaskStatusParams struct {
+type UpdateTaskParams struct {
+	Title  string `db:"title"`
 	Status string `db:"status"`
 	ID     int64  `db:"id"`
 }
 
-func (q *Queries) UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateTaskStatus, arg.Status, arg.ID)
-	return err
-}
-
-const updateTaskTitle = `-- name: UpdateTaskTitle :exec
-UPDATE tasks SET title = ?1 WHERE id = ?2
-`
-
-type UpdateTaskTitleParams struct {
-	Title string `db:"title"`
-	ID    int64  `db:"id"`
-}
-
-func (q *Queries) UpdateTaskTitle(ctx context.Context, arg UpdateTaskTitleParams) error {
-	_, err := q.db.ExecContext(ctx, updateTaskTitle, arg.Title, arg.ID)
-	return err
+func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
+	row := q.db.QueryRowContext(ctx, updateTask, arg.Title, arg.Status, arg.ID)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

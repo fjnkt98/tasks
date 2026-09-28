@@ -1,41 +1,54 @@
-{{ template "base" . }} {{ define "content" }}
-<div class="navbar bg-base-100 shadow-sm">
-  <div class="flex-1">
-    <a href="/" class="btn btn-ghost text-xl">Tasks</a>
-  </div>
-  <div class="flex gap-2">
-    <input type="text" placeholder="Search" class="input w-24 md:w-auto" />
-  </div>
-</div>
-
+{{ define "content" }}
 <div class="container mx-auto py-4 px-8">
+  <div class="breadcrumbs text-sm">
+    <ul>
+      <li><a class="link" href="/">Top</a></li>
+      <li>Tasks</li>
+    </ul>
+  </div>
+
+  <div class="flex flex-row justify-between">
+    <form
+      hx-get="/tasks"
+      hx-target="#tasks"
+      hx-trigger="input changed"
+      hx-push-url="true"
+    >
+      <div class="join">
+        <select name="limit" class="select appearance-none join-item">
+          <option value="10">10</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <select name="status" class="select appearance-none join-item">
+          <option value="all">all</option>
+          <option value="created">created</option>
+          <option value="done">done</option>
+        </select>
+      </div>
+    </form>
+
+    <form
+      class="join items-center"
+      hx-post="/tasks"
+      hx-target="#tasks"
+      hx-swap="afterbegin"
+      hx-on::after-request="if(event.detail.successful) this.reset()"
+    >
+      <input
+        type="text"
+        name="title"
+        class="input validator join-item"
+        placeholder="Title..."
+        required
+      />
+      <input type="hidden" name="status" value="created" />
+      <button type="submit" class="btn btn-primary join-item">Add</button>
+    </form>
+  </div>
+
   <ul id="tasks" class="list bg-base-100 rounded-box shadow-md">
-    {{ range $task := .Tasks }}
-    <li id="task-{{ $task.ID }}" class="list-row items-center">
-      <div id="task-{{ $task.ID }}-title" class="text-lg">
-        {{ $task.Title }}
-      </div>
-      <div
-        id="task-{{ $task.ID }}-description"
-        class="list-col-grow text-xs text-wrap opacity-60"
-      >
-        {{ $task.Description }}
-      </div>
-      <select
-        id="task-{{ $task.ID }}-status"
-        name="status"
-        class="select select-ghost"
-        hx-put="/api/tasks/{{ $task.ID }}/status"
-        hx-swap="none"
-      >
-        {{ range $status := $.Statuses}}
-        <option {{ if eq $status $task.Status }}selected{{ end }}>
-          {{ $status }}
-        </option>
-        {{ end }}
-      </select>
-    </li>
-    {{ end }}
+    {{ template "tasks" .}}
   </ul>
 </div>
 {{ end }}

@@ -13,12 +13,11 @@ type Status struct {
 }
 
 type Task struct {
-	ID          int64  `db:"id"`
-	Title       string `db:"title"`
-	Description string `db:"description"`
-	Status      string `db:"status"`
-	CreatedAt   int64  `db:"created_at"`
-	UpdatedAt   int64  `db:"updated_at"`
+	ID        int64  `db:"id"`
+	Title     string `db:"title"`
+	Status    string `db:"status"`
+	CreatedAt int64  `db:"created_at"`
+	UpdatedAt int64  `db:"updated_at"`
 }
 
 type User struct {

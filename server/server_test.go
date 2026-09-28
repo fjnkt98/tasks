@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewServer(t *testing.T) {
-	db, err := repository.CreateTestDB()
+	db, err := repository.NewTestDB()
 	if err != nil {
 		t.Fatalf("failed to create test db: %s", err)
 	}
