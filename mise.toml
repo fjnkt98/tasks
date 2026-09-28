@@ -31,4 +31,7 @@ run = ["sqlc diff", "sqlc vet"]
 run = ["actionlint", "pinact run --check"]
 
 [tasks.test]
-run = "go test -v -cover ./..."
+run = [
+    "go test -v -cover ./... -coverprofile=cover.out",
+    "go tool cover -html=cover.out -o cover.html",
+]

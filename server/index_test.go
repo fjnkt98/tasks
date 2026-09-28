@@ -9,7 +9,7 @@ import (
 )
 
 func TestGetIndex(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 
 	handler := &server.IndexHandler{}

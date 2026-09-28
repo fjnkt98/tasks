@@ -430,6 +430,10 @@ func (s *PutTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	params := s.GetParams(r)
 	task, err := s.UpdateTask(r.Context(), id, params)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			Handle404(w, r)
+			return
+		}
 		slog.ErrorContext(r.Context(), "update task", slog.Any("error", err))
 		Handle500(w, r)
 		return
