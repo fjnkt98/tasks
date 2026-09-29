@@ -18,8 +18,8 @@ DBMATE_MIGRATIONS_DIR = "repository/migrations"
 DBMATE_SCHEMA_FILE = "repository/schema.sql"
 DBMATE_STRICT = "1"
 
-COLLECTOR_URL = { required = true }
-GCP_PROJECT = { required = true }
+OTEL_COLLECTOR_URL = { required = true }
+GCP_PROJECT_NAME = { required = true }
 
 [tasks."lint:go"]
 run = ["go mod tidy -diff", "golangci-lint run"]
