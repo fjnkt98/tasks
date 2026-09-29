@@ -7,11 +7,13 @@ import (
 	"time"
 )
 
-func ChainMiddleware(h http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
-	for _, m := range middlewares {
-		h = m(h)
+func NewChainedMiddleware(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		for _, m := range middlewares {
+			h = m(h)
+		}
+		return h
 	}
-	return h
 }
 
 func LoggingMiddleware(next http.Handler) http.Handler {

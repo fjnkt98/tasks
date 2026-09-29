@@ -1,4 +1,18 @@
 {{ define "content" }}
-<h1>Hello, World!</h1>
-<p>{{ .Content }}</p>
+<div class="hero">
+  <div class="hero-content text-center">
+    <div class="max-w-md">
+      <h1 class="text-5xl font-bold pt-6">Tasks</h1>
+      <p class="py-6">
+        Simple task manager implemented by
+        <a class="link" href="https://go.dev" target="_blank">Go</a> +
+        <a class="link" href="https://htmx.org" target="_blank">htmx</a> +
+        <a class="link" href="https://www.sqlite.org" target="_blank"
+          >SQLite3</a
+        >
+      </p>
+      <a class="btn btn-primary" href="/tasks">Start</a>
+    </div>
+  </div>
+</div>
 {{ end }}
