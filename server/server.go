@@ -29,7 +29,11 @@ func NewServer(port int, db *sql.DB) (*http.Server, error) {
 	mux.Handle("DELETE /tasks/{id}", NewDeleteTaskService(db))
 	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
 
-	handler := RecoveryMiddleware(mux)
+	handler := ChainMiddleware(
+		mux,
+		RecoveryMiddleware,
+		CORSMiddleware,
+	)
 	handler = otelhttp.NewHandler(handler, "http-request")
 
 	server := &http.Server{

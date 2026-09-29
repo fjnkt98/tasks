@@ -3,6 +3,7 @@ package server
 import (
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -39,6 +40,24 @@ func RecoveryMiddleware(next http.Handler) http.Handler {
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			}
 		}()
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func CORSMiddleware(next http.Handler) http.Handler {
+	origin := os.Getenv("CORS_ALLOW_ORIGIN")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 
 		next.ServeHTTP(w, r)
 	})

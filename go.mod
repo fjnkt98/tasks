@@ -6,6 +6,7 @@ require (
 	github.com/XSAM/otelsql v0.44.0
 	github.com/amacneil/dbmate/v2 v2.35.1
 	github.com/mattn/go-sqlite3 v1.14.49
+	github.com/urfave/cli/v3 v3.13.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.45.0

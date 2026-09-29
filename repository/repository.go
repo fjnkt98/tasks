@@ -11,6 +11,7 @@ import (
 	"github.com/XSAM/otelsql"
 	"github.com/amacneil/dbmate/v2/pkg/dbmate"
 	_ "github.com/amacneil/dbmate/v2/pkg/driver/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 //go:embed migrations/*.sql

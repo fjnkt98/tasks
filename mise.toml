@@ -18,8 +18,10 @@ DBMATE_MIGRATIONS_DIR = "repository/migrations"
 DBMATE_SCHEMA_FILE = "repository/schema.sql"
 DBMATE_STRICT = "1"
 
-COLLECTOR_URL = { required = true }
-GCP_PROJECT = { required = true }
+OTEL_COLLECTOR_URL = { required = true }
+GCP_PROJECT_NAME = { required = true }
+
+CORS_ALLOW_ORIGIN = { required = true }
 
 [tasks."lint:go"]
 run = ["go mod tidy -diff", "golangci-lint run"]
@@ -32,6 +34,6 @@ run = ["actionlint", "pinact run --check"]
 
 [tasks.test]
 run = [
-    "go test -v -cover ./... -coverprofile=cover.out",
+    "go test -cover ./... -coverprofile=cover.out",
     "go tool cover -html=cover.out -o cover.html",
 ]
