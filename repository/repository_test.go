@@ -22,7 +22,7 @@ func TestNewTestDB(t *testing.T) {
 }
 
 func TestMigrations(t *testing.T) {
-	db, err := newTestDB()
+	db, err := newDBMateDB("sqlite3::memory:")
 	if err != nil {
 		t.Fatalf("failed to create test database: %s", err)
 	}

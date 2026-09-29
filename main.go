@@ -109,7 +109,7 @@ func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) 
 
 func NewCmd() *cli.Command {
 	return &cli.Command{
-		Name: "serve",
+		Name: "app",
 		Flags: []cli.Flag{
 			&cli.IntFlag{
 				Name:     "port",
@@ -131,11 +131,28 @@ func NewCmd() *cli.Command {
 				Required: true,
 				Sources:  cli.EnvVars("OTEL_COLLECTOR_URL"),
 			},
+			&cli.BoolFlag{
+				Name: "migrate",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) (err error) {
+			shutdown, err := setup(ctx, cmd.String("otel-collector-url"), cmd.String("gcp-project-name"))
+			defer func() {
+				err = errors.Join(err, shutdown())
+			}()
+			if err != nil {
+				return err
+			}
+
 			port := cmd.Int("port")
 
-			db, err := repository.NewDB(cmd.String("database-url"))
+			databaseURL := cmd.String("database-url")
+			if cmd.Bool("migrate") {
+				if err := repository.Migrate(databaseURL); err != nil {
+					return fmt.Errorf("migrate: %w", err)
+				}
+			}
+			db, err := repository.NewDB(databaseURL)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -150,14 +167,6 @@ func NewCmd() *cli.Command {
 
 			ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
-
-			shutdown, err := setup(ctx, cmd.String("otel-collector-url"), cmd.String("gcp-project-name"))
-			defer func() {
-				err = errors.Join(err, shutdown())
-			}()
-			if err != nil {
-				return err
-			}
 
 			errs := make(chan error, 1)
 			go func() {
