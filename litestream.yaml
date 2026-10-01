@@ -1,0 +1,6 @@
+dbs:
+  - path: /app/app.db
+    replicas:
+      - type: gs
+        bucket: tasks-db
+        path: app.db
