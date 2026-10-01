@@ -95,7 +95,7 @@ resource "google_cloud_run_v2_service" "main" {
       }
       env {
         name  = "CORS_ALLOW_ORIGIN"
-        value = "*"
+        value = "https://tasks.fjnkt98.com"
       }
 
       resources {
