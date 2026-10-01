@@ -1,6 +1,6 @@
 module github.com/fjnkt98/tasks
 
-go 1.26.5
+go 1.27.1
 
 require (
 	github.com/XSAM/otelsql v0.44.0

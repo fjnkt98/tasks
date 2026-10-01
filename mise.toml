@@ -1,12 +1,13 @@
 [tools]
 actionlint = "1.7.12"
 dbmate = "2.35.0"
-go = "1.26.5"
-golangci-lint = "v2.12.2"
+go = "1.27.1"
+golangci-lint = "2.14.0"
 node = "24"
 pinact = "4.1.0"
 sqlc = "1.31.1"
 sqlite = "3.53.4"
+terraform = "1.16.4"
 
 [env]
 CGO_ENABLED = 1
