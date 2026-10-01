@@ -31,8 +31,21 @@ func NewDB(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
+func Migrate(dsn string) error {
+	db, err := newDBMateDB(dsn)
+	if err != nil {
+		return fmt.Errorf("new dbmate: %w", err)
+	}
+
+	if err := db.CreateAndMigrate(); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+
+	return nil
+}
+
 func NewTestDB() (*sql.DB, error) {
-	db, err := newTestDB()
+	db, err := newDBMateDB("sqlite3::memory:")
 	if err != nil {
 		return nil, fmt.Errorf("create test db: %w", err)
 	}
@@ -42,12 +55,23 @@ func NewTestDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("apply migrations: %w", err)
 	}
 
-	if err := applyPragma(sqlDB); err != nil {
-		err = errors.Join(err, sqlDB.Close())
-		return nil, fmt.Errorf("apply pragma: %w", err)
+	return sqlDB, nil
+}
+
+func newDBMateDB(dsn string) (*dbmate.DB, error) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 
-	return sqlDB, nil
+	db := dbmate.New(u)
+	db.AutoDumpSchema = false
+	db.DriverName = "sqlite3"
+	db.FS = fs
+	db.MigrationsDir = []string{"migrations"}
+	db.Strict = true
+
+	return db, nil
 }
 
 func applyPragma(db *sql.DB) error {
@@ -55,20 +79,6 @@ func applyPragma(db *sql.DB) error {
 		return fmt.Errorf("activate foreign keys constraint: %w", err)
 	}
 	return nil
-}
-
-func newTestDB() (db *dbmate.DB, err error) {
-	u, err := url.Parse("sqlite3::memory:")
-	if err != nil {
-		return nil, fmt.Errorf("parse url: %w", err)
-	}
-
-	db = dbmate.New(u)
-	db.AutoDumpSchema = false
-	db.FS = fs
-	db.MigrationsDir = []string{"migrations"}
-
-	return db, nil
 }
 
 func applyMigrations(db *dbmate.DB) (sqlDB *sql.DB, err error) {
@@ -88,8 +98,8 @@ func applyMigrations(db *dbmate.DB) (sqlDB *sql.DB, err error) {
 		}
 	}()
 
-	if _, err := sqlDB.Exec("PRAGMA foreign_keys = true"); err != nil {
-		return nil, fmt.Errorf("activate foreign keys constraint: %w", err)
+	if err := applyPragma(sqlDB); err != nil {
+		return nil, fmt.Errorf("apply pragma: %w", err)
 	}
 
 	if err := drv.CreateMigrationsTable(sqlDB); err != nil {
