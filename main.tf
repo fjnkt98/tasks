@@ -74,7 +74,7 @@ resource "google_cloud_run_v2_service" "main" {
 
     containers {
       image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:latest"
-      name = "app"
+      name  = "app"
 
       ports {
         container_port = 8000
@@ -99,7 +99,7 @@ resource "google_cloud_run_v2_service" "main" {
 
       resources {
         limits = {
-          cpu = "1000m"
+          cpu    = "1000m"
           memory = "256Mi"
         }
         cpu_idle = true
@@ -107,11 +107,11 @@ resource "google_cloud_run_v2_service" "main" {
     }
     containers {
       image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:latest"
-      name = "otelcol"
+      name  = "otelcol"
 
       resources {
         limits = {
-          cpu = "1000m"
+          cpu    = "1000m"
           memory = "256Mi"
         }
         cpu_idle = true
@@ -140,4 +140,18 @@ data "google_iam_policy" "cloud_run_noauth" {
 
 output "url" {
   value = google_cloud_run_v2_service.main.uri
+}
+
+# Custom Domain
+data "google_project" "project" {}
+
+resource "google_cloud_run_domain_mapping" "main" {
+  name     = "tasks.fjnkt98.com"
+  location = google_cloud_run_v2_service.main.location
+  metadata {
+    namespace = data.google_project.project.project_id
+  }
+  spec {
+    route_name = google_cloud_run_v2_service.main.name
+  }
 }
