@@ -39,12 +39,12 @@ func newHandler(db *sql.DB) http.Handler {
 		m := NewChainedMiddleware(
 			CORSMiddleware,
 		)
-		mux.Handle("GET /tasks/", m(NewListTaskService(db)))
-		mux.Handle("GET /tasks/{id}", m(NewGetTaskService(db)))
-		mux.Handle("GET /tasks/{id}/edit", m(NewGetTaskEditService(db)))
-		mux.Handle("POST /tasks/", m(NewPostTaskService(db)))
-		mux.Handle("PUT /tasks/{id}", m(NewPutTaskService(db)))
-		mux.Handle("DELETE /tasks/{id}", m(NewDeleteTaskService(db)))
+		mux.Handle("GET /tasks/", m(NewListTasksHandler(db)))
+		mux.Handle("GET /tasks/{id}", m(NewGetTaskHandler(db)))
+		mux.Handle("GET /tasks/{id}/edit", m(NewGetTaskEditHandler(db)))
+		mux.Handle("POST /tasks/", m(NewPostTaskHandler(db)))
+		mux.Handle("PUT /tasks/{id}", m(NewPutTaskHandler(db)))
+		mux.Handle("DELETE /tasks/{id}", m(NewDeleteTaskHandler(db)))
 	}
 
 	return otelhttp.NewHandler(RecoveryMiddleware(mux), "http-request")

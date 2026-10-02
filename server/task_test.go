@@ -13,18 +13,18 @@ import (
 	"github.com/fjnkt98/tasks/repository"
 )
 
-func TestListTasksService(t *testing.T) {
+func TestListTasksHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer db.Close() // nolint:errcheck
-		s := NewListTaskService(db)
+		h := NewListTasksHandler(db)
 
 		t.Run("default values will be used if parameter is empty", func(t *testing.T) {
 			values := url.Values{}
-			params := s.GetParams(values)
+			params := h.GetParams(values)
 			want := ListTasksParams{
 				Page:   1,
 				Limit:  10,
@@ -39,7 +39,7 @@ func TestListTasksService(t *testing.T) {
 			values.Set("page", "2")
 			values.Set("limit", "50")
 			values.Set("status", "done")
-			params := s.GetParams(values)
+			params := h.GetParams(values)
 			want := ListTasksParams{
 				Page:   2,
 				Limit:  50,
@@ -53,7 +53,7 @@ func TestListTasksService(t *testing.T) {
 			values := url.Values{}
 			values.Set("page", "foo")
 			values.Set("limit", "bar")
-			params := s.GetParams(values)
+			params := h.GetParams(values)
 			want := ListTasksParams{
 				Page:   1,
 				Limit:  10,
@@ -67,7 +67,7 @@ func TestListTasksService(t *testing.T) {
 			values := url.Values{}
 			values.Set("page", "-1")
 			values.Set("limit", "-1")
-			params := s.GetParams(values)
+			params := h.GetParams(values)
 			want := ListTasksParams{
 				Page:   1,
 				Limit:  10,
@@ -100,10 +100,10 @@ func TestListTasksService(t *testing.T) {
 			}
 		}
 
-		s := NewListTaskService(db)
+		h := NewListTasksHandler(db)
 
 		t.Run("get all", func(t *testing.T) {
-			tasks, err := s.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: ""})
+			tasks, err := h.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: ""})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -134,7 +134,7 @@ func TestListTasksService(t *testing.T) {
 			}
 		})
 		t.Run("get created", func(t *testing.T) {
-			tasks, err := s.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: "created"})
+			tasks, err := h.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: "created"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -163,7 +163,7 @@ func TestListTasksService(t *testing.T) {
 			}
 		})
 		t.Run("get done", func(t *testing.T) {
-			tasks, err := s.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: "done"})
+			tasks, err := h.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: "done"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -192,7 +192,7 @@ func TestListTasksService(t *testing.T) {
 			}
 		})
 		t.Run("no rows", func(t *testing.T) {
-			tasks, err := s.GetTasks(t.Context(), ListTasksParams{Page: 2, Limit: 100, Status: ""})
+			tasks, err := h.GetTasks(t.Context(), ListTasksParams{Page: 2, Limit: 100, Status: ""})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -210,7 +210,7 @@ func TestListTasksService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		s := NewListTaskService(db)
+		h := NewListTasksHandler(db)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
@@ -224,7 +224,7 @@ func TestListTasksService(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			if err := s.ResponseHTTP(rec, data); err != nil {
+			if err := h.ResponseHTTP(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
@@ -251,7 +251,7 @@ func TestListTasksService(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			if err := s.ResponseHTTP(rec, data); err != nil {
+			if err := h.ResponseHTTP(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
@@ -276,7 +276,7 @@ func TestListTasksService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		s := NewListTaskService(db)
+		h := NewListTasksHandler(db)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
@@ -290,7 +290,7 @@ func TestListTasksService(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			if err := s.ResponseHTMX(rec, data); err != nil {
+			if err := h.ResponseHTMX(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
@@ -317,7 +317,7 @@ func TestListTasksService(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			if err := s.ResponseHTMX(rec, data); err != nil {
+			if err := h.ResponseHTMX(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
@@ -350,13 +350,13 @@ func TestListTasksService(t *testing.T) {
 			}
 		}
 
-		s := NewListTaskService(db)
+		h := NewListTasksHandler(db)
 
 		t.Run("get without params", func(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks", nil)
 			rec := httptest.NewRecorder()
 
-			s.ServeHTTP(rec, req)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -374,7 +374,7 @@ func TestListTasksService(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("/tasks?%s", values.Encode()), nil)
 			rec := httptest.NewRecorder()
 
-			s.ServeHTTP(rec, req)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -393,7 +393,7 @@ func TestListTasksService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s.ServeHTTP(rec, req)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -405,7 +405,7 @@ func TestListTasksService(t *testing.T) {
 	})
 }
 
-func TestGetTaskService(t *testing.T) {
+func TestGetTaskHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -424,8 +424,8 @@ func TestGetTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -450,8 +450,8 @@ func TestGetTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -465,8 +465,8 @@ func TestGetTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -475,7 +475,7 @@ func TestGetTaskService(t *testing.T) {
 	})
 }
 
-func TestGetTaskEditService(t *testing.T) {
+func TestGetTaskEditHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -494,8 +494,8 @@ func TestGetTaskEditService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskEditService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskEditHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -519,8 +519,8 @@ func TestGetTaskEditService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskEditService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskEditHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -533,8 +533,8 @@ func TestGetTaskEditService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskEditService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskEditHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -543,7 +543,7 @@ func TestGetTaskEditService(t *testing.T) {
 	})
 }
 
-func TestPostTaskService(t *testing.T) {
+func TestPostTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -558,8 +558,8 @@ func TestPostTaskService(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPostTaskService(db)
-			params, err := s.GetParams(req)
+			h := NewPostTaskHandler(db)
+			params, err := h.GetParams(req)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -576,8 +576,8 @@ func TestPostTaskService(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPostTaskService(db)
-			_, err := s.GetParams(req)
+			h := NewPostTaskHandler(db)
+			_, err := h.GetParams(req)
 			if !errors.Is(err, ErrBadRequest) {
 				t.Errorf("expected ErrBadRequest, but got %s", err)
 			}
@@ -590,8 +590,8 @@ func TestPostTaskService(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPostTaskService(db)
-			_, err := s.GetParams(req)
+			h := NewPostTaskHandler(db)
+			_, err := h.GetParams(req)
 			if !errors.Is(err, ErrBadRequest) {
 				t.Errorf("expected ErrBadRequest, but got %s", err)
 			}
@@ -614,8 +614,8 @@ func TestPostTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewPostTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPostTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusCreated {
 				t.Errorf("expected status created, but got %d", rec.Code)
@@ -652,7 +652,7 @@ func TestPostTaskService(t *testing.T) {
 	})
 }
 
-func TestPutTaskService(t *testing.T) {
+func TestPutTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -669,8 +669,8 @@ func TestPutTaskService(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPutTaskService(db)
-			params := s.GetParams(req)
+			h := NewPutTaskHandler(db)
+			params := h.GetParams(req)
 
 			if params.Title != "test" {
 				t.Errorf("expected title is 'test', but got %s", params.Title)
@@ -689,8 +689,8 @@ func TestPutTaskService(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPutTaskService(db)
-			params := s.GetParams(req)
+			h := NewPutTaskHandler(db)
+			params := h.GetParams(req)
 
 			if params.Title != "" {
 				t.Errorf("expected title is empty, but got %s", params.Title)
@@ -709,8 +709,8 @@ func TestPutTaskService(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPutTaskService(db)
-			params := s.GetParams(req)
+			h := NewPutTaskHandler(db)
+			params := h.GetParams(req)
 
 			if params.Title != "" {
 				t.Errorf("expected title is empty, but got %s", params.Title)
@@ -738,8 +738,8 @@ func TestPutTaskService(t *testing.T) {
 				Status: "done",
 			}
 
-			s := NewPutTaskService(db)
-			updated, err := s.UpdateTask(t.Context(), 1, params)
+			h := NewPutTaskHandler(db)
+			updated, err := h.UpdateTask(t.Context(), 1, params)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -772,8 +772,8 @@ func TestPutTaskService(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			s := NewPutTaskService(db)
-			_, err = s.UpdateTask(t.Context(), 2, UpdateTaskParams{})
+			h := NewPutTaskHandler(db)
+			_, err = h.UpdateTask(t.Context(), 2, UpdateTaskParams{})
 			if !errors.Is(err, sql.ErrNoRows) {
 				t.Fatalf("expected sql.ErrNoRows, but got %+v", err)
 			}
@@ -793,8 +793,8 @@ func TestPutTaskService(t *testing.T) {
 				Title: "new test",
 			}
 
-			s := NewPutTaskService(db)
-			updated, err := s.UpdateTask(t.Context(), 1, params)
+			h := NewPutTaskHandler(db)
+			updated, err := h.UpdateTask(t.Context(), 1, params)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -831,8 +831,8 @@ func TestPutTaskService(t *testing.T) {
 				Status: "done",
 			}
 
-			s := NewPutTaskService(db)
-			updated, err := s.UpdateTask(t.Context(), 1, params)
+			h := NewPutTaskHandler(db)
+			updated, err := h.UpdateTask(t.Context(), 1, params)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -879,8 +879,8 @@ func TestPutTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -935,8 +935,8 @@ func TestPutTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -991,8 +991,8 @@ func TestPutTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -1047,8 +1047,8 @@ func TestPutTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -1092,8 +1092,8 @@ func TestPutTaskService(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -1119,7 +1119,7 @@ func TestPutTaskService(t *testing.T) {
 	})
 }
 
-func TestDeleteTaskService(t *testing.T) {
+func TestDeleteTaskHandler(t *testing.T) {
 	t.Run("delete successfully", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -1136,8 +1136,8 @@ func TestDeleteTaskService(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		s := NewDeleteTaskService(db)
-		s.ServeHTTP(rec, req)
+		h := NewDeleteTaskHandler(db)
+		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status ok, but got %d", rec.Code)
@@ -1169,8 +1169,8 @@ func TestDeleteTaskService(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		s := NewDeleteTaskService(db)
-		s.ServeHTTP(rec, req)
+		h := NewDeleteTaskHandler(db)
+		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status ok, but got %d", rec.Code)
@@ -1209,8 +1209,8 @@ func TestDeleteTaskService(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		s := NewDeleteTaskService(db)
-		s.ServeHTTP(rec, req)
+		h := NewDeleteTaskHandler(db)
+		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("expected status not found, but got %d", rec.Code)

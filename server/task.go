@@ -17,12 +17,12 @@ import (
 )
 
 // ---------- List Tasks ----------
-type ListTasksService struct {
+type ListTasksHandler struct {
 	db *sql.DB
 }
 
-func NewListTaskService(db *sql.DB) *ListTasksService {
-	return &ListTasksService{
+func NewListTasksHandler(db *sql.DB) *ListTasksHandler {
+	return &ListTasksHandler{
 		db: db,
 	}
 }
@@ -41,7 +41,7 @@ type TaskData struct {
 	Status    string
 }
 
-func (s *ListTasksService) GetParams(values url.Values) ListTasksParams {
+func (h *ListTasksHandler) GetParams(values url.Values) ListTasksParams {
 	var err error
 
 	var page int64
@@ -79,8 +79,8 @@ func (s *ListTasksService) GetParams(values url.Values) ListTasksParams {
 	}
 }
 
-func (s *ListTasksService) GetTasks(ctx context.Context, params ListTasksParams) ([]repository.Task, error) {
-	q := repository.New(s.db)
+func (h *ListTasksHandler) GetTasks(ctx context.Context, params ListTasksParams) ([]repository.Task, error) {
+	q := repository.New(h.db)
 
 	var tasks []repository.Task
 	var err error
@@ -106,7 +106,7 @@ func (s *ListTasksService) GetTasks(ctx context.Context, params ListTasksParams)
 	return tasks, nil
 }
 
-func (s *ListTasksService) ResponseHTTP(w http.ResponseWriter, data TaskData) error {
+func (h *ListTasksHandler) ResponseHTTP(w http.ResponseWriter, data TaskData) error {
 	t, err := template.ParseFS(templates, "templates/layout.html", "templates/tasks.html", "templates/partials/tasks.html")
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
@@ -120,7 +120,7 @@ func (s *ListTasksService) ResponseHTTP(w http.ResponseWriter, data TaskData) er
 	return nil
 }
 
-func (s *ListTasksService) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
+func (h *ListTasksHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
 	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
@@ -134,9 +134,9 @@ func (s *ListTasksService) ResponseHTMX(w http.ResponseWriter, data TaskData) er
 	return nil
 }
 
-func (s *ListTasksService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	params := s.GetParams(r.URL.Query())
-	tasks, err := s.GetTasks(r.Context(), params)
+func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	params := h.GetParams(r.URL.Query())
+	tasks, err := h.GetTasks(r.Context(), params)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "get tasks", slog.Any("error", err))
 		Handle500(w, r)
@@ -152,13 +152,13 @@ func (s *ListTasksService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if IsHTMX(r) {
-		if err := s.ResponseHTMX(w, data); err != nil {
+		if err := h.ResponseHTMX(w, data); err != nil {
 			slog.ErrorContext(r.Context(), "response for htmx", slog.Any("error", err))
 			Handle500(w, r)
 			return
 		}
 	} else {
-		if err := s.ResponseHTTP(w, data); err != nil {
+		if err := h.ResponseHTTP(w, data); err != nil {
 			slog.ErrorContext(r.Context(), "response for http", slog.Any("error", err))
 			Handle500(w, r)
 			return
@@ -167,17 +167,17 @@ func (s *ListTasksService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- Get Task ----------
-type GetTaskService struct {
+type GetTaskHandler struct {
 	db *sql.DB
 }
 
-func NewGetTaskService(db *sql.DB) *GetTaskService {
-	return &GetTaskService{
+func NewGetTaskHandler(db *sql.DB) *GetTaskHandler {
+	return &GetTaskHandler{
 		db: db,
 	}
 }
 
-func (s *GetTaskService) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
+func (h *GetTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
 	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
@@ -191,14 +191,14 @@ func (s *GetTaskService) ResponseHTMX(w http.ResponseWriter, data TaskData) erro
 	return nil
 }
 
-func (s *GetTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		Handle404(w, r)
 		return
 	}
 
-	q := repository.New(s.db)
+	q := repository.New(h.db)
 	task, err := q.GetTaskByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -216,7 +216,7 @@ func (s *GetTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LastIndex: -1,
 	}
 
-	if err := s.ResponseHTMX(w, data); err != nil {
+	if err := h.ResponseHTMX(w, data); err != nil {
 		slog.ErrorContext(r.Context(), "response for htmx", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -224,17 +224,17 @@ func (s *GetTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- Get Task Edit ----------
-type GetTaskEditService struct {
+type GetTaskEditHandler struct {
 	q *repository.Queries
 }
 
-func NewGetTaskEditService(db *sql.DB) *GetTaskEditService {
-	return &GetTaskEditService{
+func NewGetTaskEditHandler(db *sql.DB) *GetTaskEditHandler {
+	return &GetTaskEditHandler{
 		q: repository.New(db),
 	}
 }
 
-func (s *GetTaskEditService) ResponseHTMX(w http.ResponseWriter, task repository.Task) error {
+func (h *GetTaskEditHandler) ResponseHTMX(w http.ResponseWriter, task repository.Task) error {
 	t, err := template.ParseFS(templates, "templates/partials/task_edit.html")
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
@@ -248,14 +248,14 @@ func (s *GetTaskEditService) ResponseHTMX(w http.ResponseWriter, task repository
 	return nil
 }
 
-func (s *GetTaskEditService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		Handle404(w, r)
 		return
 	}
 
-	task, err := s.q.GetTaskByID(r.Context(), id)
+	task, err := h.q.GetTaskByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			Handle404(w, r)
@@ -267,7 +267,7 @@ func (s *GetTaskEditService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.ResponseHTMX(w, task); err != nil {
+	if err := h.ResponseHTMX(w, task); err != nil {
 		slog.ErrorContext(r.Context(), "response for htmx", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -275,12 +275,12 @@ func (s *GetTaskEditService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- Post Task ----------
-type PostTaskService struct {
+type PostTaskHandler struct {
 	db *sql.DB
 }
 
-func NewPostTaskService(db *sql.DB) *PostTaskService {
-	return &PostTaskService{
+func NewPostTaskHandler(db *sql.DB) *PostTaskHandler {
+	return &PostTaskHandler{
 		db: db,
 	}
 }
@@ -289,7 +289,7 @@ type CreateTaskParams struct {
 	Title string
 }
 
-func (s *PostTaskService) GetParams(r *http.Request) (CreateTaskParams, error) {
+func (h *PostTaskHandler) GetParams(r *http.Request) (CreateTaskParams, error) {
 	title := strings.TrimSpace(r.FormValue("title"))
 	if utf8.RuneCountInString(title) == 0 {
 		return CreateTaskParams{}, fmt.Errorf("title required: %w", ErrBadRequest)
@@ -300,7 +300,7 @@ func (s *PostTaskService) GetParams(r *http.Request) (CreateTaskParams, error) {
 	}, nil
 }
 
-func (s *PostTaskService) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
+func (h *PostTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
 	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
@@ -314,14 +314,14 @@ func (s *PostTaskService) ResponseHTMX(w http.ResponseWriter, data TaskData) err
 	return nil
 }
 
-func (s *PostTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	params, err := s.GetParams(r)
+func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	params, err := h.GetParams(r)
 	if err != nil {
 		Handle400(w, r)
 		return
 	}
 
-	q := repository.New(s.db)
+	q := repository.New(h.db)
 	task, err := q.CreateTask(r.Context(), params.Title)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
@@ -334,7 +334,7 @@ func (s *PostTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LastIndex: -1,
 	}
 
-	if err := s.ResponseHTMX(w, data); err != nil {
+	if err := h.ResponseHTMX(w, data); err != nil {
 		slog.ErrorContext(r.Context(), "response for htmx", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -342,12 +342,12 @@ func (s *PostTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- Put Task ----------
-type PutTaskService struct {
+type PutTaskHandler struct {
 	db *sql.DB
 }
 
-func NewPutTaskService(db *sql.DB) *PutTaskService {
-	return &PutTaskService{
+func NewPutTaskHandler(db *sql.DB) *PutTaskHandler {
+	return &PutTaskHandler{
 		db: db,
 	}
 }
@@ -357,21 +357,21 @@ type UpdateTaskParams struct {
 	Status string
 }
 
-func (s *PutTaskService) GetParams(r *http.Request) UpdateTaskParams {
+func (h *PutTaskHandler) GetParams(r *http.Request) UpdateTaskParams {
 	return UpdateTaskParams{
 		Title:  strings.TrimSpace(r.FormValue("title")),
 		Status: r.FormValue("status"),
 	}
 }
 
-func (s *PutTaskService) UpdateTask(ctx context.Context, id int64, params UpdateTaskParams) (repository.Task, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int64, params UpdateTaskParams) (repository.Task, error) {
+	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return repository.Task{}, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	q := repository.New(s.db).WithTx(tx)
+	q := repository.New(h.db).WithTx(tx)
 	task, err := q.GetTaskByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -406,7 +406,7 @@ func (s *PutTaskService) UpdateTask(ctx context.Context, id int64, params Update
 	return task, nil
 }
 
-func (s *PutTaskService) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
+func (h *PutTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
 	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
 	if err != nil {
 		return fmt.Errorf("parse template: %w", err)
@@ -420,15 +420,15 @@ func (s *PutTaskService) ResponseHTMX(w http.ResponseWriter, data TaskData) erro
 	return nil
 }
 
-func (s *PutTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		Handle404(w, r)
 		return
 	}
 
-	params := s.GetParams(r)
-	task, err := s.UpdateTask(r.Context(), id, params)
+	params := h.GetParams(r)
+	task, err := h.UpdateTask(r.Context(), id, params)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			Handle404(w, r)
@@ -444,7 +444,7 @@ func (s *PutTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LastIndex: -1,
 	}
 
-	if err := s.ResponseHTMX(w, data); err != nil {
+	if err := h.ResponseHTMX(w, data); err != nil {
 		slog.ErrorContext(r.Context(), "response for htmx", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -452,24 +452,24 @@ func (s *PutTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- Delete Task ----------
-type DeleteTaskService struct {
+type DeleteTaskHandler struct {
 	db *sql.DB
 }
 
-func NewDeleteTaskService(db *sql.DB) *DeleteTaskService {
-	return &DeleteTaskService{
+func NewDeleteTaskHandler(db *sql.DB) *DeleteTaskHandler {
+	return &DeleteTaskHandler{
 		db: db,
 	}
 }
 
-func (s *DeleteTaskService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		Handle404(w, r)
 		return
 	}
 
-	q := repository.New(s.db)
+	q := repository.New(h.db)
 	if err := q.DeleteTask(r.Context(), id); err != nil {
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
 		Handle500(w, r)
