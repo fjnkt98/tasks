@@ -13,18 +13,18 @@ import (
 	"github.com/fjnkt98/tasks/repository"
 )
 
-func TestListTasksService(t *testing.T) {
+func TestListTasksHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer db.Close() // nolint:errcheck
-		s := NewListTaskService(db)
+		h := NewListTasksHandler(db)
 
 		t.Run("default values will be used if parameter is empty", func(t *testing.T) {
 			values := url.Values{}
-			params := s.GetParams(values)
+			params := h.GetParams(values)
 			want := ListTasksParams{
 				Page:   1,
 				Limit:  10,
@@ -39,7 +39,7 @@ func TestListTasksService(t *testing.T) {
 			values.Set("page", "2")
 			values.Set("limit", "50")
 			values.Set("status", "done")
-			params := s.GetParams(values)
+			params := h.GetParams(values)
 			want := ListTasksParams{
 				Page:   2,
 				Limit:  50,
@@ -53,7 +53,7 @@ func TestListTasksService(t *testing.T) {
 			values := url.Values{}
 			values.Set("page", "foo")
 			values.Set("limit", "bar")
-			params := s.GetParams(values)
+			params := h.GetParams(values)
 			want := ListTasksParams{
 				Page:   1,
 				Limit:  10,
@@ -67,7 +67,7 @@ func TestListTasksService(t *testing.T) {
 			values := url.Values{}
 			values.Set("page", "-1")
 			values.Set("limit", "-1")
-			params := s.GetParams(values)
+			params := h.GetParams(values)
 			want := ListTasksParams{
 				Page:   1,
 				Limit:  10,
@@ -87,23 +87,35 @@ func TestListTasksService(t *testing.T) {
 		defer db.Close() // nolint:errcheck
 
 		for i, data := range []struct {
-			Title  string
-			Status string
+			Name string
 		}{
-			{Title: "test1", Status: "created"},
-			{Title: "test2", Status: "done"},
-			{Title: "test3", Status: "done"},
-			{Title: "test4", Status: "created"},
+			{Name: "user1"},
+			{Name: "user2"},
 		} {
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", i+1, data.Title, data.Status); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", i+1, data.Name); err != nil {
 				t.Fatal(err)
 			}
 		}
 
-		s := NewListTaskService(db)
+		for i, data := range []struct {
+			Title  string
+			Status string
+			UserID int64
+		}{
+			{Title: "test1", Status: "created", UserID: 1},
+			{Title: "test2", Status: "done", UserID: 1},
+			{Title: "test3", Status: "done", UserID: 1},
+			{Title: "test4", Status: "created", UserID: 1},
+		} {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", i+1, data.Title, data.Status, data.UserID); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		h := NewListTasksHandler(db)
 
 		t.Run("get all", func(t *testing.T) {
-			tasks, err := s.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: ""})
+			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: ""})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -111,15 +123,17 @@ func TestListTasksService(t *testing.T) {
 			if len(tasks) != 4 {
 				t.Fatalf("expected length is 4, but got %d", len(tasks))
 			}
+
 			wants := []struct {
 				ID     int64
 				Title  string
 				Status string
+				UserID int64
 			}{
-				{ID: 4, Title: "test4", Status: "created"},
-				{ID: 1, Title: "test1", Status: "created"},
-				{ID: 3, Title: "test3", Status: "done"},
-				{ID: 2, Title: "test2", Status: "done"},
+				{ID: 4, Title: "test4", Status: "created", UserID: 1},
+				{ID: 1, Title: "test1", Status: "created", UserID: 1},
+				{ID: 3, Title: "test3", Status: "done", UserID: 1},
+				{ID: 2, Title: "test2", Status: "done", UserID: 1},
 			}
 			for i := range 4 {
 				if wants[i].ID != tasks[i].ID {
@@ -131,10 +145,13 @@ func TestListTasksService(t *testing.T) {
 				if wants[i].Status != tasks[i].Status {
 					t.Errorf("status expected %v, but got %v", wants[i].Status, tasks[i].Status)
 				}
+				if wants[i].UserID != tasks[i].UserID {
+					t.Errorf("user id expected %v, but got %v", wants[i].UserID, tasks[i].UserID)
+				}
 			}
 		})
 		t.Run("get created", func(t *testing.T) {
-			tasks, err := s.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: "created"})
+			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: "created"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -146,9 +163,10 @@ func TestListTasksService(t *testing.T) {
 				ID     int64
 				Title  string
 				Status string
+				UserID int64
 			}{
-				{ID: 4, Title: "test4", Status: "created"},
-				{ID: 1, Title: "test1", Status: "created"},
+				{ID: 4, Title: "test4", Status: "created", UserID: 1},
+				{ID: 1, Title: "test1", Status: "created", UserID: 1},
 			}
 			for i := range 2 {
 				if wants[i].ID != tasks[i].ID {
@@ -160,10 +178,13 @@ func TestListTasksService(t *testing.T) {
 				if wants[i].Status != tasks[i].Status {
 					t.Errorf("status expected %v, but got %v", wants[i].Status, tasks[i].Status)
 				}
+				if wants[i].UserID != tasks[i].UserID {
+					t.Errorf("user id expected %v, but got %v", wants[i].UserID, tasks[i].UserID)
+				}
 			}
 		})
 		t.Run("get done", func(t *testing.T) {
-			tasks, err := s.GetTasks(t.Context(), ListTasksParams{Page: 1, Limit: 10, Status: "done"})
+			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: "done"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -175,9 +196,10 @@ func TestListTasksService(t *testing.T) {
 				ID     int64
 				Title  string
 				Status string
+				UserID int64
 			}{
-				{ID: 3, Title: "test3", Status: "done"},
-				{ID: 2, Title: "test2", Status: "done"},
+				{ID: 3, Title: "test3", Status: "done", UserID: 1},
+				{ID: 2, Title: "test2", Status: "done", UserID: 1},
 			}
 			for i := range 2 {
 				if wants[i].ID != tasks[i].ID {
@@ -189,10 +211,23 @@ func TestListTasksService(t *testing.T) {
 				if wants[i].Status != tasks[i].Status {
 					t.Errorf("status expected %v, but got %v", wants[i].Status, tasks[i].Status)
 				}
+				if wants[i].UserID != tasks[i].UserID {
+					t.Errorf("user id expected %v, but got %v", wants[i].UserID, tasks[i].UserID)
+				}
 			}
 		})
 		t.Run("no rows", func(t *testing.T) {
-			tasks, err := s.GetTasks(t.Context(), ListTasksParams{Page: 2, Limit: 100, Status: ""})
+			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 2, Limit: 100, Status: ""})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(tasks) != 0 {
+				t.Fatalf("expected length is 0, but got %d", len(tasks))
+			}
+		})
+		t.Run("other user", func(t *testing.T) {
+			tasks, err := h.GetTasks(t.Context(), 2, ListTasksParams{Page: 1, Limit: 10, Status: ""})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -210,7 +245,7 @@ func TestListTasksService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		s := NewListTaskService(db)
+		h := NewListTasksHandler(db)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
@@ -224,7 +259,7 @@ func TestListTasksService(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			if err := s.ResponseHTTP(rec, data); err != nil {
+			if err := h.ResponseHTTP(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
@@ -251,7 +286,7 @@ func TestListTasksService(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			if err := s.ResponseHTTP(rec, data); err != nil {
+			if err := h.ResponseHTTP(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
@@ -276,7 +311,7 @@ func TestListTasksService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		s := NewListTaskService(db)
+		h := NewListTasksHandler(db)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
@@ -290,7 +325,7 @@ func TestListTasksService(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			if err := s.ResponseHTMX(rec, data); err != nil {
+			if err := h.ResponseHTMX(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
@@ -317,7 +352,7 @@ func TestListTasksService(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			if err := s.ResponseHTMX(rec, data); err != nil {
+			if err := h.ResponseHTMX(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
@@ -337,32 +372,52 @@ func TestListTasksService(t *testing.T) {
 		defer db.Close() // nolint:errcheck
 
 		for i, data := range []struct {
-			Title  string
-			Status string
+			Name string
 		}{
-			{Title: "test1", Status: "created"},
-			{Title: "test2", Status: "done"},
-			{Title: "test3", Status: "done"},
-			{Title: "test4", Status: "created"},
+			{Name: "user1"},
+			{Name: "user2"},
 		} {
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", i+1, data.Title, data.Status); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", i+1, data.Name); err != nil {
 				t.Fatal(err)
 			}
 		}
 
-		s := NewListTaskService(db)
+		for i, data := range []struct {
+			Title  string
+			Status string
+			UserID int64
+		}{
+			{Title: "test1", Status: "created", UserID: 1},
+			{Title: "test2", Status: "done", UserID: 1},
+			{Title: "test3", Status: "done", UserID: 1},
+			{Title: "test4", Status: "created", UserID: 1},
+		} {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", i+1, data.Title, data.Status, data.UserID); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		h := NewListTasksHandler(db)
 
 		t.Run("get without params", func(t *testing.T) {
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks", nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
 			rec := httptest.NewRecorder()
 
-			s.ServeHTTP(rec, req)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
 			}
-			if !strings.Contains(rec.Body.String(), "<head>") {
+
+			body := rec.Body.String()
+			if !strings.Contains(body, "<head>") {
 				t.Error("expected contains <head> element, but not found")
+			}
+			for i := range 4 {
+				if !strings.Contains(body, fmt.Sprintf(`id="task-%d"`, i+1)) {
+					t.Error("expected contains task element, but not found")
+				}
 			}
 		})
 		t.Run("get with params", func(t *testing.T) {
@@ -371,10 +426,11 @@ func TestListTasksService(t *testing.T) {
 			values.Set("limit", "5")
 			values.Set("status", "created")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("/tasks?%s", values.Encode()), nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/tasks?%s", values.Encode()), nil)
 			rec := httptest.NewRecorder()
 
-			s.ServeHTTP(rec, req)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -388,12 +444,13 @@ func TestListTasksService(t *testing.T) {
 			values.Set("page", "2")
 			values.Set("limit", "10")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("/tasks?%s", values.Encode()), nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/tasks?%s", values.Encode()), nil)
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s.ServeHTTP(rec, req)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -405,7 +462,7 @@ func TestListTasksService(t *testing.T) {
 	})
 }
 
-func TestGetTaskService(t *testing.T) {
+func TestGetTaskHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -413,19 +470,23 @@ func TestGetTaskService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 			t.Fatal(err)
 		}
 
 		t.Run("normal", func(t *testing.T) {
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks/1", nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1", nil)
 			req.SetPathValue("id", "1")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -444,14 +505,15 @@ func TestGetTaskService(t *testing.T) {
 		})
 
 		t.Run("not found", func(t *testing.T) {
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks/2", nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/2", nil)
 			req.SetPathValue("id", "2")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -459,14 +521,15 @@ func TestGetTaskService(t *testing.T) {
 		})
 
 		t.Run("invalid path value", func(t *testing.T) {
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks/foo", nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/foo", nil)
 			req.SetPathValue("id", "foo")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -475,7 +538,7 @@ func TestGetTaskService(t *testing.T) {
 	})
 }
 
-func TestGetTaskEditService(t *testing.T) {
+func TestGetTaskEditHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -483,19 +546,23 @@ func TestGetTaskEditService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 			t.Fatal(err)
 		}
 
 		t.Run("normal", func(t *testing.T) {
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks/1/edit", nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1/edit", nil)
 			req.SetPathValue("id", "1")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskEditService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskEditHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -513,28 +580,30 @@ func TestGetTaskEditService(t *testing.T) {
 			}
 		})
 		t.Run("not found", func(t *testing.T) {
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks/2/edit", nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/2/edit", nil)
 			req.SetPathValue("id", "2")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskEditService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskEditHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
 			}
 		})
 		t.Run("invalid path value", func(t *testing.T) {
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks/foo/edit", nil)
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/foo/edit", nil)
 			req.SetPathValue("id", "foo")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewGetTaskEditService(db)
-			s.ServeHTTP(rec, req)
+			h := NewGetTaskEditHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -543,7 +612,7 @@ func TestGetTaskEditService(t *testing.T) {
 	})
 }
 
-func TestPostTaskService(t *testing.T) {
+func TestPostTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -554,12 +623,14 @@ func TestPostTaskService(t *testing.T) {
 		t.Run("title", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("title", "test")
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
+
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPostTaskService(db)
-			params, err := s.GetParams(req)
+			h := NewPostTaskHandler(db)
+			params, err := h.GetParams(req)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -572,12 +643,14 @@ func TestPostTaskService(t *testing.T) {
 		t.Run("empty title", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("title", "")
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
+
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPostTaskService(db)
-			_, err := s.GetParams(req)
+			h := NewPostTaskHandler(db)
+			_, err := h.GetParams(req)
 			if !errors.Is(err, ErrBadRequest) {
 				t.Errorf("expected ErrBadRequest, but got %s", err)
 			}
@@ -586,12 +659,14 @@ func TestPostTaskService(t *testing.T) {
 		t.Run("space only", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("title", " ")
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
+
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPostTaskService(db)
-			_, err := s.GetParams(req)
+			h := NewPostTaskHandler(db)
+			_, err := h.GetParams(req)
 			if !errors.Is(err, ErrBadRequest) {
 				t.Errorf("expected ErrBadRequest, but got %s", err)
 			}
@@ -606,16 +681,22 @@ func TestPostTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+
 			values := url.Values{}
 			values.Set("title", "test")
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
+
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewPostTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPostTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusCreated {
 				t.Errorf("expected status created, but got %d", rec.Code)
@@ -633,7 +714,7 @@ func TestPostTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{Offset: 0, Limit: 100})
+			tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{UserID: 1, Offset: 0, Limit: 100})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -652,7 +733,7 @@ func TestPostTaskService(t *testing.T) {
 	})
 }
 
-func TestPutTaskService(t *testing.T) {
+func TestPutTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -665,12 +746,13 @@ func TestPutTaskService(t *testing.T) {
 			values.Set("title", "test")
 			values.Set("status", "done")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPutTaskService(db)
-			params := s.GetParams(req)
+			h := NewPutTaskHandler(db)
+			params := h.GetParams(req)
 
 			if params.Title != "test" {
 				t.Errorf("expected title is 'test', but got %s", params.Title)
@@ -685,12 +767,13 @@ func TestPutTaskService(t *testing.T) {
 			values.Set("title", "")
 			values.Set("status", "")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPutTaskService(db)
-			params := s.GetParams(req)
+			h := NewPutTaskHandler(db)
+			params := h.GetParams(req)
 
 			if params.Title != "" {
 				t.Errorf("expected title is empty, but got %s", params.Title)
@@ -705,12 +788,13 @@ func TestPutTaskService(t *testing.T) {
 			values.Set("title", "  ")
 			values.Set("status", "")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			s := NewPutTaskService(db)
-			params := s.GetParams(req)
+			h := NewPutTaskHandler(db)
+			params := h.GetParams(req)
 
 			if params.Title != "" {
 				t.Errorf("expected title is empty, but got %s", params.Title)
@@ -729,7 +813,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
@@ -738,8 +825,8 @@ func TestPutTaskService(t *testing.T) {
 				Status: "done",
 			}
 
-			s := NewPutTaskService(db)
-			updated, err := s.UpdateTask(t.Context(), 1, params)
+			h := NewPutTaskHandler(db)
+			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -752,7 +839,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), 1)
+			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
+				ID:     1,
+				UserID: 1,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -768,12 +858,15 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
-			s := NewPutTaskService(db)
-			_, err = s.UpdateTask(t.Context(), 2, UpdateTaskParams{})
+			h := NewPutTaskHandler(db)
+			_, err = h.UpdateTask(t.Context(), 2, 1, UpdateTaskParams{})
 			if !errors.Is(err, sql.ErrNoRows) {
 				t.Fatalf("expected sql.ErrNoRows, but got %+v", err)
 			}
@@ -785,7 +878,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
@@ -793,8 +889,8 @@ func TestPutTaskService(t *testing.T) {
 				Title: "new test",
 			}
 
-			s := NewPutTaskService(db)
-			updated, err := s.UpdateTask(t.Context(), 1, params)
+			h := NewPutTaskHandler(db)
+			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -807,7 +903,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), 1)
+			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
+				ID:     1,
+				UserID: 1,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -823,7 +922,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
@@ -831,8 +933,8 @@ func TestPutTaskService(t *testing.T) {
 				Status: "done",
 			}
 
-			s := NewPutTaskService(db)
-			updated, err := s.UpdateTask(t.Context(), 1, params)
+			h := NewPutTaskHandler(db)
+			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -845,7 +947,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), 1)
+			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
+				ID:     1,
+				UserID: 1,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -864,7 +969,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
@@ -872,15 +980,16 @@ func TestPutTaskService(t *testing.T) {
 			values.Set("title", "new test")
 			values.Set("status", "done")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -902,7 +1011,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), 1)
+			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
+				ID:     1,
+				UserID: 1,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -912,6 +1024,9 @@ func TestPutTaskService(t *testing.T) {
 			}
 			if task.Status != "done" {
 				t.Errorf("expected status is 'done', but got %s", task.Status)
+			}
+			if task.UserID != 1 {
+				t.Errorf("expected user id is 1, but got %d", task.UserID)
 			}
 		})
 		t.Run("update title only", func(t *testing.T) {
@@ -921,22 +1036,26 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
 			values := url.Values{}
 			values.Set("title", "new test")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -958,7 +1077,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), 1)
+			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
+				ID:     1,
+				UserID: 1,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -969,6 +1091,9 @@ func TestPutTaskService(t *testing.T) {
 			if task.Status != "created" {
 				t.Errorf("expected status is 'created', but got %s", task.Status)
 			}
+			if task.UserID != 1 {
+				t.Errorf("expected user id is 1, but got %d", task.UserID)
+			}
 		})
 		t.Run("update status only", func(t *testing.T) {
 			db, err := repository.NewTestDB()
@@ -977,22 +1102,26 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
 			values := url.Values{}
 			values.Set("status", "done")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
@@ -1014,7 +1143,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), 1)
+			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
+				ID:     1,
+				UserID: 1,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1025,6 +1157,9 @@ func TestPutTaskService(t *testing.T) {
 			if task.Status != "done" {
 				t.Errorf("expected status is 'done', but got %s", task.Status)
 			}
+			if task.UserID != 1 {
+				t.Errorf("expected user id is 1, but got %d", task.UserID)
+			}
 		})
 		t.Run("update non-existing task", func(t *testing.T) {
 			db, err := repository.NewTestDB()
@@ -1033,22 +1168,26 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
 			values := url.Values{}
 			values.Set("status", "done")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/tasks/2", strings.NewReader(values.Encode()))
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2", strings.NewReader(values.Encode()))
 			req.SetPathValue("id", "2")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -1059,7 +1198,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), 1)
+			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
+				ID:     1,
+				UserID: 1,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1069,6 +1211,9 @@ func TestPutTaskService(t *testing.T) {
 			}
 			if task.Status != "created" {
 				t.Errorf("expected status is 'created', but got %s", task.Status)
+			}
+			if task.UserID != 1 {
+				t.Errorf("expected user id is 1, but got %d", task.UserID)
 			}
 		})
 		t.Run("invalid path value", func(t *testing.T) {
@@ -1078,22 +1223,26 @@ func TestPutTaskService(t *testing.T) {
 			}
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 				t.Fatal(err)
 			}
 
 			values := url.Values{}
 			values.Set("status", "done")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/tasks/foo", strings.NewReader(values.Encode()))
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader(values.Encode()))
 			req.SetPathValue("id", "foo")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			s := NewPutTaskService(db)
-			s.ServeHTTP(rec, req)
+			h := NewPutTaskHandler(db)
+			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
@@ -1104,7 +1253,10 @@ func TestPutTaskService(t *testing.T) {
 			}
 
 			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), 1)
+			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
+				ID:     1,
+				UserID: 1,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1115,11 +1267,14 @@ func TestPutTaskService(t *testing.T) {
 			if task.Status != "created" {
 				t.Errorf("expected status is 'created', but got %s", task.Status)
 			}
+			if task.UserID != 1 {
+				t.Errorf("expected user id is 1, but got %d", task.UserID)
+			}
 		})
 	})
 }
 
-func TestDeleteTaskService(t *testing.T) {
+func TestDeleteTaskHandler(t *testing.T) {
 	t.Run("delete successfully", func(t *testing.T) {
 		db, err := repository.NewTestDB()
 		if err != nil {
@@ -1127,17 +1282,21 @@ func TestDeleteTaskService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 			t.Fatal(err)
 		}
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/tasks/1", nil)
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/1", nil)
 		req.SetPathValue("id", "1")
 
 		rec := httptest.NewRecorder()
 
-		s := NewDeleteTaskService(db)
-		s.ServeHTTP(rec, req)
+		h := NewDeleteTaskHandler(db)
+		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status ok, but got %d", rec.Code)
@@ -1160,30 +1319,34 @@ func TestDeleteTaskService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 			t.Fatal(err)
 		}
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/tasks/2", nil)
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/2", nil)
 		req.SetPathValue("id", "2")
 
 		rec := httptest.NewRecorder()
 
-		s := NewDeleteTaskService(db)
-		s.ServeHTTP(rec, req)
+		h := NewDeleteTaskHandler(db)
+		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 
 		q := repository.New(db)
-		tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{Offset: 0, Limit: 100})
+		tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{UserID: 1, Offset: 0, Limit: 100})
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		if len(tasks) != 1 {
-			t.Errorf("expected 1 tasks, but got %+v", tasks)
+			t.Fatalf("expected 1 tasks, but got %+v", tasks)
 		}
 
 		if tasks[0].Title != "test" {
@@ -1200,30 +1363,34 @@ func TestDeleteTaskService(t *testing.T) {
 		}
 		defer db.Close() // nolint:errcheck
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status) VALUES (?, ?, ?);", 1, "test", "created"); err != nil {
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
 			t.Fatal(err)
 		}
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/tasks/foo", nil)
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/foo", nil)
 		req.SetPathValue("id", "foo")
 
 		rec := httptest.NewRecorder()
 
-		s := NewDeleteTaskService(db)
-		s.ServeHTTP(rec, req)
+		h := NewDeleteTaskHandler(db)
+		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("expected status not found, but got %d", rec.Code)
 		}
 
 		q := repository.New(db)
-		tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{Offset: 0, Limit: 100})
+		tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{UserID: 1, Offset: 0, Limit: 100})
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		if len(tasks) != 1 {
-			t.Errorf("expected 1 tasks, but got %+v", tasks)
+			t.Fatalf("expected 1 tasks, but got %+v", tasks)
 		}
 
 		if tasks[0].Title != "test" {

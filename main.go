@@ -12,6 +12,7 @@ import (
 
 	"github.com/fjnkt98/tasks/repository"
 	"github.com/fjnkt98/tasks/server"
+	"github.com/fjnkt98/tasks/settings"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/urfave/cli/v3"
@@ -111,32 +112,12 @@ func NewCmd() *cli.Command {
 	return &cli.Command{
 		Name: "app",
 		Flags: []cli.Flag{
-			&cli.IntFlag{
-				Name:     "port",
-				Required: true,
-				Sources:  cli.EnvVars("PORT"),
-			},
-			&cli.StringFlag{
-				Name:     "database-url",
-				Required: true,
-				Sources:  cli.EnvVars("DATABASE_URL"),
-			},
-			&cli.StringFlag{
-				Name:     "gcp-project-name",
-				Required: true,
-				Sources:  cli.EnvVars("GCP_PROJECT_NAME"),
-			},
-			&cli.StringFlag{
-				Name:     "otel-collector-url",
-				Required: true,
-				Sources:  cli.EnvVars("OTEL_COLLECTOR_URL"),
-			},
 			&cli.BoolFlag{
 				Name: "migrate",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) (err error) {
-			shutdown, err := setup(ctx, cmd.String("otel-collector-url"), cmd.String("gcp-project-name"))
+			shutdown, err := setup(ctx, settings.OtelCollectorURL, settings.GoogleCloudProjectName)
 			defer func() {
 				err = errors.Join(err, shutdown())
 			}()
@@ -144,15 +125,14 @@ func NewCmd() *cli.Command {
 				return err
 			}
 
-			port := cmd.Int("port")
+			port := settings.Port
 
-			databaseURL := cmd.String("database-url")
 			if cmd.Bool("migrate") {
-				if err := repository.Migrate(databaseURL); err != nil {
+				if err := repository.Migrate(settings.DatabaseURL); err != nil {
 					return fmt.Errorf("migrate: %w", err)
 				}
 			}
-			db, err := repository.NewDB(databaseURL)
+			db, err := repository.NewDB(settings.DatabaseURL)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/fjnkt98/tasks/settings"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -32,20 +33,43 @@ func NewServer(port int, db *sql.DB) (*http.Server, error) {
 func newHandler(db *sql.DB) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("GET /", &IndexHandler{})
 	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
 
 	{
 		m := NewChainedMiddleware(
-			CORSMiddleware,
+			NewSessionMiddleware(db),
+			NewRecoveryMiddleware(),
 		)
-		mux.Handle("GET /tasks/", m(NewListTaskService(db)))
-		mux.Handle("GET /tasks/{id}", m(NewGetTaskService(db)))
-		mux.Handle("GET /tasks/{id}/edit", m(NewGetTaskEditService(db)))
-		mux.Handle("POST /tasks/", m(NewPostTaskService(db)))
-		mux.Handle("PUT /tasks/{id}", m(NewPutTaskService(db)))
-		mux.Handle("DELETE /tasks/{id}", m(NewDeleteTaskService(db)))
+		mux.Handle("GET /", m(&IndexHandler{}))
+	}
+	{
+		m := NewChainedMiddleware(
+			NewSessionMiddleware(db),
+			NewCORSMiddleware(settings.CorsAllowOrigin),
+			NewRecoveryMiddleware(),
+		)
+		mux.Handle("GET /signup", m(NewGetSignupHandler()))
+		mux.Handle("POST /signup", m(NewPostSignupHandler(db)))
+		mux.Handle("GET /signup/success", m(NewGetSignupSuccessHandler()))
+		mux.Handle("GET /signin", m((NewGetSigninHandler())))
+		mux.Handle("POST /signin", m((NewPostSigninHandler(db))))
+	}
+	{
+		m := NewChainedMiddleware(
+			NewSessionMiddleware(db),
+			NewLoginRequiredMiddleware(),
+			NewCORSMiddleware(settings.CorsAllowOrigin),
+			NewRecoveryMiddleware(),
+		)
+		mux.Handle("GET /signout", m(NewGetSignoutHandler(db)))
+
+		mux.Handle("GET /tasks/", m(NewListTasksHandler(db)))
+		mux.Handle("GET /tasks/{id}", m(NewGetTaskHandler(db)))
+		mux.Handle("GET /tasks/{id}/edit", m(NewGetTaskEditHandler(db)))
+		mux.Handle("POST /tasks/", m(NewPostTaskHandler(db)))
+		mux.Handle("PUT /tasks/{id}", m(NewPutTaskHandler(db)))
+		mux.Handle("DELETE /tasks/{id}", m(NewDeleteTaskHandler(db)))
 	}
 
-	return otelhttp.NewHandler(RecoveryMiddleware(mux), "http-request")
+	return otelhttp.NewHandler(mux, "http-request")
 }

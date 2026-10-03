@@ -1,66 +1,150 @@
 package server
 
 import (
+	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
-	"os"
+	"slices"
 	"time"
+
+	"github.com/fjnkt98/tasks/repository"
+	"github.com/fjnkt98/tasks/settings"
 )
 
-func NewChainedMiddleware(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+type Middleware func(http.Handler) http.Handler
+
+func NewChainedMiddleware(middlewares ...Middleware) Middleware {
 	return func(h http.Handler) http.Handler {
-		for _, m := range middlewares {
+		for _, m := range slices.Backward(middlewares) {
 			h = m(h)
 		}
 		return h
 	}
 }
 
-func LoggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
+func NewLoggingMiddleware() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
 
-		next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r)
 
-		slog.InfoContext(
-			r.Context(), "ok",
-			slog.String("addr", r.RemoteAddr),
-			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
-			slog.String("referer", r.Referer()),
-			slog.String("host", r.Host),
-			slog.Int64("delta", time.Since(start).Milliseconds()),
-		)
-	})
+			slog.InfoContext(
+				r.Context(), "ok",
+				slog.String("addr", r.RemoteAddr),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("referer", r.Referer()),
+				slog.String("host", r.Host),
+				slog.Int64("delta", time.Since(start).Milliseconds()),
+			)
+		})
+	}
 }
 
-func RecoveryMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				slog.ErrorContext(r.Context(), "panic recovered", slog.Any("error", err))
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+func NewRecoveryMiddleware() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if err := recover(); err != nil {
+					slog.ErrorContext(r.Context(), "panic recovered", slog.Any("error", err))
+					Handle500(w, r)
+				}
+			}()
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func NewCORSMiddleware(origin string) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
 			}
-		}()
 
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
-func CORSMiddleware(next http.Handler) http.Handler {
-	origin := os.Getenv("CORS_ALLOW_ORIGIN")
+func NewSessionMiddleware(db *sql.DB) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cookie, err := r.Cookie("session_token")
+			if err != nil {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Max-Age", "86400")
+			q := repository.New(db)
 
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
+			session, err := q.GetSessionByToken(r.Context(), cookie.Value)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					cookie.Value = ""
+					cookie.MaxAge = -1
+					http.SetCookie(w, cookie)
 
-		next.ServeHTTP(w, r)
-	})
+					next.ServeHTTP(w, r)
+					return
+				}
+
+				slog.ErrorContext(r.Context(), "get session by token", slog.Any("error", err))
+				Handle500(w, r)
+				return
+			}
+
+			if session.ExpiresAt < time.Now().Unix() {
+				cookie.Value = ""
+				cookie.MaxAge = -1
+				http.SetCookie(w, cookie)
+
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			user, err := q.GetUser(r.Context(), session.UserID)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "get user", slog.Any("error", err))
+				Handle500(w, r)
+				return
+			}
+
+			cookie = &http.Cookie{
+				Name:     "session_token",
+				Value:    cookie.Value,
+				MaxAge:   86400,
+				Path:     "/",
+				Secure:   settings.UseSecureCookie,
+				HttpOnly: true,
+				SameSite: http.SameSiteStrictMode,
+			}
+			http.SetCookie(w, cookie)
+
+			ctx := SetUserIDIntoContext(r.Context(), user.ID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func NewLoginRequiredMiddleware() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if IsAuthorized(r.Context()) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		})
+	}
 }
