@@ -10,16 +10,22 @@ import (
 )
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (title, status) VALUES (?1, 'created') RETURNING id, title, status, created_at, updated_at
+INSERT INTO tasks (title, status, user_id) VALUES (?1, 'created', ?2) RETURNING id, title, status, user_id, created_at, updated_at
 `
 
-func (q *Queries) CreateTask(ctx context.Context, title string) (Task, error) {
-	row := q.db.QueryRowContext(ctx, createTask, title)
+type CreateTaskParams struct {
+	Title  string `db:"title"`
+	UserID int64  `db:"user_id"`
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
+	row := q.db.QueryRowContext(ctx, createTask, arg.Title, arg.UserID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.Status,
+		&i.UserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -27,25 +33,36 @@ func (q *Queries) CreateTask(ctx context.Context, title string) (Task, error) {
 }
 
 const deleteTask = `-- name: DeleteTask :exec
-DELETE FROM tasks WHERE id = ?1
+DELETE FROM tasks WHERE id = ?1 AND user_id = ?2
 `
 
-func (q *Queries) DeleteTask(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteTask, id)
+type DeleteTaskParams struct {
+	ID     int64 `db:"id"`
+	UserID int64 `db:"user_id"`
+}
+
+func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) error {
+	_, err := q.db.ExecContext(ctx, deleteTask, arg.ID, arg.UserID)
 	return err
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, title, status, created_at, updated_at FROM tasks WHERE id = ?1 LIMIT 1
+SELECT id, title, status, user_id, created_at, updated_at FROM tasks WHERE id = ?1 AND user_id = ?2 LIMIT 1
 `
 
-func (q *Queries) GetTaskByID(ctx context.Context, id int64) (Task, error) {
-	row := q.db.QueryRowContext(ctx, getTaskByID, id)
+type GetTaskByIDParams struct {
+	ID     int64 `db:"id"`
+	UserID int64 `db:"user_id"`
+}
+
+func (q *Queries) GetTaskByID(ctx context.Context, arg GetTaskByIDParams) (Task, error) {
+	row := q.db.QueryRowContext(ctx, getTaskByID, arg.ID, arg.UserID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.Status,
+		&i.UserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -53,16 +70,17 @@ func (q *Queries) GetTaskByID(ctx context.Context, id int64) (Task, error) {
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, status, created_at, updated_at FROM tasks ORDER BY status ASC, id DESC LIMIT ?2 OFFSET ?1
+SELECT id, title, status, user_id, created_at, updated_at FROM tasks WHERE user_id = ?1 ORDER BY status ASC, id DESC LIMIT ?3 OFFSET ?2
 `
 
 type ListTasksParams struct {
+	UserID int64 `db:"user_id"`
 	Offset int64 `db:"offset"`
 	Limit  int64 `db:"limit"`
 }
 
 func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasks, arg.Offset, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.UserID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +92,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 			&i.ID,
 			&i.Title,
 			&i.Status,
+			&i.UserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -91,17 +110,23 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 }
 
 const listTasksByStatus = `-- name: ListTasksByStatus :many
-SELECT id, title, status, created_at, updated_at FROM tasks WHERE status = ?1 ORDER BY status ASC, id DESC LIMIT ?3 OFFSET ?2
+SELECT id, title, status, user_id, created_at, updated_at FROM tasks WHERE user_id = ?1 AND status = ?2 ORDER BY status ASC, id DESC LIMIT ?4 OFFSET ?3
 `
 
 type ListTasksByStatusParams struct {
+	UserID int64  `db:"user_id"`
 	Status string `db:"status"`
 	Offset int64  `db:"offset"`
 	Limit  int64  `db:"limit"`
 }
 
 func (q *Queries) ListTasksByStatus(ctx context.Context, arg ListTasksByStatusParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasksByStatus, arg.Status, arg.Offset, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listTasksByStatus,
+		arg.UserID,
+		arg.Status,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +138,7 @@ func (q *Queries) ListTasksByStatus(ctx context.Context, arg ListTasksByStatusPa
 			&i.ID,
 			&i.Title,
 			&i.Status,
+			&i.UserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -130,22 +156,29 @@ func (q *Queries) ListTasksByStatus(ctx context.Context, arg ListTasksByStatusPa
 }
 
 const updateTask = `-- name: UpdateTask :one
-UPDATE tasks SET title = ?1, status = ?2 WHERE id = ?3 RETURNING id, title, status, created_at, updated_at
+UPDATE tasks SET title = ?1, status = ?2 WHERE id = ?3 AND user_id = ?4 RETURNING id, title, status, user_id, created_at, updated_at
 `
 
 type UpdateTaskParams struct {
 	Title  string `db:"title"`
 	Status string `db:"status"`
 	ID     int64  `db:"id"`
+	UserID int64  `db:"user_id"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
-	row := q.db.QueryRowContext(ctx, updateTask, arg.Title, arg.Status, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateTask,
+		arg.Title,
+		arg.Status,
+		arg.ID,
+		arg.UserID,
+	)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.Status,
+		&i.UserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

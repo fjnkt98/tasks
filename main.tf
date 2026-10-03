@@ -90,7 +90,7 @@ resource "google_cloud_run_v2_service" "main" {
         value = "localhost:4317"
       }
       env {
-        name  = "GCP_PROJECT_NAME"
+        name  = "GOOGLE_CLOUD_PROJECT_NAME"
         value = "tasks-510111"
       }
       env {

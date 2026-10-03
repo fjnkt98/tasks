@@ -34,6 +34,7 @@ type ListTasksParams struct {
 }
 
 type TaskData struct {
+	LayoutData
 	Tasks     []repository.Task
 	LastIndex int
 	NextPage  int64
@@ -79,13 +80,14 @@ func (h *ListTasksHandler) GetParams(values url.Values) ListTasksParams {
 	}
 }
 
-func (h *ListTasksHandler) GetTasks(ctx context.Context, params ListTasksParams) ([]repository.Task, error) {
+func (h *ListTasksHandler) GetTasks(ctx context.Context, userID int64, params ListTasksParams) ([]repository.Task, error) {
 	q := repository.New(h.db)
 
 	var tasks []repository.Task
 	var err error
 	if params.Status == "" {
 		tasks, err = q.ListTasks(ctx, repository.ListTasksParams{
+			UserID: userID,
 			Offset: params.Limit * (params.Page - 1),
 			Limit:  params.Limit,
 		})
@@ -94,6 +96,7 @@ func (h *ListTasksHandler) GetTasks(ctx context.Context, params ListTasksParams)
 		}
 	} else {
 		tasks, err = q.ListTasksByStatus(ctx, repository.ListTasksByStatusParams{
+			UserID: userID,
 			Offset: params.Limit * (params.Page - 1),
 			Limit:  params.Limit,
 			Status: params.Status,
@@ -135,8 +138,9 @@ func (h *ListTasksHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) er
 }
 
 func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	userID := GetUserIDFromContext(r.Context())
 	params := h.GetParams(r.URL.Query())
-	tasks, err := h.GetTasks(r.Context(), params)
+	tasks, err := h.GetTasks(r.Context(), userID, params)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "get tasks", slog.Any("error", err))
 		Handle500(w, r)
@@ -144,6 +148,9 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := TaskData{
+		LayoutData: LayoutData{
+			Authorized: IsAuthorized(r.Context()),
+		},
 		Tasks:     tasks,
 		LastIndex: len(tasks) - 1,
 		NextPage:  params.Page + 1,
@@ -198,8 +205,13 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := GetUserIDFromContext(r.Context())
+
 	q := repository.New(h.db)
-	task, err := q.GetTaskByID(r.Context(), id)
+	task, err := q.GetTaskByID(r.Context(), repository.GetTaskByIDParams{
+		ID:     id,
+		UserID: userID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			Handle404(w, r)
@@ -212,6 +224,9 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := TaskData{
+		LayoutData: LayoutData{
+			Authorized: IsAuthorized(r.Context()),
+		},
 		Tasks:     []repository.Task{task},
 		LastIndex: -1,
 	}
@@ -255,7 +270,12 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task, err := h.q.GetTaskByID(r.Context(), id)
+	userID := GetUserIDFromContext(r.Context())
+
+	task, err := h.q.GetTaskByID(r.Context(), repository.GetTaskByIDParams{
+		ID:     id,
+		UserID: userID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			Handle404(w, r)
@@ -321,8 +341,13 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := GetUserIDFromContext(r.Context())
+
 	q := repository.New(h.db)
-	task, err := q.CreateTask(r.Context(), params.Title)
+	task, err := q.CreateTask(r.Context(), repository.CreateTaskParams{
+		Title:  params.Title,
+		UserID: userID,
+	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
 		Handle500(w, r)
@@ -364,7 +389,7 @@ func (h *PutTaskHandler) GetParams(r *http.Request) UpdateTaskParams {
 	}
 }
 
-func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int64, params UpdateTaskParams) (repository.Task, error) {
+func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int64, userID int64, params UpdateTaskParams) (repository.Task, error) {
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return repository.Task{}, fmt.Errorf("begin transaction: %w", err)
@@ -372,7 +397,10 @@ func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int64, params Update
 	defer tx.Rollback() //nolint:errcheck
 
 	q := repository.New(h.db).WithTx(tx)
-	task, err := q.GetTaskByID(ctx, id)
+	task, err := q.GetTaskByID(ctx, repository.GetTaskByIDParams{
+		ID:     id,
+		UserID: userID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return repository.Task{}, err
@@ -381,7 +409,8 @@ func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int64, params Update
 	}
 
 	data := repository.UpdateTaskParams{
-		ID: id,
+		ID:     id,
+		UserID: userID,
 	}
 	if params.Title != "" {
 		data.Title = params.Title
@@ -427,8 +456,10 @@ func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := GetUserIDFromContext(r.Context())
+
 	params := h.GetParams(r)
-	task, err := h.UpdateTask(r.Context(), id, params)
+	task, err := h.UpdateTask(r.Context(), id, userID, params)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			Handle404(w, r)
@@ -469,8 +500,13 @@ func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := GetUserIDFromContext(r.Context())
+
 	q := repository.New(h.db)
-	if err := q.DeleteTask(r.Context(), id); err != nil {
+	if err := q.DeleteTask(r.Context(), repository.DeleteTaskParams{
+		ID:     id,
+		UserID: userID,
+	}); err != nil {
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
 		Handle500(w, r)
 		return

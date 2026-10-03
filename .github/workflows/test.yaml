@@ -11,7 +11,7 @@ jobs:
     env:
       DATABASE_URL: "file:app.db"
       OTEL_COLLECTOR_URL: "localhost:4317"
-      GCP_PROJECT_NAME: "tasks"
+      GOOGLE_CLOUD_PROJECT_NAME: "tasks"
       CORS_ALLOW_ORIGIN: "http://localhost:8000"
     steps:
       - name: checkout
