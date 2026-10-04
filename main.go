@@ -10,7 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/fjnkt98/tasks/repository"
+	entsql "entgo.io/ent/dialect/sql"
+	"github.com/XSAM/otelsql"
+	"github.com/fjnkt98/tasks/ent"
 	"github.com/fjnkt98/tasks/server"
 	"github.com/fjnkt98/tasks/settings"
 	_ "github.com/mattn/go-sqlite3"
@@ -111,11 +113,6 @@ func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) 
 func NewCmd() *cli.Command {
 	return &cli.Command{
 		Name: "app",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name: "migrate",
-			},
-		},
 		Action: func(ctx context.Context, cmd *cli.Command) (err error) {
 			shutdown, err := setup(ctx, settings.OtelCollectorURL, settings.GoogleCloudProjectName)
 			defer func() {
@@ -127,17 +124,14 @@ func NewCmd() *cli.Command {
 
 			port := settings.Port
 
-			if cmd.Bool("migrate") {
-				if err := repository.Migrate(settings.DatabaseURL); err != nil {
-					return fmt.Errorf("migrate: %w", err)
-				}
-			}
-			db, err := repository.NewDB(settings.DatabaseURL)
+			db, err := otelsql.Open("sqlite3", settings.DatabaseURL)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
+			drv := entsql.OpenDB("sqlite3", db)
+			client := ent.NewClient(ent.Driver(drv))
 			defer func() {
-				err = errors.Join(err, db.Close())
+				err = errors.Join(err, client.Close())
 			}()
 
 			s, err := server.NewServer(port, db)
