@@ -26,6 +26,13 @@ GOOGLE_CLOUD_PROJECT_NAME = { required = true }
 CORS_ALLOW_ORIGIN = { required = true }
 USE_SECURE_COOKIE = "false"
 
+[tasks."format:go"]
+run = ["go fmt"]
+
+[tasks."format:terraform"]
+dir = "infrastructure/terraform"
+run = ["terraform fmt"]
+
 [tasks."lint:go"]
 run = ["go mod tidy -diff", "golangci-lint run"]
 
@@ -36,6 +43,7 @@ run = ["sqlc diff", "sqlc vet"]
 run = ["actionlint", "pinact run --check"]
 
 [tasks."lint:terraform"]
+dir = "infrastructure/terraform"
 run = ["terraform fmt -check", "tflint"]
 
 [tasks.test]
