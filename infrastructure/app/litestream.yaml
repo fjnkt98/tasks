@@ -4,3 +4,5 @@ dbs:
       - type: gs
         bucket: tasks-db
         path: app.db
+logging:
+  type: json
