@@ -7,10 +7,9 @@ import (
 )
 
 func TestNewServer(t *testing.T) {
-	db := setupDB(t)
-	defer db.Close() // nolint:errcheck
+	client := NewTestDB(t)
 
-	_, err := NewServer(8000, db)
+	_, err := NewServer(8000, client)
 	if err != nil {
 		t.Errorf("expected nil, but got %v", err)
 	}
@@ -20,10 +19,8 @@ func TestNewServer(t *testing.T) {
 func TestNewHandler(t *testing.T) {
 	t.Setenv("CORS_ALLOW_ORIGIN", "http://localhost:8000")
 
-	db := setupDB(t)
-	defer db.Close() // nolint:errcheck
-
-	h := newHandler(db)
+	client := NewTestDB(t)
+	h := newHandler(client)
 
 	t.Run("index", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)

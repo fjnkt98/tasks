@@ -10,12 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	entsql "entgo.io/ent/dialect/sql"
-	"github.com/XSAM/otelsql"
 	"github.com/fjnkt98/tasks/ent"
 	"github.com/fjnkt98/tasks/server"
 	"github.com/fjnkt98/tasks/settings"
-	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/urfave/cli/v3"
 
@@ -124,17 +121,15 @@ func NewCmd() *cli.Command {
 
 			port := settings.Port
 
-			db, err := otelsql.Open("sqlite3", settings.DatabaseURL)
+			client, err := ent.SetupClient(ctx, settings.DatabaseURL)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			drv := entsql.OpenDB("sqlite3", db)
-			client := ent.NewClient(ent.Driver(drv))
 			defer func() {
 				err = errors.Join(err, client.Close())
 			}()
 
-			s, err := server.NewServer(port, db)
+			s, err := server.NewServer(port, client)
 			if err != nil {
 				return fmt.Errorf("create server: %w", err)
 			}

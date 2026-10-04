@@ -5,7 +5,6 @@ go 1.27.1
 require (
 	entgo.io/ent v0.14.6
 	github.com/XSAM/otelsql v0.44.0
-	github.com/amacneil/dbmate/v2 v2.35.1
 	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/urfave/cli/v3 v3.13.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0
@@ -32,7 +31,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.18.1 // indirect
-	github.com/lib/pq v1.12.3 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/zclconf/go-cty v1.14.4 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect

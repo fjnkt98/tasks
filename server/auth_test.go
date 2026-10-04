@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -11,8 +10,9 @@ import (
 	"strings"
 	"testing"
 	"testing/synctest"
+	"time"
 
-	"github.com/fjnkt98/tasks/repository"
+	"github.com/fjnkt98/tasks/ent"
 	"github.com/fjnkt98/tasks/settings"
 )
 
@@ -30,8 +30,8 @@ func TestSetUserIDIntoContext(t *testing.T) {
 	ctx := SetUserIDIntoContext(t.Context(), 1)
 
 	v := ctx.Value(contextKeyUser)
-	if ty := reflect.TypeOf(v).String(); ty != "int64" {
-		t.Errorf("expected type `int64`, but got `%s`", ty)
+	if ty := reflect.TypeOf(v).String(); ty != "int" {
+		t.Errorf("expected type `int`, but got `%s`", ty)
 	}
 }
 
@@ -44,7 +44,7 @@ func TestGetUserIDFromContext(t *testing.T) {
 	})
 
 	t.Run("found", func(t *testing.T) {
-		ctx := context.WithValue(t.Context(), contextKeyUser, int64(1))
+		ctx := context.WithValue(t.Context(), contextKeyUser, int(1))
 		v := GetUserIDFromContext(ctx)
 		if v != 1 {
 			t.Errorf("expected 1, but got %d", v)
@@ -78,8 +78,7 @@ func TestGetSignupHandler(t *testing.T) {
 
 func TestPostSignupHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
 		t.Run("username empty", func(t *testing.T) {
 			values := url.Values{}
@@ -89,7 +88,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			h := NewPostSignupHandler(db)
+			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
 			if err == nil {
 				t.Fatal("err shoudn't be nil, but got nil")
@@ -106,7 +105,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			h := NewPostSignupHandler(db)
+			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
 			if err == nil {
 				t.Fatal("err shoudn't be nil, but got nil")
@@ -123,7 +122,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			h := NewPostSignupHandler(db)
+			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
 			if err == nil {
 				t.Fatal("err shoudn't be nil, but got nil")
@@ -141,7 +140,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			h := NewPostSignupHandler(db)
+			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
 			if err == nil {
 				t.Fatal("err shouldn't be nil, but got nil")
@@ -154,8 +153,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -167,16 +165,15 @@ func TestPostSignupHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSignupHandler(db)
+			h := NewPostSignupHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusSeeOther {
 				t.Errorf("expected status see other, but got %d", rec.Code)
 			}
 
-			row := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM users")
-			var count int
-			if err := row.Scan(&count); err != nil {
+			count, err := client.User.Query().Count(t.Context())
+			if err != nil {
 				t.Fatal(err)
 			}
 			if count != 1 {
@@ -184,8 +181,7 @@ func TestPostSignupHandler(t *testing.T) {
 			}
 		})
 		t.Run("validation failed", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
 			values := url.Values{}
 			values.Set("username", "\t")
@@ -197,7 +193,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSignupHandler(db)
+			h := NewPostSignupHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
@@ -213,10 +209,9 @@ func TestPostSignupHandler(t *testing.T) {
 			}
 		})
 		t.Run("user already exists", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+			if _, err := client.User.Create().SetName("user1").SetPassword("password").Save(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 
@@ -230,7 +225,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSignupHandler(db)
+			h := NewPostSignupHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
@@ -274,8 +269,7 @@ func TestGetSigninHandler(t *testing.T) {
 
 func TestPostSigninHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
 		t.Run("username empty", func(t *testing.T) {
 			values := url.Values{}
@@ -284,7 +278,7 @@ func TestPostSigninHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			h := NewPostSigninHandler(db)
+			h := NewPostSigninHandler(client)
 			_, err := h.GetParams(req)
 			if err == nil {
 				t.Fatal("err shouldn't be nil, but got nil")
@@ -300,7 +294,7 @@ func TestPostSigninHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			h := NewPostSigninHandler(db)
+			h := NewPostSigninHandler(client)
 			_, err := h.GetParams(req)
 			if err == nil {
 				t.Fatal("err shouldn't be nil, but got nil")
@@ -311,8 +305,10 @@ func TestPostSigninHandler(t *testing.T) {
 		})
 	})
 
-	var fixture = func(db *sql.DB, t *testing.T) {
-		if err := NewPostSignupHandler(db).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
+	var fixture = func(client *ent.Client, t *testing.T) {
+		t.Helper()
+
+		if err := NewPostSignupHandler(client).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -320,50 +316,47 @@ func TestPostSigninHandler(t *testing.T) {
 	t.Run("Signin", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				db := setupDB(t)
-				defer db.Close() // nolint:errcheck
+				client := NewTestDB(t)
 
-				fixture(db, t)
+				fixture(client, t)
 
-				h := NewPostSigninHandler(db)
+				h := NewPostSigninHandler(client)
 				token, err := h.Signin(t.Context(), SigninParams{Username: "user1", Password: "password"})
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				session, err := repository.New(db).GetSession(t.Context(), 1)
+				s, err := client.Session.Get(t.Context(), 1)
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				if session.Token != token {
+				if s.Token != token {
 					t.Error("generated token should match saved session's one")
 				}
 
-				if session.ExpiresAt != 946771200 { // 2000-01-01T00:00:00Z + 24 hours
-					t.Errorf("expires timestamp should be 946771200, but got %d", session.ExpiresAt)
+				if !s.ExpiresAt.Equal(time.Date(2000, 1, 2, 0, 0, 0, 0, time.UTC)) {
+					t.Errorf("expires timestamp should be 2000-01-02T00:00:00Z, but got %v", s.ExpiresAt)
 				}
 			})
 		})
 		t.Run("user not found", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
-			h := NewPostSigninHandler(db)
+			h := NewPostSigninHandler(client)
 			_, err := h.Signin(t.Context(), SigninParams{Username: "user2", Password: "password"})
 			if !errors.Is(err, ErrInvalidCredentials) {
 				t.Errorf("expected ErrInvalidCredentials, but got %+v", err)
 			}
 		})
 		t.Run("password not match", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
-			h := NewPostSigninHandler(db)
+			h := NewPostSigninHandler(client)
 			_, err := h.Signin(t.Context(), SigninParams{Username: "user1", Password: "foo"})
 			if !errors.Is(err, ErrInvalidCredentials) {
 				t.Errorf("expected ErrInvalidCredentials, but got %+v", err)
@@ -373,10 +366,9 @@ func TestPostSigninHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -387,14 +379,14 @@ func TestPostSigninHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSigninHandler(db)
+			h := NewPostSigninHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusSeeOther {
 				t.Errorf("expected status see other, but got %d", rec.Code)
 			}
 
-			session, err := repository.New(db).GetSession(t.Context(), 1)
+			s, err := client.Session.Get(t.Context(), 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -407,15 +399,14 @@ func TestPostSigninHandler(t *testing.T) {
 			if tokenCookie.MaxAge != 86400 {
 				t.Errorf("cookie MaxAge should be set")
 			}
-			if tokenCookie.Value != session.Token {
+			if tokenCookie.Value != s.Token {
 				t.Errorf("cookie Value should be set")
 			}
 		})
 		t.Run("bad request", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -426,7 +417,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSigninHandler(db)
+			h := NewPostSigninHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
@@ -443,10 +434,9 @@ func TestPostSigninHandler(t *testing.T) {
 			}
 		})
 		t.Run("invalid credentials", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -457,7 +447,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSigninHandler(db)
+			h := NewPostSigninHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
@@ -478,19 +468,12 @@ func TestPostSigninHandler(t *testing.T) {
 
 func TestGetSignoutHandler(t *testing.T) {
 	t.Run("authorized", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+		if _, err := client.User.Create().SetName("user1").SetPassword("password").Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-
-		q := repository.New(db)
-		if _, err := q.CreateSession(t.Context(), repository.CreateSessionParams{
-			UserID:    1,
-			Token:     "token",
-			ExpiresAt: 3000000000,
-		}); err != nil {
+		if _, err := client.Session.Create().SetUserID(1).SetToken("token").SetExpiresAt(time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)).Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 
@@ -508,16 +491,15 @@ func TestGetSignoutHandler(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		h := NewGetSignoutHandler(db)
+		h := NewGetSignoutHandler(client)
 		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusSeeOther {
 			t.Errorf("expected status see otehr, but got %d", rec.Code)
 		}
 
-		row := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sessions")
-		var count int
-		if err := row.Scan(&count); err != nil {
+		count, err := client.Session.Query().Count(t.Context())
+		if err != nil {
 			t.Fatal(err)
 		}
 		if count != 0 {
@@ -525,16 +507,12 @@ func TestGetSignoutHandler(t *testing.T) {
 		}
 	})
 	t.Run("unauthorized", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signout", nil)
 		rec := httptest.NewRecorder()
 
-		h := NewGetSignoutHandler(db)
+		h := NewGetSignoutHandler(client)
 		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusSeeOther {

@@ -248,13 +248,19 @@ func TestCORSMiddleware(t *testing.T) {
 }
 
 func TestSessionMiddleware(t *testing.T) {
-	db := setupDB(t)
-	defer db.Close() // nolint:errcheck
+	client := NewTestDB(t)
 
-	if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (1, 'foo', 'foo'), (2, 'bar', 'bar'), (3, 'baz', 'baz')"); err != nil {
+	if _, err := client.User.CreateBulk(
+		client.User.Create().SetName("foo").SetPassword("foo"),
+		client.User.Create().SetName("bar").SetPassword("bar"),
+		client.User.Create().SetName("baz").SetPassword("baz"),
+	).Save(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token1', 3000000000), (2, 'token2', 1000000000)"); err != nil {
+	if _, err := client.Session.CreateBulk(
+		client.Session.Create().SetUserID(1).SetToken("token1").SetExpiresAt(time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)),
+		client.Session.Create().SetUserID(2).SetToken("token2").SetExpiresAt(time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC)),
+	).Save(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -264,7 +270,7 @@ func TestSessionMiddleware(t *testing.T) {
 		fmt.Fprintln(w, "test") // nolint:errcheck
 	})
 
-	h := NewSessionMiddleware(db)(mux)
+	h := NewSessionMiddleware(client)(mux)
 
 	t.Run("unauthorized", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)

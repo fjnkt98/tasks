@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -14,7 +13,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fjnkt98/tasks/repository"
+	"github.com/fjnkt98/tasks/ent"
+	"github.com/fjnkt98/tasks/ent/session"
+	"github.com/fjnkt98/tasks/ent/user"
 	"github.com/fjnkt98/tasks/settings"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -28,12 +29,12 @@ func NewSessionToken() (string, error) {
 	return hex.EncodeToString(b), err
 }
 
-func SetUserIDIntoContext(ctx context.Context, userID int64) context.Context {
+func SetUserIDIntoContext(ctx context.Context, userID int) context.Context {
 	return context.WithValue(ctx, contextKeyUser, userID)
 }
 
-func GetUserIDFromContext(ctx context.Context) int64 {
-	value, ok := ctx.Value(contextKeyUser).(int64)
+func GetUserIDFromContext(ctx context.Context) int {
+	value, ok := ctx.Value(contextKeyUser).(int)
 	if !ok {
 		return 0
 	}
@@ -77,14 +78,14 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type PostSignupHandler struct {
-	db *sql.DB
-	t  *template.Template
+	client *ent.Client
+	t      *template.Template
 }
 
-func NewPostSignupHandler(db *sql.DB) *PostSignupHandler {
+func NewPostSignupHandler(client *ent.Client) *PostSignupHandler {
 	return &PostSignupHandler{
-		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup.html")),
+		client: client,
+		t:      template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup.html")),
 	}
 }
 
@@ -126,16 +127,15 @@ func (h *PostSignupHandler) GetParams(r *http.Request) (SignupParams, error) {
 }
 
 func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) error {
-	tx, err := h.db.BeginTx(ctx, nil)
+	tx, err := h.client.Tx(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback() // nolint:errcheck
 
-	q := repository.New(h.db).WithTx(tx)
-
-	if _, err := q.GetUserByName(ctx, params.Username); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+	_, err = tx.User.Query().Where(user.Name(params.Username)).Only(ctx)
+	if err != nil {
+		if !ent.IsNotFound(err) {
 			return fmt.Errorf("get user by name: %w", err)
 		}
 	} else {
@@ -147,10 +147,7 @@ func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) err
 		return fmt.Errorf("generate digest: %w", err)
 	}
 
-	if err := q.CreateUser(ctx, repository.CreateUserParams{
-		Name:     params.Username,
-		Password: string(digest),
-	}); err != nil {
+	if _, err := tx.User.Create().SetName(params.Username).SetPassword(string(digest)).Save(ctx); err != nil {
 		return fmt.Errorf("create user: %w", err)
 	}
 
@@ -265,14 +262,14 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type PostSigninHandler struct {
-	db *sql.DB
-	t  *template.Template
+	client *ent.Client
+	t      *template.Template
 }
 
-func NewPostSigninHandler(db *sql.DB) *PostSigninHandler {
+func NewPostSigninHandler(client *ent.Client) *PostSigninHandler {
 	return &PostSigninHandler{
-		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signin.html")),
+		client: client,
+		t:      template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signin.html")),
 	}
 }
 
@@ -305,23 +302,21 @@ func (h *PostSigninHandler) GetParams(r *http.Request) (SigninParams, error) {
 }
 
 func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (string, error) {
-	tx, err := h.db.BeginTx(ctx, nil)
+	tx, err := h.client.Tx(ctx)
 	if err != nil {
 		return "", fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	q := repository.New(h.db).WithTx(tx)
-
-	user, err := q.GetUserByName(ctx, params.Username)
+	u, err := tx.User.Query().Where(user.Name(params.Username)).Only(ctx)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if ent.IsNotFound(err) {
 			return "", ErrInvalidCredentials
 		}
 		return "", fmt.Errorf("get user by name: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(params.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(params.Password)); err != nil {
 		return "", ErrInvalidCredentials
 	}
 
@@ -330,11 +325,7 @@ func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (st
 		return "", fmt.Errorf("generate session token: %w", err)
 	}
 
-	_, err = q.CreateSession(ctx, repository.CreateSessionParams{
-		UserID:    user.ID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
-	})
+	_, err = tx.Session.Create().SetUserID(u.ID).SetToken(token).SetExpiresAt(time.Now().Add(24 * time.Hour)).Save(ctx)
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
 	}
@@ -406,25 +397,23 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Signout ----------
 type GetSignoutHandler struct {
-	db *sql.DB
+	client *ent.Client
 }
 
-func NewGetSignoutHandler(db *sql.DB) *GetSignoutHandler {
+func NewGetSignoutHandler(client *ent.Client) *GetSignoutHandler {
 	return &GetSignoutHandler{
-		db: db,
+		client: client,
 	}
 }
 
 func (h *GetSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	q := repository.New(h.db)
-
 	cookie, err := r.Cookie("session_token")
 	if err != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
-	if err := q.DeleteSessionByToken(r.Context(), cookie.Value); err != nil {
+	if _, err := h.client.Session.Delete().Where(session.Token(cookie.Value)).Exec(r.Context()); err != nil {
 		slog.ErrorContext(r.Context(), "delete session by token", slog.Any("error", err))
 		Handle500(w, r)
 		return

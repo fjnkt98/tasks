@@ -1,14 +1,13 @@
 package server
 
 import (
-	"database/sql"
-	"errors"
 	"log/slog"
 	"net/http"
 	"slices"
 	"time"
 
-	"github.com/fjnkt98/tasks/repository"
+	"github.com/fjnkt98/tasks/ent"
+	"github.com/fjnkt98/tasks/ent/session"
 	"github.com/fjnkt98/tasks/settings"
 )
 
@@ -77,7 +76,7 @@ func NewCORSMiddleware(origin string) Middleware {
 	}
 }
 
-func NewSessionMiddleware(db *sql.DB) Middleware {
+func NewSessionMiddleware(client *ent.Client) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie("session_token")
@@ -86,11 +85,9 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
-			q := repository.New(db)
-
-			session, err := q.GetSessionByToken(r.Context(), cookie.Value)
+			s, err := client.Session.Query().Where(session.Token(cookie.Value)).Only(r.Context())
 			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
+				if ent.IsNotFound(err) {
 					cookie.Value = ""
 					cookie.MaxAge = -1
 					http.SetCookie(w, cookie)
@@ -104,7 +101,7 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
-			if session.ExpiresAt < time.Now().Unix() {
+			if s.ExpiresAt.Before(time.Now()) {
 				cookie.Value = ""
 				cookie.MaxAge = -1
 				http.SetCookie(w, cookie)
@@ -113,7 +110,7 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
-			user, err := q.GetUser(r.Context(), session.UserID)
+			user, err := client.User.Get(r.Context(), s.UserID)
 			if err != nil {
 				slog.ErrorContext(r.Context(), "get user", slog.Any("error", err))
 				Handle500(w, r)

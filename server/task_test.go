@@ -1,7 +1,6 @@
 package server
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,14 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fjnkt98/tasks/repository"
+	"github.com/fjnkt98/tasks/ent"
+	enttask "github.com/fjnkt98/tasks/ent/task"
 )
 
 func TestListTasksHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
-		h := NewListTasksHandler(db)
+		client := NewTestDB(t)
+		h := NewListTasksHandler(client)
 
 		t.Run("default values will be used if parameter is empty", func(t *testing.T) {
 			values := url.Values{}
@@ -77,36 +76,25 @@ func TestListTasksHandler(t *testing.T) {
 	})
 
 	t.Run("GetTasks", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		for i, data := range []struct {
-			Name string
-		}{
-			{Name: "user1"},
-			{Name: "user2"},
-		} {
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", i+1, data.Name); err != nil {
-				t.Fatal(err)
-			}
+		if _, err := client.User.CreateBulk(
+			client.User.Create().SetName("user1").SetPassword("user1"),
+			client.User.Create().SetName("user2").SetPassword("user2"),
+		).Save(t.Context()); err != nil {
+			t.Fatal(err)
 		}
 
-		for i, data := range []struct {
-			Title  string
-			Status string
-			UserID int64
-		}{
-			{Title: "test1", Status: "created", UserID: 1},
-			{Title: "test2", Status: "done", UserID: 1},
-			{Title: "test3", Status: "done", UserID: 1},
-			{Title: "test4", Status: "created", UserID: 1},
-		} {
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", i+1, data.Title, data.Status, data.UserID); err != nil {
-				t.Fatal(err)
-			}
+		if _, err := client.Task.CreateBulk(
+			client.Task.Create().SetTitle("test1").SetStatus(enttask.StatusCreated).SetUserID(1),
+			client.Task.Create().SetTitle("test2").SetStatus(enttask.StatusDone).SetUserID(1),
+			client.Task.Create().SetTitle("test3").SetStatus(enttask.StatusDone).SetUserID(1),
+			client.Task.Create().SetTitle("test4").SetStatus(enttask.StatusCreated).SetUserID(1),
+		).Save(t.Context()); err != nil {
+			t.Fatal(err)
 		}
 
-		h := NewListTasksHandler(db)
+		h := NewListTasksHandler(client)
 
 		t.Run("get all", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: ""})
@@ -119,15 +107,15 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			wants := []struct {
-				ID     int64
+				ID     int
 				Title  string
-				Status string
-				UserID int64
+				Status enttask.Status
+				UserID int
 			}{
-				{ID: 4, Title: "test4", Status: "created", UserID: 1},
-				{ID: 1, Title: "test1", Status: "created", UserID: 1},
-				{ID: 3, Title: "test3", Status: "done", UserID: 1},
-				{ID: 2, Title: "test2", Status: "done", UserID: 1},
+				{ID: 4, Title: "test4", Status: enttask.StatusCreated, UserID: 1},
+				{ID: 1, Title: "test1", Status: enttask.StatusCreated, UserID: 1},
+				{ID: 3, Title: "test3", Status: enttask.StatusDone, UserID: 1},
+				{ID: 2, Title: "test2", Status: enttask.StatusDone, UserID: 1},
 			}
 			for i := range 4 {
 				if wants[i].ID != tasks[i].ID {
@@ -154,13 +142,13 @@ func TestListTasksHandler(t *testing.T) {
 				t.Fatalf("length should be 2, but got %d", len(tasks))
 			}
 			wants := []struct {
-				ID     int64
+				ID     int
 				Title  string
-				Status string
-				UserID int64
+				Status enttask.Status
+				UserID int
 			}{
-				{ID: 4, Title: "test4", Status: "created", UserID: 1},
-				{ID: 1, Title: "test1", Status: "created", UserID: 1},
+				{ID: 4, Title: "test4", Status: enttask.StatusCreated, UserID: 1},
+				{ID: 1, Title: "test1", Status: enttask.StatusCreated, UserID: 1},
 			}
 			for i := range 2 {
 				if wants[i].ID != tasks[i].ID {
@@ -187,13 +175,13 @@ func TestListTasksHandler(t *testing.T) {
 				t.Fatalf("length should be 4, but got %d", len(tasks))
 			}
 			wants := []struct {
-				ID     int64
+				ID     int
 				Title  string
-				Status string
-				UserID int64
+				Status enttask.Status
+				UserID int
 			}{
-				{ID: 3, Title: "test3", Status: "done", UserID: 1},
-				{ID: 2, Title: "test2", Status: "done", UserID: 1},
+				{ID: 3, Title: "test3", Status: enttask.StatusDone, UserID: 1},
+				{ID: 2, Title: "test2", Status: enttask.StatusDone, UserID: 1},
 			}
 			for i := range 2 {
 				if wants[i].ID != tasks[i].ID {
@@ -233,15 +221,14 @@ func TestListTasksHandler(t *testing.T) {
 	})
 
 	t.Run("ResponseHTTP", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		h := NewListTasksHandler(db)
+		h := NewListTasksHandler(client)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
-				Tasks: []repository.Task{
-					{ID: 1, Title: "test title", Status: "created"},
+				Tasks: []*ent.Task{
+					{ID: 1, Title: "test title", Status: enttask.StatusCreated},
 				},
 				LastIndex: 0,
 				NextPage:  2,
@@ -269,7 +256,7 @@ func TestListTasksHandler(t *testing.T) {
 		})
 		t.Run("no data", func(t *testing.T) {
 			data := TaskData{
-				Tasks:     []repository.Task{},
+				Tasks:     []*ent.Task{},
 				LastIndex: -1,
 				NextPage:  2,
 				Limit:     10,
@@ -296,15 +283,14 @@ func TestListTasksHandler(t *testing.T) {
 		})
 	})
 	t.Run("ResponseHTMX", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		h := NewListTasksHandler(db)
+		h := NewListTasksHandler(client)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
-				Tasks: []repository.Task{
-					{ID: 1, Title: "test title", Status: "created"},
+				Tasks: []*ent.Task{
+					{ID: 1, Title: "test title", Status: enttask.StatusCreated},
 				},
 				LastIndex: 0,
 				NextPage:  2,
@@ -332,7 +318,7 @@ func TestListTasksHandler(t *testing.T) {
 		})
 		t.Run("no data", func(t *testing.T) {
 			data := TaskData{
-				Tasks:     []repository.Task{},
+				Tasks:     []*ent.Task{},
 				LastIndex: 0,
 				NextPage:  2,
 				Limit:     10,
@@ -353,36 +339,25 @@ func TestListTasksHandler(t *testing.T) {
 		})
 	})
 	t.Run("ServeHTTP", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		for i, data := range []struct {
-			Name string
-		}{
-			{Name: "user1"},
-			{Name: "user2"},
-		} {
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", i+1, data.Name); err != nil {
-				t.Fatal(err)
-			}
+		if _, err := client.User.CreateBulk(
+			client.User.Create().SetName("user1").SetPassword("user1"),
+			client.User.Create().SetName("user2").SetPassword("user2"),
+		).Save(t.Context()); err != nil {
+			t.Fatal(err)
 		}
 
-		for i, data := range []struct {
-			Title  string
-			Status string
-			UserID int64
-		}{
-			{Title: "test1", Status: "created", UserID: 1},
-			{Title: "test2", Status: "done", UserID: 1},
-			{Title: "test3", Status: "done", UserID: 1},
-			{Title: "test4", Status: "created", UserID: 1},
-		} {
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", i+1, data.Title, data.Status, data.UserID); err != nil {
-				t.Fatal(err)
-			}
+		if _, err := client.Task.CreateBulk(
+			client.Task.Create().SetTitle("test1").SetStatus(enttask.StatusCreated).SetUserID(1),
+			client.Task.Create().SetTitle("test2").SetStatus(enttask.StatusDone).SetUserID(1),
+			client.Task.Create().SetTitle("test3").SetStatus(enttask.StatusDone).SetUserID(1),
+			client.Task.Create().SetTitle("test4").SetStatus(enttask.StatusCreated).SetUserID(1),
+		).Save(t.Context()); err != nil {
+			t.Fatal(err)
 		}
 
-		h := NewListTasksHandler(db)
+		h := NewListTasksHandler(client)
 
 		t.Run("get without params", func(t *testing.T) {
 			ctx := SetUserIDIntoContext(t.Context(), 1)
@@ -449,13 +424,12 @@ func TestListTasksHandler(t *testing.T) {
 
 func TestGetTaskHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+		if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
+		if _, err := client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 
@@ -467,7 +441,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskHandler(db)
+			h := NewGetTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
@@ -494,7 +468,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskHandler(db)
+			h := NewGetTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
@@ -510,7 +484,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskHandler(db)
+			h := NewGetTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
@@ -522,13 +496,12 @@ func TestGetTaskHandler(t *testing.T) {
 
 func TestGetTaskEditHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+		if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
+		if _, err := client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 
@@ -540,7 +513,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskEditHandler(db)
+			h := NewGetTaskEditHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
@@ -566,7 +539,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskEditHandler(db)
+			h := NewGetTaskEditHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
@@ -581,7 +554,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskEditHandler(db)
+			h := NewGetTaskEditHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
@@ -593,8 +566,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 func TestPostTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
 		t.Run("title", func(t *testing.T) {
 			values := url.Values{}
@@ -605,7 +577,7 @@ func TestPostTaskHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			h := NewPostTaskHandler(db)
+			h := NewPostTaskHandler(client)
 			params, err := h.GetParams(req)
 			if err != nil {
 				t.Fatal(err)
@@ -625,7 +597,7 @@ func TestPostTaskHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			h := NewPostTaskHandler(db)
+			h := NewPostTaskHandler(client)
 			_, err := h.GetParams(req)
 			if !errors.Is(err, ErrBadRequest) {
 				t.Errorf("expected ErrBadRequest, but got %s", err)
@@ -641,7 +613,7 @@ func TestPostTaskHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			h := NewPostTaskHandler(db)
+			h := NewPostTaskHandler(client)
 			_, err := h.GetParams(req)
 			if !errors.Is(err, ErrBadRequest) {
 				t.Errorf("expected ErrBadRequest, but got %s", err)
@@ -651,10 +623,9 @@ func TestPostTaskHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("normal", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
+			if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 
@@ -668,7 +639,7 @@ func TestPostTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostTaskHandler(db)
+			h := NewPostTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusCreated {
@@ -686,8 +657,7 @@ func TestPostTaskHandler(t *testing.T) {
 				t.Error("body shouldn't contain <footer> element, but found")
 			}
 
-			q := repository.New(db)
-			tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{UserID: 1, Offset: 0, Limit: 100})
+			tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -699,7 +669,7 @@ func TestPostTaskHandler(t *testing.T) {
 			if tasks[0].Title != "test" {
 				t.Errorf("title should be 'test', but got %s", tasks[0].Title)
 			}
-			if tasks[0].Status != "created" {
+			if tasks[0].Status != enttask.StatusCreated {
 				t.Errorf("status should be 'created', but got %s", tasks[0].Status)
 			}
 		})
@@ -708,11 +678,7 @@ func TestPostTaskHandler(t *testing.T) {
 
 func TestPutTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
 		t.Run("normal", func(t *testing.T) {
 			values := url.Values{}
@@ -724,7 +690,7 @@ func TestPutTaskHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
 
 			if params.Title != "test" {
@@ -745,7 +711,7 @@ func TestPutTaskHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
 
 			if params.Title != "" {
@@ -766,7 +732,7 @@ func TestPutTaskHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
 
 			if params.Title != "" {
@@ -778,28 +744,28 @@ func TestPutTaskHandler(t *testing.T) {
 		})
 	})
 
-	var fixture = func(db *sql.DB, t *testing.T) {
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (1, 'user1', '')"); err != nil {
+	var fixture = func(client *ent.Client, t *testing.T) {
+		t.Helper()
+		if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (1, 'test', 'created', 1)"); err != nil {
+		if _, err := client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	t.Run("UpdateTask", func(t *testing.T) {
 		t.Run("update title and status", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			params := UpdateTaskParams{
 				Title:  "new test",
 				Status: "done",
 			}
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			if err != nil {
 				t.Fatal(err)
@@ -808,46 +774,42 @@ func TestPutTaskHandler(t *testing.T) {
 			if updated.Title != "new test" {
 				t.Errorf("title should be 'new test', but got %s", updated.Title)
 			}
-			if updated.Status != "done" {
+			if updated.Status != enttask.StatusDone {
 				t.Errorf("status should be 'done', but got %s", updated.Status)
 			}
 
-			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
-				ID:     1,
-				UserID: 1,
-			})
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if task != updated {
+			if task.ID != updated.ID || task.Title != updated.Title ||
+				task.Status != updated.Status || task.UserID != updated.UserID ||
+				!task.CreatedAt.Equal(updated.CreatedAt) || !task.UpdatedAt.Equal(updated.UpdatedAt) {
 				t.Errorf("updated task %+v must match saved one %+v", updated, task)
 			}
 		})
 		t.Run("update non-existing task", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			_, err := h.UpdateTask(t.Context(), 2, 1, UpdateTaskParams{})
-			if !errors.Is(err, sql.ErrNoRows) {
-				t.Fatalf("expected sql.ErrNoRows, but got %+v", err)
+			if !ent.IsNotFound(err) {
+				t.Fatalf("expected ent.NotFoundError, but got %+v", err)
 			}
 		})
 		t.Run("update title only", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			params := UpdateTaskParams{
 				Title: "new test",
 			}
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			if err != nil {
 				t.Fatal(err)
@@ -856,34 +818,31 @@ func TestPutTaskHandler(t *testing.T) {
 			if updated.Title != "new test" {
 				t.Errorf("title should be 'new test', but got %s", updated.Title)
 			}
-			if updated.Status != "created" {
+			if updated.Status != enttask.StatusCreated {
 				t.Errorf("status should be 'created', but got %s", updated.Status)
 			}
 
-			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
-				ID:     1,
-				UserID: 1,
-			})
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if task != updated {
+			if task.ID != updated.ID || task.Title != updated.Title ||
+				task.Status != updated.Status || task.UserID != updated.UserID ||
+				!task.CreatedAt.Equal(updated.CreatedAt) || !task.UpdatedAt.Equal(updated.UpdatedAt) {
 				t.Errorf("updated task %+v must match saved one %+v", updated, task)
 			}
 		})
 		t.Run("update status only", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			params := UpdateTaskParams{
 				Status: "done",
 			}
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			if err != nil {
 				t.Fatal(err)
@@ -892,20 +851,18 @@ func TestPutTaskHandler(t *testing.T) {
 			if updated.Title != "test" {
 				t.Errorf("title should be 'test', but got %s", updated.Title)
 			}
-			if updated.Status != "done" {
+			if updated.Status != enttask.StatusDone {
 				t.Errorf("status should be 'done', but got %s", updated.Status)
 			}
 
-			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
-				ID:     1,
-				UserID: 1,
-			})
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if task != updated {
+			if task.ID != updated.ID || task.Title != updated.Title ||
+				task.Status != updated.Status || task.UserID != updated.UserID ||
+				!task.CreatedAt.Equal(updated.CreatedAt) || !task.UpdatedAt.Equal(updated.UpdatedAt) {
 				t.Errorf("updated task %+v must match saved one %+v", updated, task)
 			}
 		})
@@ -913,10 +870,9 @@ func TestPutTaskHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("update title and status", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			values := url.Values{}
 			values.Set("title", "new test")
@@ -930,7 +886,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
@@ -952,11 +908,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Error("body should contain `id=\"task-1\"`, but not found")
 			}
 
-			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
-				ID:     1,
-				UserID: 1,
-			})
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -964,7 +916,7 @@ func TestPutTaskHandler(t *testing.T) {
 			if task.Title != "new test" {
 				t.Errorf("title should be 'new test', but got %s", task.Title)
 			}
-			if task.Status != "done" {
+			if task.Status != enttask.StatusDone {
 				t.Errorf("status should 'done', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
@@ -972,10 +924,9 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 		})
 		t.Run("update title only", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			values := url.Values{}
 			values.Set("title", "new test")
@@ -988,7 +939,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
@@ -1010,11 +961,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Error("body should contain `id=\"task-1\"`, but not found")
 			}
 
-			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
-				ID:     1,
-				UserID: 1,
-			})
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1022,7 +969,7 @@ func TestPutTaskHandler(t *testing.T) {
 			if task.Title != "new test" {
 				t.Errorf("title should be 'new test', but got %s", task.Title)
 			}
-			if task.Status != "created" {
+			if task.Status != enttask.StatusCreated {
 				t.Errorf("status should be 'created', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
@@ -1030,10 +977,9 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 		})
 		t.Run("update status only", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -1046,7 +992,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
@@ -1068,11 +1014,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Error("body should contain `id=\"task-1\"`, but not found")
 			}
 
-			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
-				ID:     1,
-				UserID: 1,
-			})
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1080,7 +1022,7 @@ func TestPutTaskHandler(t *testing.T) {
 			if task.Title != "test" {
 				t.Errorf("title should be 'test', but got %s", task.Title)
 			}
-			if task.Status != "done" {
+			if task.Status != enttask.StatusDone {
 				t.Errorf("status should be 'done', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
@@ -1088,10 +1030,9 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 		})
 		t.Run("update non-existing task", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -1104,7 +1045,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
@@ -1115,11 +1056,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("body should be 'not found', but got '%s'", body)
 			}
 
-			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
-				ID:     1,
-				UserID: 1,
-			})
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1127,7 +1064,7 @@ func TestPutTaskHandler(t *testing.T) {
 			if task.Title != "test" {
 				t.Errorf("title should be 'test', but got %s", task.Title)
 			}
-			if task.Status != "created" {
+			if task.Status != enttask.StatusCreated {
 				t.Errorf("status should be 'created', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
@@ -1135,10 +1072,9 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 		})
 		t.Run("invalid path value", func(t *testing.T) {
-			db := setupDB(t)
-			defer db.Close() // nolint:errcheck
+			client := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(client, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -1151,7 +1087,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusNotFound {
@@ -1162,11 +1098,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("body should be 'not found', but got '%s'", body)
 			}
 
-			q := repository.New(db)
-			task, err := q.GetTaskByID(t.Context(), repository.GetTaskByIDParams{
-				ID:     1,
-				UserID: 1,
-			})
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1174,7 +1106,7 @@ func TestPutTaskHandler(t *testing.T) {
 			if task.Title != "test" {
 				t.Errorf("title should be 'test', but got %s", task.Title)
 			}
-			if task.Status != "created" {
+			if task.Status != enttask.StatusCreated {
 				t.Errorf("status should be 'created', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
@@ -1185,20 +1117,20 @@ func TestPutTaskHandler(t *testing.T) {
 }
 
 func TestDeleteTaskHandler(t *testing.T) {
-	var fixture = func(db *sql.DB, t *testing.T) {
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (1, 'user1', '')"); err != nil {
+	var fixture = func(client *ent.Client, t *testing.T) {
+		t.Helper()
+		if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (1, 'test', 'created', 1)"); err != nil {
+		if _, err := client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	t.Run("delete successfully", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		fixture(db, t)
+		fixture(client, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/1", nil)
@@ -1206,15 +1138,14 @@ func TestDeleteTaskHandler(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		h := NewDeleteTaskHandler(db)
+		h := NewDeleteTaskHandler(client)
 		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 
-		q := repository.New(db)
-		tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{Offset: 0, Limit: 100})
+		tasks, err := client.Task.Query().Limit(100).All(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1224,10 +1155,9 @@ func TestDeleteTaskHandler(t *testing.T) {
 		}
 	})
 	t.Run("delete non-existing task", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		fixture(db, t)
+		fixture(client, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/2", nil)
@@ -1235,15 +1165,14 @@ func TestDeleteTaskHandler(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		h := NewDeleteTaskHandler(db)
+		h := NewDeleteTaskHandler(client)
 		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 
-		q := repository.New(db)
-		tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{UserID: 1, Offset: 0, Limit: 100})
+		tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1255,15 +1184,14 @@ func TestDeleteTaskHandler(t *testing.T) {
 		if tasks[0].Title != "test" {
 			t.Errorf("title should be 'test', but got %s", tasks[0].Title)
 		}
-		if tasks[0].Status != "created" {
+		if tasks[0].Status != enttask.StatusCreated {
 			t.Errorf("status should be 'created', but got %s", tasks[0].Status)
 		}
 	})
 	t.Run("invalid path value", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
+		client := NewTestDB(t)
 
-		fixture(db, t)
+		fixture(client, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/foo", nil)
@@ -1271,15 +1199,14 @@ func TestDeleteTaskHandler(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		h := NewDeleteTaskHandler(db)
+		h := NewDeleteTaskHandler(client)
 		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("expected status not found, but got %d", rec.Code)
 		}
 
-		q := repository.New(db)
-		tasks, err := q.ListTasks(t.Context(), repository.ListTasksParams{UserID: 1, Offset: 0, Limit: 100})
+		tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1291,7 +1218,7 @@ func TestDeleteTaskHandler(t *testing.T) {
 		if tasks[0].Title != "test" {
 			t.Errorf("title should be 'test', but got %s", tasks[0].Title)
 		}
-		if tasks[0].Status != "created" {
+		if tasks[0].Status != enttask.StatusCreated {
 			t.Errorf("status should be 'created', but got %s", tasks[0].Status)
 		}
 	})

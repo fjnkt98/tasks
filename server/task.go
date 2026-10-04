@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -13,47 +11,50 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/fjnkt98/tasks/repository"
+	entsql "entgo.io/ent/dialect/sql"
+
+	"github.com/fjnkt98/tasks/ent"
+	"github.com/fjnkt98/tasks/ent/task"
 )
 
 // ---------- List Tasks ----------
 type ListTasksHandler struct {
-	db           *sql.DB
+	client       *ent.Client
 	templateHTTP *template.Template
 	templateHTMX *template.Template
 }
 
-func NewListTasksHandler(db *sql.DB) *ListTasksHandler {
+func NewListTasksHandler(client *ent.Client) *ListTasksHandler {
 	return &ListTasksHandler{
-		db:           db,
+		client:       client,
 		templateHTTP: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/tasks.html", "templates/partials/tasks.html")),
 		templateHTMX: template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
 type ListTasksParams struct {
-	Page   int64
-	Limit  int64
+	Page   int
+	Limit  int
 	Status string
 }
 
 type TaskData struct {
 	LayoutData
-	Tasks     []repository.Task
+	Tasks     []*ent.Task
 	LastIndex int
-	NextPage  int64
-	Limit     int64
+	NextPage  int
+	Limit     int
 	Status    string
 }
 
 func (h *ListTasksHandler) GetParams(values url.Values) ListTasksParams {
 	var err error
 
-	var page int64
+	var page int
 	if p := values.Get("page"); p == "" {
 		page = 1
 	} else {
-		page, err = strconv.ParseInt(p, 10, 64)
+		page, err = strconv.Atoi(p)
 		if err != nil {
 			page = 1
 		}
@@ -62,11 +63,11 @@ func (h *ListTasksHandler) GetParams(values url.Values) ListTasksParams {
 		}
 	}
 
-	var limit int64
+	var limit int
 	if l := values.Get("limit"); l == "" {
 		limit = 10
 	} else {
-		limit, err = strconv.ParseInt(l, 10, 64)
+		limit, err = strconv.Atoi(l)
 		if err != nil {
 			limit = 10
 		}
@@ -84,30 +85,25 @@ func (h *ListTasksHandler) GetParams(values url.Values) ListTasksParams {
 	}
 }
 
-func (h *ListTasksHandler) GetTasks(ctx context.Context, userID int64, params ListTasksParams) ([]repository.Task, error) {
-	q := repository.New(h.db)
+func (h *ListTasksHandler) GetTasks(ctx context.Context, userID int, params ListTasksParams) ([]*ent.Task, error) {
+	q := h.client.Task.Query().
+		Where(task.UserID(userID)).
+		Limit(params.Limit).
+		Offset(params.Limit*(params.Page-1)).
+		Order(
+			task.ByStatus(entsql.OrderAsc()),
+			task.ByID(entsql.OrderDesc()),
+		)
+	if params.Status != "" {
+		status := task.Status(params.Status)
+		if err := task.StatusValidator(status); err == nil {
+			q = q.Where(task.StatusEQ(status))
+		}
+	}
 
-	var tasks []repository.Task
-	var err error
-	if params.Status == "" {
-		tasks, err = q.ListTasks(ctx, repository.ListTasksParams{
-			UserID: userID,
-			Offset: params.Limit * (params.Page - 1),
-			Limit:  params.Limit,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("list tasks: %w", err)
-		}
-	} else {
-		tasks, err = q.ListTasksByStatus(ctx, repository.ListTasksByStatusParams{
-			UserID: userID,
-			Offset: params.Limit * (params.Page - 1),
-			Limit:  params.Limit,
-			Status: params.Status,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("list tasks by status: %w", err)
-		}
+	tasks, err := q.All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list tasks: %w", err)
 	}
 
 	return tasks, nil
@@ -169,14 +165,14 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Get Task ----------
 type GetTaskHandler struct {
-	db *sql.DB
-	t  *template.Template
+	client *ent.Client
+	t      *template.Template
 }
 
-func NewGetTaskHandler(db *sql.DB) *GetTaskHandler {
+func NewGetTaskHandler(client *ent.Client) *GetTaskHandler {
 	return &GetTaskHandler{
-		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
+		client: client,
+		t:      template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -190,7 +186,7 @@ func (h *GetTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) erro
 }
 
 func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		Handle404(w, r)
 		return
@@ -198,13 +194,9 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	q := repository.New(h.db)
-	task, err := q.GetTaskByID(r.Context(), repository.GetTaskByIDParams{
-		ID:     id,
-		UserID: userID,
-	})
+	t, err := h.client.Task.Query().Where(task.UserID(userID)).Where(task.ID(id)).Only(r.Context())
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if ent.IsNotFound(err) {
 			Handle404(w, r)
 			return
 		}
@@ -218,7 +210,7 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
 		},
-		Tasks:     []repository.Task{task},
+		Tasks:     []*ent.Task{t},
 		LastIndex: -1,
 	}
 
@@ -231,20 +223,20 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Get Task Edit ----------
 type GetTaskEditHandler struct {
-	q *repository.Queries
-	t *template.Template
+	client *ent.Client
+	t      *template.Template
 }
 
-func NewGetTaskEditHandler(db *sql.DB) *GetTaskEditHandler {
+func NewGetTaskEditHandler(client *ent.Client) *GetTaskEditHandler {
 	return &GetTaskEditHandler{
-		q: repository.New(db),
-		t: template.Must(template.ParseFS(templates, "templates/partials/task_edit.html")),
+		client: client,
+		t:      template.Must(template.ParseFS(templates, "templates/partials/task_edit.html")),
 	}
 }
 
-func (h *GetTaskEditHandler) ResponseHTMX(w http.ResponseWriter, task repository.Task) error {
+func (h *GetTaskEditHandler) ResponseHTMX(w http.ResponseWriter, t *ent.Task) error {
 	w.WriteHeader(http.StatusOK)
-	if err := h.t.ExecuteTemplate(w, "task_edit", &task); err != nil {
+	if err := h.t.ExecuteTemplate(w, "task_edit", &t); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -252,7 +244,7 @@ func (h *GetTaskEditHandler) ResponseHTMX(w http.ResponseWriter, task repository
 }
 
 func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		Handle404(w, r)
 		return
@@ -260,12 +252,9 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	task, err := h.q.GetTaskByID(r.Context(), repository.GetTaskByIDParams{
-		ID:     id,
-		UserID: userID,
-	})
+	t, err := h.client.Task.Query().Where(task.UserID(userID)).Where(task.ID(id)).Only(r.Context())
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if ent.IsNotFound(err) {
 			Handle404(w, r)
 			return
 		}
@@ -275,7 +264,7 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.ResponseHTMX(w, task); err != nil {
+	if err := h.ResponseHTMX(w, t); err != nil {
 		slog.ErrorContext(r.Context(), "response for htmx", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -284,14 +273,14 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Post Task ----------
 type PostTaskHandler struct {
-	db *sql.DB
-	t  *template.Template
+	client *ent.Client
+	t      *template.Template
 }
 
-func NewPostTaskHandler(db *sql.DB) *PostTaskHandler {
+func NewPostTaskHandler(client *ent.Client) *PostTaskHandler {
 	return &PostTaskHandler{
-		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
+		client: client,
+		t:      template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -328,11 +317,7 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	q := repository.New(h.db)
-	task, err := q.CreateTask(r.Context(), repository.CreateTaskParams{
-		Title:  params.Title,
-		UserID: userID,
-	})
+	t, err := h.client.Task.Create().SetTitle(params.Title).SetStatus(task.StatusCreated).SetUserID(userID).Save(r.Context())
 	if err != nil {
 		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
 		Handle500(w, r)
@@ -340,7 +325,7 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := TaskData{
-		Tasks:     []repository.Task{task},
+		Tasks:     []*ent.Task{t},
 		LastIndex: -1,
 	}
 
@@ -353,14 +338,14 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Put Task ----------
 type PutTaskHandler struct {
-	db *sql.DB
-	t  *template.Template
+	client *ent.Client
+	t      *template.Template
 }
 
-func NewPutTaskHandler(db *sql.DB) *PutTaskHandler {
+func NewPutTaskHandler(client *ent.Client) *PutTaskHandler {
 	return &PutTaskHandler{
-		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
+		client: client,
+		t:      template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -376,50 +361,43 @@ func (h *PutTaskHandler) GetParams(r *http.Request) UpdateTaskParams {
 	}
 }
 
-func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int64, userID int64, params UpdateTaskParams) (repository.Task, error) {
-	tx, err := h.db.BeginTx(ctx, nil)
+func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int, userID int, params UpdateTaskParams) (*ent.Task, error) {
+	tx, err := h.client.Tx(ctx)
 	if err != nil {
-		return repository.Task{}, fmt.Errorf("begin transaction: %w", err)
+		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	q := repository.New(h.db).WithTx(tx)
-	task, err := q.GetTaskByID(ctx, repository.GetTaskByIDParams{
-		ID:     id,
-		UserID: userID,
-	})
+	t, err := tx.Task.Query().Where(task.UserID(userID)).Where(task.ID(id)).Only(ctx)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return repository.Task{}, err
+		if ent.IsNotFound(err) {
+			return nil, err
 		}
-		return repository.Task{}, fmt.Errorf("get task by id: %w", err)
+		return nil, fmt.Errorf("get task by id: %w", err)
 	}
 
-	data := repository.UpdateTaskParams{
-		ID:     id,
-		UserID: userID,
-	}
+	update := t.Update()
+
 	if params.Title != "" {
-		data.Title = params.Title
-	} else {
-		data.Title = task.Title
+		update = update.SetTitle(params.Title)
 	}
 	if params.Status != "" {
-		data.Status = params.Status
-	} else {
-		data.Status = task.Status
+		status := task.Status(params.Status)
+		if err := task.StatusValidator(status); err == nil {
+			update = update.SetStatus(status)
+		}
 	}
 
-	task, err = q.UpdateTask(ctx, data)
+	t, err = update.Save(ctx)
 	if err != nil {
-		return repository.Task{}, fmt.Errorf("update task: %w", err)
+		return nil, fmt.Errorf("update task: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return repository.Task{}, fmt.Errorf("commit transaction: %w", err)
+		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	return task, nil
+	return t, nil
 }
 
 func (h *PutTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
@@ -432,7 +410,7 @@ func (h *PutTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) erro
 }
 
 func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		Handle404(w, r)
 		return
@@ -441,9 +419,9 @@ func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	userID := GetUserIDFromContext(r.Context())
 
 	params := h.GetParams(r)
-	task, err := h.UpdateTask(r.Context(), id, userID, params)
+	t, err := h.UpdateTask(r.Context(), id, userID, params)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if ent.IsNotFound(err) {
 			Handle404(w, r)
 			return
 		}
@@ -453,7 +431,7 @@ func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := TaskData{
-		Tasks:     []repository.Task{task},
+		Tasks:     []*ent.Task{t},
 		LastIndex: -1,
 	}
 
@@ -466,17 +444,17 @@ func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Delete Task ----------
 type DeleteTaskHandler struct {
-	db *sql.DB
+	client *ent.Client
 }
 
-func NewDeleteTaskHandler(db *sql.DB) *DeleteTaskHandler {
+func NewDeleteTaskHandler(client *ent.Client) *DeleteTaskHandler {
 	return &DeleteTaskHandler{
-		db: db,
+		client: client,
 	}
 }
 
 func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		Handle404(w, r)
 		return
@@ -484,11 +462,7 @@ func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	q := repository.New(h.db)
-	if err := q.DeleteTask(r.Context(), repository.DeleteTaskParams{
-		ID:     id,
-		UserID: userID,
-	}); err != nil {
+	if _, err := h.client.Task.Delete().Where(task.UserID(userID)).Where(task.ID(id)).Exec(r.Context()); err != nil {
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
 		Handle500(w, r)
 		return

@@ -1,21 +1,27 @@
 package server
 
 import (
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/fjnkt98/tasks/repository"
+	"github.com/fjnkt98/tasks/ent"
 )
 
-func setupDB(t *testing.T) *sql.DB {
-	db, err := repository.NewTestDB()
+func NewTestDB(t *testing.T) *ent.Client {
+	t.Helper()
+
+	client, err := ent.SetupClient(t.Context(), "file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return db
+
+	t.Cleanup(func() {
+		client.Close() // nolint:errcheck
+	})
+
+	return client
 }
 
 func TestIsHTMX(t *testing.T) {

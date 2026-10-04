@@ -25,9 +25,6 @@ func TestGetIndex(t *testing.T) {
 		}
 	})
 	t.Run("authorized", func(t *testing.T) {
-		db := setupDB(t)
-		defer db.Close() // nolint:errcheck
-
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
