@@ -50,20 +50,17 @@ type SignupData struct {
 	ErrorMessage string
 }
 
-type GetSignupHandler struct{}
+type GetSignupHandler struct {
+	t *template.Template
+}
 
 func NewGetSignupHandler() *GetSignupHandler {
-	return &GetSignupHandler{}
+	return &GetSignupHandler{
+		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup.html")),
+	}
 }
 
 func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFS(templates, "templates/layout.html", "templates/signup.html")
-	if err != nil {
-		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-		Handle500(w, r)
-		return
-	}
-
 	data := SignupData{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
@@ -72,7 +69,7 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err := t.Execute(w, &data); err != nil {
+	if err := h.t.Execute(w, &data); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -81,11 +78,13 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type PostSignupHandler struct {
 	db *sql.DB
+	t  *template.Template
 }
 
 func NewPostSignupHandler(db *sql.DB) *PostSignupHandler {
 	return &PostSignupHandler{
 		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup.html")),
 	}
 }
 
@@ -165,24 +164,15 @@ func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) err
 func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	params, err := h.GetParams(r)
 	if err != nil {
-		msg := err.Error()
-
-		t, err := template.ParseFS(templates, "templates/layout.html", "templates/signup.html")
-		if err != nil {
-			slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-			Handle500(w, r)
-			return
-		}
-
 		data := SignupData{
 			LayoutData: LayoutData{
 				Authorized: IsAuthorized(r.Context()),
 			},
-			ErrorMessage: msg,
+			ErrorMessage: err.Error(),
 		}
 
 		w.WriteHeader(http.StatusBadRequest)
-		if err := t.Execute(w, &data); err != nil {
+		if err := h.t.Execute(w, &data); err != nil {
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			Handle500(w, r)
 			return
@@ -192,24 +182,15 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.Signup(r.Context(), params); err != nil {
 		if errors.Is(err, ErrDuplicatedUsername) {
-			msg := err.Error()
-
-			t, err := template.ParseFS(templates, "templates/layout.html", "templates/signup.html")
-			if err != nil {
-				slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-				Handle500(w, r)
-				return
-			}
-
 			data := SignupData{
 				LayoutData: LayoutData{
 					Authorized: IsAuthorized(r.Context()),
 				},
-				ErrorMessage: msg,
+				ErrorMessage: err.Error(),
 			}
 
 			w.WriteHeader(http.StatusBadRequest)
-			if err := t.Execute(w, &data); err != nil {
+			if err := h.t.Execute(w, &data); err != nil {
 				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 				Handle500(w, r)
 				return
@@ -225,20 +206,17 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/signup/success", http.StatusSeeOther)
 }
 
-type GetSignupSuccessHandler struct{}
+type GetSignupSuccessHandler struct {
+	t *template.Template
+}
 
 func NewGetSignupSuccessHandler() *GetSignupSuccessHandler {
-	return &GetSignupSuccessHandler{}
+	return &GetSignupSuccessHandler{
+		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup_success.html")),
+	}
 }
 
 func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFS(templates, "templates/layout.html", "templates/signup_success.html")
-	if err != nil {
-		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-		Handle500(w, r)
-		return
-	}
-
 	data := SignupData{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
@@ -247,7 +225,7 @@ func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err := t.Execute(w, &data); err != nil {
+	if err := h.t.Execute(w, &data); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -260,20 +238,17 @@ type SigninData struct {
 	ErrorMessage string
 }
 
-type GetSigninHandler struct{}
+type GetSigninHandler struct {
+	t *template.Template
+}
 
 func NewGetSigninHandler() *GetSigninHandler {
-	return &GetSigninHandler{}
+	return &GetSigninHandler{
+		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signin.html")),
+	}
 }
 
 func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFS(templates, "templates/layout.html", "templates/signin.html")
-	if err != nil {
-		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-		Handle500(w, r)
-		return
-	}
-
 	data := SigninData{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
@@ -282,7 +257,7 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err := t.Execute(w, &data); err != nil {
+	if err := h.t.Execute(w, &data); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -291,11 +266,13 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type PostSigninHandler struct {
 	db *sql.DB
+	t  *template.Template
 }
 
 func NewPostSigninHandler(db *sql.DB) *PostSigninHandler {
 	return &PostSigninHandler{
 		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signin.html")),
 	}
 }
 
@@ -372,24 +349,16 @@ func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (st
 func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	params, err := h.GetParams(r)
 	if err != nil {
-		msg := err.Error()
-
-		t, err := template.ParseFS(templates, "templates/layout.html", "templates/signin.html")
-		if err != nil {
-			slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-			Handle500(w, r)
-			return
-		}
 
 		data := SigninData{
 			LayoutData: LayoutData{
 				Authorized: IsAuthorized(r.Context()),
 			},
-			ErrorMessage: msg,
+			ErrorMessage: err.Error(),
 		}
 
 		w.WriteHeader(http.StatusBadRequest)
-		if err := t.Execute(w, &data); err != nil {
+		if err := h.t.Execute(w, &data); err != nil {
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			Handle500(w, r)
 			return
@@ -400,24 +369,15 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token, err := h.Signin(r.Context(), params)
 	if err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
-			msg := err.Error()
-
-			t, err := template.ParseFS(templates, "templates/layout.html", "templates/signin.html")
-			if err != nil {
-				slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-				Handle500(w, r)
-				return
-			}
-
 			data := SigninData{
 				LayoutData: LayoutData{
 					Authorized: IsAuthorized(r.Context()),
 				},
-				ErrorMessage: msg,
+				ErrorMessage: err.Error(),
 			}
 
 			w.WriteHeader(http.StatusBadRequest)
-			if err := t.Execute(w, &data); err != nil {
+			if err := h.t.Execute(w, &data); err != nil {
 				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 				Handle500(w, r)
 				return

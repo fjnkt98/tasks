@@ -12,7 +12,7 @@ func TestGetIndex(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
-		handler := &IndexHandler{}
+		handler := NewIndexHandler()
 		handler.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
@@ -32,7 +32,7 @@ func TestGetIndex(t *testing.T) {
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
-		handler := &IndexHandler{}
+		handler := NewIndexHandler()
 		handler.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {

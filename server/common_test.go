@@ -50,20 +50,20 @@ func TestHandle400(t *testing.T) {
 
 		body := rec.Body.String()
 		if !strings.Contains(body, "<head>") {
-			t.Error("expected contains <head> element, but not found")
+			t.Error("body should contain <head> element, but not found")
 		}
 		if !strings.Contains(body, "<body") {
-			t.Error("expected contains <body> element, but not found")
+			t.Error("body should contain <body> element, but not found")
 		}
 		if !strings.Contains(body, "<footer") {
-			t.Error("expected contains <footer> element, but not found")
+			t.Error("body should contain <footer> element, but not found")
 		}
 		if !strings.Contains(body, "Bad Request") {
-			t.Error("expected contains 'Bad Request', but not found")
+			t.Error("body should contain 'Bad Request', but not found")
 		}
 
 		if !strings.Contains(body, `href="/signin"`) {
-			t.Errorf("Sign in button should exists")
+			t.Error("body should contain sign in button")
 		}
 	})
 
@@ -80,20 +80,20 @@ func TestHandle400(t *testing.T) {
 
 		body := rec.Body.String()
 		if !strings.Contains(body, "<head>") {
-			t.Error("expected contains <head> element, but not found")
+			t.Error("body should contain <head> element, but not found")
 		}
 		if !strings.Contains(body, "<body") {
-			t.Error("expected contains <body> element, but not found")
+			t.Error("body should contain <body> element, but not found")
 		}
 		if !strings.Contains(body, "<footer") {
-			t.Error("expected contains <footer> element, but not found")
+			t.Error("body should contain <footer> element, but not found")
 		}
 		if !strings.Contains(body, "Bad Request") {
-			t.Error("expected contains 'Bad Request', but not found")
+			t.Error("body should contain 'Bad Request', but not found")
 		}
 
 		if !strings.Contains(body, `href="/signout"`) {
-			t.Errorf("Sign out button should exists")
+			t.Error("body should contain sign out button")
 		}
 	})
 
@@ -110,7 +110,7 @@ func TestHandle400(t *testing.T) {
 		}
 
 		if body := rec.Body.String(); body != "bad request\n" {
-			t.Errorf("expected body 'bad request', but got %s", body)
+			t.Errorf("body should be 'bad request', but got %s", body)
 		}
 	})
 }
@@ -128,20 +128,20 @@ func TestHandle404(t *testing.T) {
 
 		body := rec.Body.String()
 		if !strings.Contains(body, "<head>") {
-			t.Error("expected contains <head> element, but not found")
+			t.Error("body should contain <head> element, but not found")
 		}
 		if !strings.Contains(body, "<body") {
-			t.Error("expected contains <body> element, but not found")
+			t.Error("body should contain <body> element, but not found")
 		}
 		if !strings.Contains(body, "<footer") {
-			t.Error("expected contains <footer> element, but not found")
+			t.Error("body should contain <footer> element, but not found")
 		}
 		if !strings.Contains(body, "Not Found") {
-			t.Error("expected contains 'Not Found', but not found")
+			t.Error("body should contain 'Not Found', but not found")
 		}
 
 		if !strings.Contains(body, `href="/signin"`) {
-			t.Errorf("Sign in button should exists")
+			t.Error("body should contain sign in button")
 		}
 	})
 
@@ -158,20 +158,20 @@ func TestHandle404(t *testing.T) {
 
 		body := rec.Body.String()
 		if !strings.Contains(body, "<head>") {
-			t.Error("expected contains <head> element, but not found")
+			t.Error("body should contains <head> element, but not found")
 		}
 		if !strings.Contains(body, "<body") {
-			t.Error("expected contains <body> element, but not found")
+			t.Error("body should contains <body> element, but not found")
 		}
 		if !strings.Contains(body, "<footer") {
-			t.Error("expected contains <footer> element, but not found")
+			t.Error("body should contains <footer> element, but not found")
 		}
 		if !strings.Contains(body, "Not Found") {
-			t.Error("expected contains 'Not Found', but not found")
+			t.Error("body should contains 'Not Found', but not found")
 		}
 
 		if !strings.Contains(body, `href="/signout"`) {
-			t.Errorf("Sign out button should exists")
+			t.Error("body should contain sign out button")
 		}
 	})
 
@@ -187,7 +187,7 @@ func TestHandle404(t *testing.T) {
 			t.Errorf("expected status not found, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "not found\n" {
-			t.Errorf("expected body 'not found', but got %s", body)
+			t.Errorf("body should be 'not found', but got %s", body)
 		}
 	})
 }
@@ -205,20 +205,20 @@ func TestHandle500(t *testing.T) {
 
 		body := rec.Body.String()
 		if !strings.Contains(body, "<head>") {
-			t.Error("expected contains <head> element, but not found")
+			t.Error("body should contain <head> element, but not found")
 		}
 		if !strings.Contains(body, "<body") {
-			t.Error("expected contains <body> element, but not found")
+			t.Error("body should contain <body> element, but not found")
 		}
 		if !strings.Contains(body, "<footer") {
-			t.Error("expected contains <footer> element, but not found")
+			t.Error("body should contain <footer> element, but not found")
 		}
 		if !strings.Contains(body, "An Error Occurred!") {
-			t.Error("expected contains 'An Error Occurred!', but not found")
+			t.Error("body should contain 'An Error Occurred!', but not found")
 		}
 
 		if !strings.Contains(body, `href="/signin"`) {
-			t.Errorf("Sign in button should exists")
+			t.Error("body shoud contain sign in button")
 		}
 	})
 
@@ -235,20 +235,20 @@ func TestHandle500(t *testing.T) {
 
 		body := rec.Body.String()
 		if !strings.Contains(body, "<head>") {
-			t.Error("expected contains <head> element, but not found")
+			t.Error("body should contain <head> element, but not found")
 		}
 		if !strings.Contains(body, "<body") {
-			t.Error("expected contains <body> element, but not found")
+			t.Error("body should contain <body> element, but not found")
 		}
 		if !strings.Contains(body, "<footer") {
-			t.Error("expected contains <footer> element, but not found")
+			t.Error("body should contain <footer> element, but not found")
 		}
 		if !strings.Contains(body, "An Error Occurred!") {
-			t.Error("expected contains 'An Error Occurred!', but not found")
+			t.Error("body should contain 'An Error Occurred!', but not found")
 		}
 
 		if !strings.Contains(body, `href="/signout"`) {
-			t.Errorf("Sign out button should exists")
+			t.Error("body shoud contain sign out button")
 		}
 	})
 
@@ -264,7 +264,7 @@ func TestHandle500(t *testing.T) {
 			t.Errorf("expected status internal server error, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "server error\n" {
-			t.Errorf("expected body 'server error', but got %s", body)
+			t.Errorf("body should be 'server error', but got %s", body)
 		}
 	})
 }
