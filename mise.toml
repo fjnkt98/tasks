@@ -21,9 +21,10 @@ DBMATE_SCHEMA_FILE = "repository/schema.sql"
 DBMATE_STRICT = "1"
 
 OTEL_COLLECTOR_URL = { required = true }
-GCP_PROJECT_NAME = { required = true }
+GOOGLE_CLOUD_PROJECT_NAME = { required = true }
 
 CORS_ALLOW_ORIGIN = { required = true }
+USE_SECURE_COOKIE = "false"
 
 [tasks."lint:go"]
 run = ["go mod tidy -diff", "golangci-lint run"]

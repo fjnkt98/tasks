@@ -9,6 +9,12 @@ import (
 
 var ErrBadRequest = errors.New("bad request")
 
+type contextKey int
+
+const (
+	contextKeyUser contextKey = iota
+)
+
 func IsHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
@@ -25,8 +31,12 @@ func Handle400(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		data := LayoutData{
+			Authorized: IsAuthorized(r.Context()),
+		}
+
 		w.WriteHeader(http.StatusBadRequest)
-		if err := t.Execute(w, nil); err != nil {
+		if err := t.Execute(w, &data); err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			return
@@ -46,8 +56,12 @@ func Handle404(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		data := LayoutData{
+			Authorized: IsAuthorized(r.Context()),
+		}
+
 		w.WriteHeader(http.StatusNotFound)
-		if err := t.Execute(w, nil); err != nil {
+		if err := t.Execute(w, &data); err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			return
@@ -67,11 +81,19 @@ func Handle500(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		data := LayoutData{
+			Authorized: IsAuthorized(r.Context()),
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
-		if err := t.Execute(w, nil); err != nil {
+		if err := t.Execute(w, &data); err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			return
 		}
 	}
+}
+
+type LayoutData struct {
+	Authorized bool
 }

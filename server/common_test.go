@@ -27,7 +27,7 @@ func TestIsHTMX(t *testing.T) {
 }
 
 func TestHandle400(t *testing.T) {
-	t.Run("normal request", func(t *testing.T) {
+	t.Run("unauthorized", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
@@ -50,6 +50,40 @@ func TestHandle400(t *testing.T) {
 		if !strings.Contains(body, "Bad Request") {
 			t.Error("expected contains 'Bad Request', but not found")
 		}
+
+		if !strings.Contains(body, `href="/signin"`) {
+			t.Errorf("Sign in button should exists")
+		}
+	})
+
+	t.Run("authorized", func(t *testing.T) {
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+		rec := httptest.NewRecorder()
+
+		Handle400(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected status bad request, but got %d", rec.Code)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "<head>") {
+			t.Error("expected contains <head> element, but not found")
+		}
+		if !strings.Contains(body, "<body") {
+			t.Error("expected contains <body> element, but not found")
+		}
+		if !strings.Contains(body, "<footer") {
+			t.Error("expected contains <footer> element, but not found")
+		}
+		if !strings.Contains(body, "Bad Request") {
+			t.Error("expected contains 'Bad Request', but not found")
+		}
+
+		if !strings.Contains(body, `href="/signout"`) {
+			t.Errorf("Sign out button should exists")
+		}
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -71,7 +105,7 @@ func TestHandle400(t *testing.T) {
 }
 
 func TestHandle404(t *testing.T) {
-	t.Run("normal request", func(t *testing.T) {
+	t.Run("unauthorized", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
@@ -94,9 +128,43 @@ func TestHandle404(t *testing.T) {
 		if !strings.Contains(body, "Not Found") {
 			t.Error("expected contains 'Not Found', but not found")
 		}
+
+		if !strings.Contains(body, `href="/signin"`) {
+			t.Errorf("Sign in button should exists")
+		}
 	})
 
-	t.Run("normal request", func(t *testing.T) {
+	t.Run("authorized", func(t *testing.T) {
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+		rec := httptest.NewRecorder()
+
+		Handle404(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("expected status not found, but got %d", rec.Code)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "<head>") {
+			t.Error("expected contains <head> element, but not found")
+		}
+		if !strings.Contains(body, "<body") {
+			t.Error("expected contains <body> element, but not found")
+		}
+		if !strings.Contains(body, "<footer") {
+			t.Error("expected contains <footer> element, but not found")
+		}
+		if !strings.Contains(body, "Not Found") {
+			t.Error("expected contains 'Not Found', but not found")
+		}
+
+		if !strings.Contains(body, `href="/signout"`) {
+			t.Errorf("Sign out button should exists")
+		}
+	})
+
+	t.Run("htmx request", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		req.Header.Set("HX-Request", "true")
 
@@ -114,7 +182,7 @@ func TestHandle404(t *testing.T) {
 }
 
 func TestHandle500(t *testing.T) {
-	t.Run("normal request", func(t *testing.T) {
+	t.Run("unauthorized", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
@@ -137,9 +205,43 @@ func TestHandle500(t *testing.T) {
 		if !strings.Contains(body, "An Error Occurred!") {
 			t.Error("expected contains 'An Error Occurred!', but not found")
 		}
+
+		if !strings.Contains(body, `href="/signin"`) {
+			t.Errorf("Sign in button should exists")
+		}
 	})
 
-	t.Run("normal request", func(t *testing.T) {
+	t.Run("authorized", func(t *testing.T) {
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+		rec := httptest.NewRecorder()
+
+		Handle500(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+
+		body := rec.Body.String()
+		if !strings.Contains(body, "<head>") {
+			t.Error("expected contains <head> element, but not found")
+		}
+		if !strings.Contains(body, "<body") {
+			t.Error("expected contains <body> element, but not found")
+		}
+		if !strings.Contains(body, "<footer") {
+			t.Error("expected contains <footer> element, but not found")
+		}
+		if !strings.Contains(body, "An Error Occurred!") {
+			t.Error("expected contains 'An Error Occurred!', but not found")
+		}
+
+		if !strings.Contains(body, `href="/signout"`) {
+			t.Errorf("Sign out button should exists")
+		}
+	})
+
+	t.Run("htmx request", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		req.Header.Set("HX-Request", "true")
 

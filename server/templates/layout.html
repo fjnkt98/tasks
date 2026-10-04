@@ -23,6 +23,13 @@
       <div class="flex-1">
         <a href="/" class="btn btn-ghost text-xl appearance-none">Tasks</a>
       </div>
+      <div class="flex-none">
+        {{ if .Authorized }}
+        <a class="btn btn-ghost" href="/signout">Sign out</a>
+        {{ else }}
+        <a class="btn btn-ghost" href="/signin">Sign in</a>
+        {{ end }}
+      </div>
     </div>
 
     <div class="flex-grow">{{template "content" . }}</div>

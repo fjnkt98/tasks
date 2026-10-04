@@ -16,8 +16,12 @@ func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	data := LayoutData{
+		Authorized: IsAuthorized(r.Context()),
+	}
+
 	w.WriteHeader(http.StatusOK)
-	if err := t.Execute(w, nil); err != nil {
+	if err := t.Execute(w, &data); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		Handle500(w, r)
 		return

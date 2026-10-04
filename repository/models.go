@@ -8,6 +8,14 @@ type SchemaMigration struct {
 	Version string `db:"version"`
 }
 
+type Session struct {
+	ID        int64  `db:"id"`
+	UserID    int64  `db:"user_id"`
+	Token     string `db:"token"`
+	ExpiresAt int64  `db:"expires_at"`
+	CreatedAt int64  `db:"created_at"`
+}
+
 type Status struct {
 	Name string `db:"name"`
 }
@@ -16,6 +24,7 @@ type Task struct {
 	ID        int64  `db:"id"`
 	Title     string `db:"title"`
 	Status    string `db:"status"`
+	UserID    int64  `db:"user_id"`
 	CreatedAt int64  `db:"created_at"`
 	UpdatedAt int64  `db:"updated_at"`
 }

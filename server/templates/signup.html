@@ -1,0 +1,54 @@
+{{ define "content" }}
+<div class="hero bg-base-200">
+  <div class="hero-content flex-col">
+    <div class="text-center">
+      <h1 class="text-4xl font-bold">Sign up</h1>
+    </div>
+
+    {{ if .ErrorMessage }}
+    <div role="alert" class="alert alert-error w-full max-w-sm">
+      <span>{{ .ErrorMessage }}</span>
+    </div>
+    {{ end }}
+
+    <div class="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
+      <div class="card-body">
+        <form method="post" action="/signup">
+          <fieldset class="fieldset">
+            <label class="label">User Name</label>
+            <input
+              type="text"
+              class="input"
+              name="username"
+              placeholder="User Name"
+              required
+            />
+
+            <label class="label">Password</label>
+            <input
+              type="password"
+              class="input"
+              name="password"
+              placeholder="Password"
+              autocomplete="new-password"
+              required
+            />
+
+            <label class="label">Confirm Password</label>
+            <input
+              type="password"
+              class="input"
+              name="confirm-password"
+              placeholder="Confirm Password"
+              autocomplete="new-password"
+              required
+            />
+
+            <button type="submit" class="btn btn-neutral mt-4">Submit</button>
+          </fieldset>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
