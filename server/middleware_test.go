@@ -15,11 +15,29 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/fjnkt98/tasks/repository"
 	"github.com/fjnkt98/tasks/settings"
 )
 
 var mu sync.Mutex
+
+func CaptureLog(t *testing.T, f func()) []byte {
+	t.Helper()
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	original := slog.Default()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	slog.SetDefault(logger)
+	defer slog.SetDefault(original)
+
+	f()
+
+	return buf.Bytes()
+}
 
 func TestChainedMiddleware(t *testing.T) {
 	mux := http.NewServeMux()
@@ -77,25 +95,6 @@ func TestRecoveryMidelleware(t *testing.T) {
 	}
 }
 
-func CaptureLog(t *testing.T, f func()) []byte {
-	t.Helper()
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	original := slog.Default()
-
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, nil))
-
-	slog.SetDefault(logger)
-	defer slog.SetDefault(original)
-
-	f()
-
-	return buf.Bytes()
-}
-
 func TestLoggingMiddleware(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -118,7 +117,7 @@ func TestLoggingMiddleware(t *testing.T) {
 		})
 	})
 
-	var data struct {
+	type Log struct {
 		Level   string `json:"level"`
 		Msg     string `json:"msg"`
 		Addr    string `json:"addr"`
@@ -128,33 +127,24 @@ func TestLoggingMiddleware(t *testing.T) {
 		Host    string `json:"host"`
 		Delta   int    `json:"delta"`
 	}
+
+	var data Log
 	if err := json.Unmarshal(msg, &data); err != nil {
 		t.Fatal(err)
 	}
 
-	if data.Level != "INFO" {
-		t.Errorf("expected level is 'INFO', but got '%s'", data.Level)
+	var want = Log{
+		Level:   "INFO",
+		Msg:     "ok",
+		Addr:    "127.0.0.1",
+		Method:  "GET",
+		Path:    "/test",
+		Referer: "localhost:80",
+		Host:    "localhost:80",
+		Delta:   1234,
 	}
-	if data.Msg != "ok" {
-		t.Errorf("expected msg is 'ok', but got '%s'", data.Msg)
-	}
-	if data.Addr != "127.0.0.1" {
-		t.Errorf("expected addr is '127.0.0.1', but got '%s'", data.Addr)
-	}
-	if data.Method != "GET" {
-		t.Errorf("expected method is 'GET', but got '%s'", data.Method)
-	}
-	if data.Path != "/test" {
-		t.Errorf("expected path is '/test', but got '%s'", data.Path)
-	}
-	if data.Referer != "localhost:80" {
-		t.Errorf("expected referer is 'localhost:80', but got '%s'", data.Referer)
-	}
-	if data.Host != "localhost:80" {
-		t.Errorf("expected host is 'localhost:80', but got '%s'", data.Host)
-	}
-	if data.Delta != 1234 {
-		t.Errorf("expected delta is 1234, but got '%d'", data.Delta)
+	if data != want {
+		t.Errorf("expected %+v, but got %+v", want, data)
 	}
 }
 
@@ -176,7 +166,7 @@ func TestCORSMiddleware(t *testing.T) {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("expected body 'test', but got '%s'", body)
+			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
 		for _, c := range []struct {
@@ -207,7 +197,7 @@ func TestCORSMiddleware(t *testing.T) {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("expected body 'test', but got '%s'", body)
+			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
 		for _, c := range []struct {
@@ -236,7 +226,7 @@ func TestCORSMiddleware(t *testing.T) {
 			t.Errorf("expected status no content, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "" {
-			t.Errorf("expected body is empty, but got '%s'", body)
+			t.Errorf("body should be empty, but got '%s'", body)
 		}
 
 		for _, c := range []struct {
@@ -258,10 +248,7 @@ func TestCORSMiddleware(t *testing.T) {
 }
 
 func TestSessionMiddleware(t *testing.T) {
-	db, err := repository.NewTestDB()
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := setupDB(t)
 	defer db.Close() // nolint:errcheck
 
 	if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (1, 'foo', 'foo'), (2, 'bar', 'bar'), (3, 'baz', 'baz')"); err != nil {
@@ -289,7 +276,7 @@ func TestSessionMiddleware(t *testing.T) {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("expected response body is 'test', but got '%s'", body)
+			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
 		if c := rec.Header().Values("Set-Cookie"); len(c) > 0 {
@@ -316,18 +303,10 @@ func TestSessionMiddleware(t *testing.T) {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("expected response body is 'test', but got '%s'", body)
+			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
-		cookies := make(map[string]*http.Cookie)
-		for _, setCookieHeader := range rec.Header().Values("Set-Cookie") {
-			cookie, err := http.ParseSetCookie(setCookieHeader)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cookies[cookie.Name] = cookie
-		}
-
+		cookies := extractCookies(t, rec.Header())
 		tokenCookie, ok := cookies["session_token"]
 		if !ok {
 			t.Fatal("session_token cookie should be set")
@@ -359,18 +338,10 @@ func TestSessionMiddleware(t *testing.T) {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("expected response body is 'test', but got '%s'", body)
+			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
-		cookies := make(map[string]*http.Cookie)
-		for _, setCookieHeader := range rec.Header().Values("Set-Cookie") {
-			cookie, err := http.ParseSetCookie(setCookieHeader)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cookies[cookie.Name] = cookie
-		}
-
+		cookies := extractCookies(t, rec.Header())
 		tokenCookie, ok := cookies["session_token"]
 		if !ok {
 			t.Fatal("session_token cookie should be set")
@@ -402,18 +373,10 @@ func TestSessionMiddleware(t *testing.T) {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("expected response body is 'test', but got '%s'", body)
+			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
-		cookies := make(map[string]*http.Cookie)
-		for _, setCookieHeader := range rec.Header().Values("Set-Cookie") {
-			cookie, err := http.ParseSetCookie(setCookieHeader)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cookies[cookie.Name] = cookie
-		}
-
+		cookies := extractCookies(t, rec.Header())
 		tokenCookie, ok := cookies["session_token"]
 		if !ok {
 			t.Fatal("session_token cookie should be set")
@@ -447,7 +410,7 @@ func TestLoginRequiredMiddleware(t *testing.T) {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("expected response body is 'test', but got '%s'", body)
+			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 	})
 	t.Run("unauthorized", func(t *testing.T) {

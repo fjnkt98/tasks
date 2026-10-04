@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func TestNewSessionToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(token) != 64 {
-		t.Errorf("expected token length is 64, but got %d", len(token))
+		t.Errorf("token length should be 64, but got %d", len(token))
 	}
 }
 
@@ -51,6 +52,18 @@ func TestGetUserIDFromContext(t *testing.T) {
 	})
 }
 
+func extractCookies(t *testing.T, header http.Header) map[string]*http.Cookie {
+	cookies := make(map[string]*http.Cookie)
+	for _, setCookieHeader := range header.Values("Set-Cookie") {
+		cookie, err := http.ParseSetCookie(setCookieHeader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cookies[cookie.Name] = cookie
+	}
+	return cookies
+}
+
 func TestGetSignupHandler(t *testing.T) {
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
 	rec := httptest.NewRecorder()
@@ -65,10 +78,7 @@ func TestGetSignupHandler(t *testing.T) {
 
 func TestPostSignupHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		t.Run("username empty", func(t *testing.T) {
@@ -82,7 +92,7 @@ func TestPostSignupHandler(t *testing.T) {
 			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 			if err == nil {
-				t.Fatal("expected err is not nil, but got nil")
+				t.Fatal("err shoudn't be nil, but got nil")
 			}
 			if msg := "username is required"; err.Error() != msg {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
@@ -99,7 +109,7 @@ func TestPostSignupHandler(t *testing.T) {
 			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 			if err == nil {
-				t.Fatal("expected err is not nil, but got nil")
+				t.Fatal("err shoudn't be nil, but got nil")
 			}
 			if msg := "password is required"; err.Error() != msg {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
@@ -116,7 +126,7 @@ func TestPostSignupHandler(t *testing.T) {
 			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 			if err == nil {
-				t.Fatal("expected err is not nil, but got nil")
+				t.Fatal("err shoudn't be nil, but got nil")
 			}
 			if msg := "confirm-password is required"; err.Error() != msg {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
@@ -134,7 +144,7 @@ func TestPostSignupHandler(t *testing.T) {
 			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 			if err == nil {
-				t.Fatal("expected err is not nil, but got nil")
+				t.Fatal("err shouldn't be nil, but got nil")
 			}
 			if msg := "password not match"; err.Error() != msg {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
@@ -144,10 +154,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
 			values := url.Values{}
@@ -177,10 +184,7 @@ func TestPostSignupHandler(t *testing.T) {
 			}
 		})
 		t.Run("validation failed", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
 			values := url.Values{}
@@ -202,17 +206,14 @@ func TestPostSignupHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if !strings.Contains(body, `<div role="alert"`) {
-				t.Error("alert component should exists, but not found")
+				t.Error("body should contain alert component, but not found")
 			}
 			if !strings.Contains(body, "username is required; password is required; confirm-password is required") {
-				t.Error("error message should exists, but not found")
+				t.Error("body should contain error message, but not found")
 			}
 		})
 		t.Run("user already exists", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
 			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
@@ -238,10 +239,10 @@ func TestPostSignupHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if !strings.Contains(body, `<div role="alert"`) {
-				t.Error("alert component should exists, but not found")
+				t.Error("body should contain alert component, but not found")
 			}
 			if !strings.Contains(body, "username was already used") {
-				t.Error("error message should exists, but not found")
+				t.Error("body should contain error message, but not found")
 			}
 		})
 	})
@@ -273,10 +274,7 @@ func TestGetSigninHandler(t *testing.T) {
 
 func TestPostSigninHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		t.Run("username empty", func(t *testing.T) {
@@ -289,7 +287,7 @@ func TestPostSigninHandler(t *testing.T) {
 			h := NewPostSigninHandler(db)
 			_, err := h.GetParams(req)
 			if err == nil {
-				t.Fatal("expected err is not nil, but got nil")
+				t.Fatal("err shouldn't be nil, but got nil")
 			}
 			if msg := "username is required"; err.Error() != msg {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
@@ -305,7 +303,7 @@ func TestPostSigninHandler(t *testing.T) {
 			h := NewPostSigninHandler(db)
 			_, err := h.GetParams(req)
 			if err == nil {
-				t.Fatal("expected err is not nil, but got nil")
+				t.Fatal("err shouldn't be nil, but got nil")
 			}
 			if msg := "password is required"; err.Error() != msg {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
@@ -313,18 +311,19 @@ func TestPostSigninHandler(t *testing.T) {
 		})
 	})
 
+	var fixture = func(db *sql.DB, t *testing.T) {
+		if err := NewPostSignupHandler(db).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	t.Run("Signin", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				db, err := repository.NewTestDB()
-				if err != nil {
-					t.Fatal(err)
-				}
+				db := setupDB(t)
 				defer db.Close() // nolint:errcheck
 
-				if err := NewPostSignupHandler(db).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
-					t.Fatal(err)
-				}
+				fixture(db, t)
 
 				h := NewPostSigninHandler(db)
 				token, err := h.Signin(t.Context(), SigninParams{Username: "user1", Password: "password"})
@@ -347,35 +346,25 @@ func TestPostSigninHandler(t *testing.T) {
 			})
 		})
 		t.Run("user not found", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if err := NewPostSignupHandler(db).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			h := NewPostSigninHandler(db)
-			_, err = h.Signin(t.Context(), SigninParams{Username: "user2", Password: "password"})
+			_, err := h.Signin(t.Context(), SigninParams{Username: "user2", Password: "password"})
 			if !errors.Is(err, ErrInvalidCredentials) {
 				t.Errorf("expected ErrInvalidCredentials, but got %+v", err)
 			}
 		})
 		t.Run("password not match", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if err := NewPostSignupHandler(db).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			h := NewPostSigninHandler(db)
-			_, err = h.Signin(t.Context(), SigninParams{Username: "user1", Password: "foo"})
+			_, err := h.Signin(t.Context(), SigninParams{Username: "user1", Password: "foo"})
 			if !errors.Is(err, ErrInvalidCredentials) {
 				t.Errorf("expected ErrInvalidCredentials, but got %+v", err)
 			}
@@ -384,15 +373,10 @@ func TestPostSigninHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if err := NewPostSignupHandler(db).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -415,15 +399,7 @@ func TestPostSigninHandler(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			cookies := make(map[string]*http.Cookie)
-			for _, setCookieHeader := range rec.Header().Values("Set-Cookie") {
-				cookie, err := http.ParseSetCookie(setCookieHeader)
-				if err != nil {
-					t.Fatal(err)
-				}
-				cookies[cookie.Name] = cookie
-			}
-
+			cookies := extractCookies(t, rec.Header())
 			tokenCookie, ok := cookies["session_token"]
 			if !ok {
 				t.Fatal("session_token cookie should be set")
@@ -436,15 +412,10 @@ func TestPostSigninHandler(t *testing.T) {
 			}
 		})
 		t.Run("bad request", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if err := NewPostSignupHandler(db).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -464,23 +435,18 @@ func TestPostSigninHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if !strings.Contains(body, `<h1 class="text-4xl font-bold">Sign in</h1>`) {
-				t.Errorf("expected sign in page")
+				t.Errorf("body should be sign in page")
 			}
 
 			if msg := "password is required"; !strings.Contains(body, msg) {
-				t.Errorf("error message '%s' should exists, but not found", msg)
+				t.Errorf("body should contain error message '%s', but not found", msg)
 			}
 		})
 		t.Run("invalid credentials", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if err := NewPostSignupHandler(db).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -500,11 +466,11 @@ func TestPostSigninHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if !strings.Contains(body, `<h1 class="text-4xl font-bold">Sign in</h1>`) {
-				t.Errorf("expected sign in page")
+				t.Errorf("body should be sign in page")
 			}
 
 			if msg := ErrInvalidCredentials.Error(); !strings.Contains(body, msg) {
-				t.Errorf("error message '%s' should exists, but not found", msg)
+				t.Errorf("body should contain error message '%s', but not found", msg)
 			}
 		})
 	})
@@ -512,10 +478,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 func TestGetSignoutHandler(t *testing.T) {
 	t.Run("authorized", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {

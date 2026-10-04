@@ -5,8 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/fjnkt98/tasks/repository"
 )
 
 func TestGetIndex(t *testing.T) {
@@ -23,14 +21,11 @@ func TestGetIndex(t *testing.T) {
 
 		body := rec.Body.String()
 		if !strings.Contains(body, `href="/signin"`) {
-			t.Errorf("Sign in button should exists")
+			t.Error("body should contain sign in button")
 		}
 	})
 	t.Run("authorized", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
@@ -46,7 +41,7 @@ func TestGetIndex(t *testing.T) {
 
 		body := rec.Body.String()
 		if !strings.Contains(body, `href="/signout"`) {
-			t.Errorf("Sign out button should exists")
+			t.Error("body should contain sign out button")
 		}
 	})
 }

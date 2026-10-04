@@ -15,10 +15,7 @@ import (
 
 func TestListTasksHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 		h := NewListTasksHandler(db)
 
@@ -80,10 +77,7 @@ func TestListTasksHandler(t *testing.T) {
 	})
 
 	t.Run("GetTasks", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		for i, data := range []struct {
@@ -121,7 +115,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if len(tasks) != 4 {
-				t.Fatalf("expected length is 4, but got %d", len(tasks))
+				t.Fatalf("length should be 4, but got %d", len(tasks))
 			}
 
 			wants := []struct {
@@ -137,16 +131,16 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			for i := range 4 {
 				if wants[i].ID != tasks[i].ID {
-					t.Errorf("id expected %v, but got %v", wants[i].ID, tasks[i].ID)
+					t.Errorf("id should be %v, but got %v", wants[i].ID, tasks[i].ID)
 				}
 				if wants[i].Title != tasks[i].Title {
-					t.Errorf("title expected %v, but got %v", wants[i].Title, tasks[i].Title)
+					t.Errorf("title should be %v, but got %v", wants[i].Title, tasks[i].Title)
 				}
 				if wants[i].Status != tasks[i].Status {
-					t.Errorf("status expected %v, but got %v", wants[i].Status, tasks[i].Status)
+					t.Errorf("status should be %v, but got %v", wants[i].Status, tasks[i].Status)
 				}
 				if wants[i].UserID != tasks[i].UserID {
-					t.Errorf("user id expected %v, but got %v", wants[i].UserID, tasks[i].UserID)
+					t.Errorf("user id should be %v, but got %v", wants[i].UserID, tasks[i].UserID)
 				}
 			}
 		})
@@ -157,7 +151,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if len(tasks) != 2 {
-				t.Fatalf("expected length is 2, but got %d", len(tasks))
+				t.Fatalf("length should be 2, but got %d", len(tasks))
 			}
 			wants := []struct {
 				ID     int64
@@ -170,16 +164,16 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			for i := range 2 {
 				if wants[i].ID != tasks[i].ID {
-					t.Errorf("id expected %v, but got %v", wants[i].ID, tasks[i].ID)
+					t.Errorf("id should be %v, but got %v", wants[i].ID, tasks[i].ID)
 				}
 				if wants[i].Title != tasks[i].Title {
-					t.Errorf("title expected %v, but got %v", wants[i].Title, tasks[i].Title)
+					t.Errorf("title should be %v, but got %v", wants[i].Title, tasks[i].Title)
 				}
 				if wants[i].Status != tasks[i].Status {
-					t.Errorf("status expected %v, but got %v", wants[i].Status, tasks[i].Status)
+					t.Errorf("status should be %v, but got %v", wants[i].Status, tasks[i].Status)
 				}
 				if wants[i].UserID != tasks[i].UserID {
-					t.Errorf("user id expected %v, but got %v", wants[i].UserID, tasks[i].UserID)
+					t.Errorf("user id should be %v, but got %v", wants[i].UserID, tasks[i].UserID)
 				}
 			}
 		})
@@ -190,7 +184,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if len(tasks) != 2 {
-				t.Fatalf("expected length is 4, but got %d", len(tasks))
+				t.Fatalf("length should be 4, but got %d", len(tasks))
 			}
 			wants := []struct {
 				ID     int64
@@ -203,16 +197,16 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			for i := range 2 {
 				if wants[i].ID != tasks[i].ID {
-					t.Errorf("id expected %v, but got %v", wants[i].ID, tasks[i].ID)
+					t.Errorf("id should be %v, but got %v", wants[i].ID, tasks[i].ID)
 				}
 				if wants[i].Title != tasks[i].Title {
-					t.Errorf("title expected %v, but got %v", wants[i].Title, tasks[i].Title)
+					t.Errorf("title should be %v, but got %v", wants[i].Title, tasks[i].Title)
 				}
 				if wants[i].Status != tasks[i].Status {
-					t.Errorf("status expected %v, but got %v", wants[i].Status, tasks[i].Status)
+					t.Errorf("status should be %v, but got %v", wants[i].Status, tasks[i].Status)
 				}
 				if wants[i].UserID != tasks[i].UserID {
-					t.Errorf("user id expected %v, but got %v", wants[i].UserID, tasks[i].UserID)
+					t.Errorf("user id should be %v, but got %v", wants[i].UserID, tasks[i].UserID)
 				}
 			}
 		})
@@ -223,7 +217,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if len(tasks) != 0 {
-				t.Fatalf("expected length is 0, but got %d", len(tasks))
+				t.Fatalf("length should be 0, but got %d", len(tasks))
 			}
 		})
 		t.Run("other user", func(t *testing.T) {
@@ -233,16 +227,13 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if len(tasks) != 0 {
-				t.Fatalf("expected length is 0, but got %d", len(tasks))
+				t.Fatalf("length should be 0, but got %d", len(tasks))
 			}
 		})
 	})
 
 	t.Run("ResponseHTTP", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		h := NewListTasksHandler(db)
@@ -267,13 +258,13 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if !strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("expected contains <head> element, but not found")
+				t.Error("body should contain <head> element, but not found")
 			}
 			if !strings.Contains(rec.Body.String(), "<body") {
-				t.Error("expected contains <body> element, but not found")
+				t.Error("body should contain <body> element, but not found")
 			}
 			if !strings.Contains(rec.Body.String(), "<footer") {
-				t.Error("expected contains <footer> element, but not found")
+				t.Error("body should contain <footer> element, but not found")
 			}
 		})
 		t.Run("no data", func(t *testing.T) {
@@ -294,21 +285,18 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if !strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("expected contains <head> element, but not found")
+				t.Error("body should contain <head> element, but not found")
 			}
 			if !strings.Contains(rec.Body.String(), "<body") {
-				t.Error("expected contains <body> element, but not found")
+				t.Error("body should contain <body> element, but not found")
 			}
 			if !strings.Contains(rec.Body.String(), "<footer") {
-				t.Error("expected contains <footer> element, but not found")
+				t.Error("body should contain <footer> element, but not found")
 			}
 		})
 	})
 	t.Run("ResponseHTMX", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		h := NewListTasksHandler(db)
@@ -333,13 +321,13 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("expected not contains <head> element, but found")
+				t.Error("body shouldn't contain <head> element, but found")
 			}
 			if strings.Contains(rec.Body.String(), "<body") {
-				t.Error("expected not contains <body> element, but found")
+				t.Error("body shouldn't contain <body> element, but found")
 			}
 			if strings.Contains(rec.Body.String(), "<footer") {
-				t.Error("expected not contains <footer> element, but found")
+				t.Error("body shouldn't contain <footer> element, but found")
 			}
 		})
 		t.Run("no data", func(t *testing.T) {
@@ -360,15 +348,12 @@ func TestListTasksHandler(t *testing.T) {
 			}
 
 			if body := strings.TrimSpace(rec.Body.String()); body != "" {
-				t.Errorf("expected empty respons body, but got %s", body)
+				t.Errorf("body should be empty, but got %s", body)
 			}
 		})
 	})
 	t.Run("ServeHTTP", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		for i, data := range []struct {
@@ -412,11 +397,11 @@ func TestListTasksHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if !strings.Contains(body, "<head>") {
-				t.Error("expected contains <head> element, but not found")
+				t.Error("body should contain <head> element, but not found")
 			}
 			for i := range 4 {
 				if !strings.Contains(body, fmt.Sprintf(`id="task-%d"`, i+1)) {
-					t.Error("expected contains task element, but not found")
+					t.Error("body should contain task element, but not found")
 				}
 			}
 		})
@@ -436,7 +421,7 @@ func TestListTasksHandler(t *testing.T) {
 				t.Errorf("expected status ok, but got %d", rec.Code)
 			}
 			if !strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("expected contains <head> element, but not found")
+				t.Error("body should contain <head> element, but not found")
 			}
 		})
 		t.Run("get htmx", func(t *testing.T) {
@@ -456,7 +441,7 @@ func TestListTasksHandler(t *testing.T) {
 				t.Errorf("expected status ok, but got %d", rec.Code)
 			}
 			if strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("expected not contains <head> element, but not found")
+				t.Error("body shouldn't contain <head> element, but found")
 			}
 		})
 	})
@@ -464,10 +449,7 @@ func TestListTasksHandler(t *testing.T) {
 
 func TestGetTaskHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
@@ -494,13 +476,13 @@ func TestGetTaskHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if strings.Contains(body, "<head>") {
-				t.Error("expected not contains <head> element, but fouond")
+				t.Error("body shouldn't contain <head> element, but found")
 			}
 			if strings.Contains(body, "<body>") {
-				t.Error("expected not contains <body> element, but fouond")
+				t.Error("body shouldn't contain <body> element, but found")
 			}
 			if strings.Contains(body, "<footer>") {
-				t.Error("expected not contains <footer> element, but fouond")
+				t.Error("body shouldn't contain <footer> element, but found")
 			}
 		})
 
@@ -540,10 +522,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 func TestGetTaskEditHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
@@ -570,13 +549,13 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if strings.Contains(body, "<head>") {
-				t.Error("expected not contains <head> element, but fouond")
+				t.Error("body shouldn't contain <head> element, but found")
 			}
 			if strings.Contains(body, "<body>") {
-				t.Error("expected not contains <body> element, but fouond")
+				t.Error("body shouldn't contain <body> element, but found")
 			}
 			if strings.Contains(body, "<footer>") {
-				t.Error("expected not contains <footer> element, but fouond")
+				t.Error("body shouldn't contain <footer> element, but found")
 			}
 		})
 		t.Run("not found", func(t *testing.T) {
@@ -614,10 +593,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 func TestPostTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
 		t.Run("title", func(t *testing.T) {
@@ -636,7 +612,7 @@ func TestPostTaskHandler(t *testing.T) {
 			}
 
 			if params.Title != "test" {
-				t.Errorf("expected title value = 'test', but got %s", params.Title)
+				t.Errorf("title should be 'test', but got %s", params.Title)
 			}
 		})
 
@@ -675,10 +651,7 @@ func TestPostTaskHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("normal", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
 			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
@@ -704,13 +677,13 @@ func TestPostTaskHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if strings.Contains(body, "<head>") {
-				t.Error("expected not contains <head> element, but found")
+				t.Error("body shouldn't contain <head> element, but found")
 			}
 			if strings.Contains(body, "<body") {
-				t.Error("expected not contains <body> element, but found")
+				t.Error("body shouldn't contain <body> element, but found")
 			}
 			if strings.Contains(body, "<footer") {
-				t.Error("expected not contains <footer> element, but found")
+				t.Error("body shouldn't contain <footer> element, but found")
 			}
 
 			q := repository.New(db)
@@ -720,14 +693,14 @@ func TestPostTaskHandler(t *testing.T) {
 			}
 
 			if len(tasks) != 1 {
-				t.Fatalf("expected tasks count is 1, but got %d", len(tasks))
+				t.Fatalf("length should be 1, but got %d", len(tasks))
 			}
 
 			if tasks[0].Title != "test" {
-				t.Errorf("expected title is 'test', but got %s", tasks[0].Title)
+				t.Errorf("title should be 'test', but got %s", tasks[0].Title)
 			}
 			if tasks[0].Status != "created" {
-				t.Errorf("expected status is 'created', but got %s", tasks[0].Status)
+				t.Errorf("status should be 'created', but got %s", tasks[0].Status)
 			}
 		})
 	})
@@ -755,10 +728,10 @@ func TestPutTaskHandler(t *testing.T) {
 			params := h.GetParams(req)
 
 			if params.Title != "test" {
-				t.Errorf("expected title is 'test', but got %s", params.Title)
+				t.Errorf("title should be 'test', but got %s", params.Title)
 			}
 			if params.Status != "done" {
-				t.Errorf("expected status is 'done', but got %s", params.Status)
+				t.Errorf("status should be 'done', but got %s", params.Status)
 			}
 		})
 
@@ -776,10 +749,10 @@ func TestPutTaskHandler(t *testing.T) {
 			params := h.GetParams(req)
 
 			if params.Title != "" {
-				t.Errorf("expected title is empty, but got %s", params.Title)
+				t.Errorf("title should be empty, but got %s", params.Title)
 			}
 			if params.Status != "" {
-				t.Errorf("expected status is empty, but got %s", params.Status)
+				t.Errorf("status should be empty, but got %s", params.Status)
 			}
 		})
 
@@ -797,28 +770,29 @@ func TestPutTaskHandler(t *testing.T) {
 			params := h.GetParams(req)
 
 			if params.Title != "" {
-				t.Errorf("expected title is empty, but got %s", params.Title)
+				t.Errorf("title should be empty, but got %s", params.Title)
 			}
 			if params.Status != "" {
-				t.Errorf("expected status is empty, but got %s", params.Status)
+				t.Errorf("status should be empty, but got %s", params.Status)
 			}
 		})
 	})
 
+	var fixture = func(db *sql.DB, t *testing.T) {
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (1, 'user1', '')"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (1, 'test', 'created', 1)"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	t.Run("UpdateTask", func(t *testing.T) {
 		t.Run("update title and status", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			params := UpdateTaskParams{
 				Title:  "new test",
@@ -832,10 +806,10 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if updated.Title != "new test" {
-				t.Errorf("expected title is 'new test', but got %s", updated.Title)
+				t.Errorf("title should be 'new test', but got %s", updated.Title)
 			}
 			if updated.Status != "done" {
-				t.Errorf("expected status is 'done', but got %s", updated.Status)
+				t.Errorf("status should be 'done', but got %s", updated.Status)
 			}
 
 			q := repository.New(db)
@@ -852,38 +826,22 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 		})
 		t.Run("update non-existing task", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			h := NewPutTaskHandler(db)
-			_, err = h.UpdateTask(t.Context(), 2, 1, UpdateTaskParams{})
+			_, err := h.UpdateTask(t.Context(), 2, 1, UpdateTaskParams{})
 			if !errors.Is(err, sql.ErrNoRows) {
 				t.Fatalf("expected sql.ErrNoRows, but got %+v", err)
 			}
 		})
 		t.Run("update title only", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			params := UpdateTaskParams{
 				Title: "new test",
@@ -896,10 +854,10 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if updated.Title != "new test" {
-				t.Errorf("expected title is 'new test', but got %s", updated.Title)
+				t.Errorf("title should be 'new test', but got %s", updated.Title)
 			}
 			if updated.Status != "created" {
-				t.Errorf("expected status is 'created', but got %s", updated.Status)
+				t.Errorf("status should be 'created', but got %s", updated.Status)
 			}
 
 			q := repository.New(db)
@@ -916,18 +874,10 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 		})
 		t.Run("update status only", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			params := UpdateTaskParams{
 				Status: "done",
@@ -940,10 +890,10 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if updated.Title != "test" {
-				t.Errorf("expected title is 'test', but got %s", updated.Title)
+				t.Errorf("title should be 'test', but got %s", updated.Title)
 			}
 			if updated.Status != "done" {
-				t.Errorf("expected status is 'done', but got %s", updated.Status)
+				t.Errorf("status should be 'done', but got %s", updated.Status)
 			}
 
 			q := repository.New(db)
@@ -963,18 +913,10 @@ func TestPutTaskHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("update title and status", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("title", "new test")
@@ -997,17 +939,17 @@ func TestPutTaskHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if strings.Contains(body, "<head>") {
-				t.Errorf("expected not contains <head> element, but found")
+				t.Errorf("body shouldn't contain <head> element, but found")
 			}
 			if strings.Contains(body, "<body") {
-				t.Errorf("expected not contains <body> element, but found")
+				t.Errorf("body shouldn't contain <body> element, but found")
 			}
 			if strings.Contains(body, "<footer") {
-				t.Errorf("expected not contains <footer> element, but found")
+				t.Errorf("body shouldn't contain <footer> element, but found")
 			}
 
 			if !strings.Contains(body, `id="task-1"`) {
-				t.Error("expected contains `id=\"task-1\"`, but not found")
+				t.Error("body should contain `id=\"task-1\"`, but not found")
 			}
 
 			q := repository.New(db)
@@ -1020,28 +962,20 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if task.Title != "new test" {
-				t.Errorf("expected title is 'new test', but got %s", task.Title)
+				t.Errorf("title should be 'new test', but got %s", task.Title)
 			}
 			if task.Status != "done" {
-				t.Errorf("expected status is 'done', but got %s", task.Status)
+				t.Errorf("status should 'done', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
-				t.Errorf("expected user id is 1, but got %d", task.UserID)
+				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
 		t.Run("update title only", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("title", "new test")
@@ -1063,17 +997,17 @@ func TestPutTaskHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if strings.Contains(body, "<head>") {
-				t.Errorf("expected not contains <head> element, but found")
+				t.Errorf("body shouldn't contain <head> element, but found")
 			}
 			if strings.Contains(body, "<body") {
-				t.Errorf("expected not contains <body> element, but found")
+				t.Errorf("body shouldn't contain <body> element, but found")
 			}
 			if strings.Contains(body, "<footer") {
-				t.Errorf("expected not contains <footer> element, but found")
+				t.Errorf("body shouldn't contain <footer> element, but found")
 			}
 
 			if !strings.Contains(body, `id="task-1"`) {
-				t.Error("expected contains `id=\"task-1\"`, but not found")
+				t.Error("body should contain `id=\"task-1\"`, but not found")
 			}
 
 			q := repository.New(db)
@@ -1086,28 +1020,20 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if task.Title != "new test" {
-				t.Errorf("expected title is 'new test', but got %s", task.Title)
+				t.Errorf("title should be 'new test', but got %s", task.Title)
 			}
 			if task.Status != "created" {
-				t.Errorf("expected status is 'created', but got %s", task.Status)
+				t.Errorf("status should be 'created', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
-				t.Errorf("expected user id is 1, but got %d", task.UserID)
+				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
 		t.Run("update status only", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -1129,17 +1055,17 @@ func TestPutTaskHandler(t *testing.T) {
 
 			body := rec.Body.String()
 			if strings.Contains(body, "<head>") {
-				t.Errorf("expected not contains <head> element, but found")
+				t.Errorf("body shouldn't contain <head> element, but found")
 			}
 			if strings.Contains(body, "<body") {
-				t.Errorf("expected not contains <body> element, but found")
+				t.Errorf("body shouldn't contain <body> element, but found")
 			}
 			if strings.Contains(body, "<footer") {
-				t.Errorf("expected not contains <footer> element, but found")
+				t.Errorf("body shouldn't contain <footer> element, but found")
 			}
 
 			if !strings.Contains(body, `id="task-1"`) {
-				t.Error("expected contains `id=\"task-1\"`, but not found")
+				t.Error("body should contain `id=\"task-1\"`, but not found")
 			}
 
 			q := repository.New(db)
@@ -1152,28 +1078,20 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if task.Title != "test" {
-				t.Errorf("expected title is 'test', but got %s", task.Title)
+				t.Errorf("title should be 'test', but got %s", task.Title)
 			}
 			if task.Status != "done" {
-				t.Errorf("expected status is 'done', but got %s", task.Status)
+				t.Errorf("status should be 'done', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
-				t.Errorf("expected user id is 1, but got %d", task.UserID)
+				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
 		t.Run("update non-existing task", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -1194,7 +1112,7 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if body := rec.Body.String(); body != "not found\n" {
-				t.Errorf("expected response body is 'not found', but got '%s'", body)
+				t.Errorf("body should be 'not found', but got '%s'", body)
 			}
 
 			q := repository.New(db)
@@ -1207,28 +1125,20 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if task.Title != "test" {
-				t.Errorf("expected title is 'test', but got %s", task.Title)
+				t.Errorf("title should be 'test', but got %s", task.Title)
 			}
 			if task.Status != "created" {
-				t.Errorf("expected status is 'created', but got %s", task.Status)
+				t.Errorf("status should be 'created', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
-				t.Errorf("expected user id is 1, but got %d", task.UserID)
+				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
 		t.Run("invalid path value", func(t *testing.T) {
-			db, err := repository.NewTestDB()
-			if err != nil {
-				t.Fatal(err)
-			}
+			db := setupDB(t)
 			defer db.Close() // nolint:errcheck
 
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-				t.Fatal(err)
-			}
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -1249,7 +1159,7 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if body := rec.Body.String(); body != "not found\n" {
-				t.Errorf("expected response body is 'not found', but got '%s'", body)
+				t.Errorf("body should be 'not found', but got '%s'", body)
 			}
 
 			q := repository.New(db)
@@ -1262,32 +1172,33 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 
 			if task.Title != "test" {
-				t.Errorf("expected title is 'test', but got %s", task.Title)
+				t.Errorf("title should be 'test', but got %s", task.Title)
 			}
 			if task.Status != "created" {
-				t.Errorf("expected status is 'created', but got %s", task.Status)
+				t.Errorf("status should be 'created', but got %s", task.Status)
 			}
 			if task.UserID != 1 {
-				t.Errorf("expected user id is 1, but got %d", task.UserID)
+				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
 	})
 }
 
 func TestDeleteTaskHandler(t *testing.T) {
-	t.Run("delete successfully", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
+	var fixture = func(db *sql.DB, t *testing.T) {
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (1, 'user1', '')"); err != nil {
 			t.Fatal(err)
 		}
+		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (1, 'test', 'created', 1)"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("delete successfully", func(t *testing.T) {
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-			t.Fatal(err)
-		}
+		fixture(db, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/1", nil)
@@ -1313,18 +1224,10 @@ func TestDeleteTaskHandler(t *testing.T) {
 		}
 	})
 	t.Run("delete non-existing task", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-			t.Fatal(err)
-		}
+		fixture(db, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/2", nil)
@@ -1350,25 +1253,17 @@ func TestDeleteTaskHandler(t *testing.T) {
 		}
 
 		if tasks[0].Title != "test" {
-			t.Errorf("expected title is 'test', but got %s", tasks[0].Title)
+			t.Errorf("title should be 'test', but got %s", tasks[0].Title)
 		}
 		if tasks[0].Status != "created" {
-			t.Errorf("expected status is 'created', but got %s", tasks[0].Status)
+			t.Errorf("status should be 'created', but got %s", tasks[0].Status)
 		}
 	})
 	t.Run("invalid path value", func(t *testing.T) {
-		db, err := repository.NewTestDB()
-		if err != nil {
-			t.Fatal(err)
-		}
+		db := setupDB(t)
 		defer db.Close() // nolint:errcheck
 
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO users (id, name, password) VALUES (?, ?, '');", 1, "user1"); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.ExecContext(t.Context(), "INSERT INTO tasks (id, title, status, user_id) VALUES (?, ?, ?, ?);", 1, "test", "created", 1); err != nil {
-			t.Fatal(err)
-		}
+		fixture(db, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/foo", nil)
@@ -1394,10 +1289,10 @@ func TestDeleteTaskHandler(t *testing.T) {
 		}
 
 		if tasks[0].Title != "test" {
-			t.Errorf("expected title is 'test', but got %s", tasks[0].Title)
+			t.Errorf("title should be 'test', but got %s", tasks[0].Title)
 		}
 		if tasks[0].Status != "created" {
-			t.Errorf("expected status is 'created', but got %s", tasks[0].Status)
+			t.Errorf("status should be 'created', but got %s", tasks[0].Status)
 		}
 	})
 }

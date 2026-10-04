@@ -4,18 +4,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/fjnkt98/tasks/repository"
 )
 
 func TestNewServer(t *testing.T) {
-	db, err := repository.NewTestDB()
-	if err != nil {
-		t.Fatalf("failed to create test db: %s", err)
-	}
+	db := setupDB(t)
 	defer db.Close() // nolint:errcheck
 
-	_, err = NewServer(8000, db)
+	_, err := NewServer(8000, db)
 	if err != nil {
 		t.Errorf("expected nil, but got %v", err)
 	}
@@ -25,10 +20,7 @@ func TestNewServer(t *testing.T) {
 func TestNewHandler(t *testing.T) {
 	t.Setenv("CORS_ALLOW_ORIGIN", "http://localhost:8000")
 
-	db, err := repository.NewTestDB()
-	if err != nil {
-		t.Fatalf("failed to create test db: %s", err)
-	}
+	db := setupDB(t)
 	defer db.Close() // nolint:errcheck
 
 	h := newHandler(db)
@@ -44,7 +36,7 @@ func TestNewHandler(t *testing.T) {
 		}
 
 		if allowOrigin := rec.Header().Get("Access-Control-Allow-Origin"); allowOrigin != "" {
-			t.Errorf("expected Access-Control-Allow-Origin is empty, but got %s", allowOrigin)
+			t.Errorf("Access-Control-Allow-Origin header should be empty, but got %s", allowOrigin)
 		}
 	})
 }
