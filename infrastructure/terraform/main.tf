@@ -57,8 +57,13 @@ resource "google_project_service" "cloud_run" {
   service = "run.googleapis.com"
 }
 
-resource "google_cloud_run_v2_service" "main" {
-  depends_on = [google_project_service.cloud_run]
+resource "google_cloud_run_v2_service" "app" {
+  depends_on = [
+    google_artifact_registry_repository.main,
+    google_project_service.cloud_run,
+    google_service_account.app,
+    google_storage_bucket.db,
+  ]
 
   name     = "tasks-app"
   location = "asia-northeast1"
@@ -127,9 +132,9 @@ resource "google_cloud_run_v2_service" "main" {
 }
 
 resource "google_cloud_run_service_iam_policy" "cloud_run_noauth" {
-  location    = google_cloud_run_v2_service.main.location
-  project     = google_cloud_run_v2_service.main.project
-  service     = google_cloud_run_v2_service.main.name
+  location    = google_cloud_run_v2_service.app.location
+  project     = google_cloud_run_v2_service.app.project
+  service     = google_cloud_run_v2_service.app.name
   policy_data = data.google_iam_policy.cloud_run_noauth.policy_data
 }
 
@@ -145,19 +150,23 @@ data "google_iam_policy" "cloud_run_noauth" {
 }
 
 output "url" {
-  value = google_cloud_run_v2_service.main.uri
+  value = google_cloud_run_v2_service.app.uri
 }
 
 # Custom Domain
 data "google_project" "project" {}
 
 resource "google_cloud_run_domain_mapping" "main" {
+  depends_on = [
+    google_cloud_run_v2_service.app
+  ]
+
   name     = "tasks.fjnkt98.com"
-  location = google_cloud_run_v2_service.main.location
+  location = google_cloud_run_v2_service.app.location
   metadata {
     namespace = data.google_project.project.project_id
   }
   spec {
-    route_name = google_cloud_run_v2_service.main.name
+    route_name = google_cloud_run_v2_service.app.name
   }
 }
