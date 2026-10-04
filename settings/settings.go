@@ -5,8 +5,8 @@ import (
 	"strconv"
 )
 
-var DatabaseURL = os.Getenv("DATABASE_URL")
 var CorsAllowOrigin = os.Getenv("CORS_ALLOW_ORIGIN")
+var DatabaseURL = os.Getenv("DATABASE_URL")
 var GoogleCloudProjectName = os.Getenv("GOOGLE_CLOUD_PROJECT_NAME")
 var OtelCollectorURL = os.Getenv("OTEL_COLLECTOR_URL")
 var Port = MustParseInt(os.Getenv("PORT"))

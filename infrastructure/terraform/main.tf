@@ -17,8 +17,9 @@ provider "google" {
 
 # Storage
 resource "google_storage_bucket" "db" {
-  name     = "tasks-db"
-  location = "asia-northeast1"
+  name          = "tasks-db"
+  location      = "asia-northeast1"
+  force_destroy = true
 }
 
 # Artifact Registry
@@ -82,20 +83,24 @@ resource "google_cloud_run_v2_service" "main" {
       }
 
       env {
-        name  = "DATABASE_URL"
-        value = "file:/app/app.db"
+        name  = "CORS_ALLOW_ORIGIN"
+        value = "https://tasks.fjnkt98.com"
       }
       env {
-        name  = "OTEL_COLLECTOR_URL"
-        value = "localhost:4317"
+        name  = "DATABASE_URL"
+        value = "file:/app/app.db"
       }
       env {
         name  = "GOOGLE_CLOUD_PROJECT_NAME"
         value = "tasks-510111"
       }
       env {
-        name  = "CORS_ALLOW_ORIGIN"
-        value = "https://tasks.fjnkt98.com"
+        name  = "OTEL_COLLECTOR_URL"
+        value = "localhost:4317"
+      }
+      env {
+        name  = "USE_SECURE_COOKIE"
+        value = "true"
       }
 
       resources {
