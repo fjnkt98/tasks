@@ -5,11 +5,12 @@ ARG TARGETARCH
 
 WORKDIR /app
 
-COPY ./repository /app/repository
-COPY ./server /app/server
-COPY ./go.mod /app/go.mod
-COPY ./go.sum /app/go.sum
-COPY ./main.go /app/main.go
+COPY repository /app/repository
+COPY server /app/server
+COPY settings /app/settings
+COPY go.mod /app/go.mod
+COPY go.sum /app/go.sum
+COPY main.go /app/main.go
 
 ENV CGO_ENABLED=1
 RUN apt-get update \
@@ -34,8 +35,8 @@ ENV TZ="Asia/Tokyo"
 COPY --from=stage /app/app /app/app
 COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
 
-COPY litestream.yaml /etc/litestream.yaml
-COPY run.sh /app/run.sh
+COPY infrastructure/app/litestream.yaml /etc/litestream.yaml
+COPY infrastructure/app/run.sh /app/run.sh
 RUN chmod +x /app/run.sh
 
 CMD ["/app/run.sh"]

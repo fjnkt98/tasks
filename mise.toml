@@ -26,6 +26,13 @@ GOOGLE_CLOUD_PROJECT_NAME = { required = true }
 CORS_ALLOW_ORIGIN = { required = true }
 USE_SECURE_COOKIE = "false"
 
+[tasks."format:go"]
+run = ["go fmt"]
+
+[tasks."format:terraform"]
+dir = "infrastructure/terraform"
+run = ["terraform fmt"]
+
 [tasks."lint:go"]
 run = ["go mod tidy -diff", "golangci-lint run"]
 
@@ -36,10 +43,43 @@ run = ["sqlc diff", "sqlc vet"]
 run = ["actionlint", "pinact run --check"]
 
 [tasks."lint:terraform"]
+dir = "infrastructure/terraform"
 run = ["terraform fmt -check", "tflint"]
 
 [tasks.test]
 run = [
     "go test -cover ./... -coverprofile=cover.out",
     "go tool cover -html=cover.out -o cover.html",
+]
+
+[tasks."image:build:app"]
+usage = """
+arg "version" default="latest"
+"""
+run = [
+    "docker build --platform=linux/amd64 --tag asia-northeast1-docker.pkg.dev/tasks-510111/tasks/app:${usage_version?} -f infrastructure/app/Dockerfile ."
+]
+
+[tasks."image:push:app"]
+usage = """
+arg "version" default="latest"
+"""
+run = [
+    "docker push asia-northeast1-docker.pkg.dev/tasks-510111/tasks/app:${usage_version?}"
+]
+
+[tasks."image:build:otelcol"]
+usage = """
+arg "version" default="latest"
+"""
+run = [
+    "docker build --platform=linux/amd64 --tag asia-northeast1-docker.pkg.dev/tasks-510111/tasks/otelcol:${usage_version?} -f infrastructure/otelcol/Dockerfile ."
+]
+
+[tasks."image:push:otelcol"]
+usage = """
+arg "version" default="latest"
+"""
+run = [
+    "docker push asia-northeast1-docker.pkg.dev/tasks-510111/tasks/otelcol:${usage_version?}"
 ]

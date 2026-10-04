@@ -40,7 +40,7 @@ func newHandler(db *sql.DB) http.Handler {
 			NewSessionMiddleware(db),
 			NewRecoveryMiddleware(),
 		)
-		mux.Handle("GET /", m(&IndexHandler{}))
+		mux.Handle("GET /", m(NewIndexHandler()))
 	}
 	{
 		m := NewChainedMiddleware(

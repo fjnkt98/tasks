@@ -6,22 +6,23 @@ import (
 	"net/http"
 )
 
-type IndexHandler struct{}
+type IndexHandler struct {
+	t *template.Template
+}
+
+func NewIndexHandler() *IndexHandler {
+	return &IndexHandler{
+		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/index.html")),
+	}
+}
 
 func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFS(templates, "templates/layout.html", "templates/index.html")
-	if err != nil {
-		slog.ErrorContext(r.Context(), "parse template", slog.Any("error", err))
-		Handle500(w, r)
-		return
-	}
-
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err := t.Execute(w, &data); err != nil {
+	if err := h.t.Execute(w, &data); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		Handle500(w, r)
 		return

@@ -9,10 +9,12 @@ jobs:
     permissions:
       contents: read
     env:
-      DATABASE_URL: "file:app.db"
-      OTEL_COLLECTOR_URL: "localhost:4317"
-      GOOGLE_CLOUD_PROJECT_NAME: "tasks"
       CORS_ALLOW_ORIGIN: "http://localhost:8000"
+      DATABASE_URL: "file:app.db"
+      GOOGLE_CLOUD_PROJECT_NAME: "tasks"
+      OTEL_COLLECTOR_URL: "localhost:4317"
+      PORT: "8000"
+      USE_SECURE_COOKIE: "false"
     steps:
       - name: checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0

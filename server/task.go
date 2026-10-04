@@ -18,12 +18,16 @@ import (
 
 // ---------- List Tasks ----------
 type ListTasksHandler struct {
-	db *sql.DB
+	db           *sql.DB
+	templateHTTP *template.Template
+	templateHTMX *template.Template
 }
 
 func NewListTasksHandler(db *sql.DB) *ListTasksHandler {
 	return &ListTasksHandler{
-		db: db,
+		db:           db,
+		templateHTTP: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/tasks.html", "templates/partials/tasks.html")),
+		templateHTMX: template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -110,13 +114,8 @@ func (h *ListTasksHandler) GetTasks(ctx context.Context, userID int64, params Li
 }
 
 func (h *ListTasksHandler) ResponseHTTP(w http.ResponseWriter, data TaskData) error {
-	t, err := template.ParseFS(templates, "templates/layout.html", "templates/tasks.html", "templates/partials/tasks.html")
-	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
-	}
-
 	w.WriteHeader(http.StatusOK)
-	if err := t.Execute(w, &data); err != nil {
+	if err := h.templateHTTP.Execute(w, &data); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -124,13 +123,8 @@ func (h *ListTasksHandler) ResponseHTTP(w http.ResponseWriter, data TaskData) er
 }
 
 func (h *ListTasksHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
-	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
-	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
-	}
-
 	w.WriteHeader(http.StatusOK)
-	if err := t.ExecuteTemplate(w, "tasks", &data); err != nil {
+	if err := h.templateHTMX.ExecuteTemplate(w, "tasks", &data); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -176,22 +170,19 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ---------- Get Task ----------
 type GetTaskHandler struct {
 	db *sql.DB
+	t  *template.Template
 }
 
 func NewGetTaskHandler(db *sql.DB) *GetTaskHandler {
 	return &GetTaskHandler{
 		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
 func (h *GetTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
-	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
-	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
-	}
-
 	w.WriteHeader(http.StatusOK)
-	if err := t.ExecuteTemplate(w, "tasks", &data); err != nil {
+	if err := h.t.ExecuteTemplate(w, "tasks", &data); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -241,22 +232,19 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ---------- Get Task Edit ----------
 type GetTaskEditHandler struct {
 	q *repository.Queries
+	t *template.Template
 }
 
 func NewGetTaskEditHandler(db *sql.DB) *GetTaskEditHandler {
 	return &GetTaskEditHandler{
 		q: repository.New(db),
+		t: template.Must(template.ParseFS(templates, "templates/partials/task_edit.html")),
 	}
 }
 
 func (h *GetTaskEditHandler) ResponseHTMX(w http.ResponseWriter, task repository.Task) error {
-	t, err := template.ParseFS(templates, "templates/partials/task_edit.html")
-	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
-	}
-
 	w.WriteHeader(http.StatusOK)
-	if err := t.ExecuteTemplate(w, "task_edit", &task); err != nil {
+	if err := h.t.ExecuteTemplate(w, "task_edit", &task); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -297,11 +285,13 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ---------- Post Task ----------
 type PostTaskHandler struct {
 	db *sql.DB
+	t  *template.Template
 }
 
 func NewPostTaskHandler(db *sql.DB) *PostTaskHandler {
 	return &PostTaskHandler{
 		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -321,13 +311,8 @@ func (h *PostTaskHandler) GetParams(r *http.Request) (CreateTaskParams, error) {
 }
 
 func (h *PostTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
-	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
-	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
-	}
-
 	w.WriteHeader(http.StatusCreated)
-	if err := t.ExecuteTemplate(w, "tasks", &data); err != nil {
+	if err := h.t.ExecuteTemplate(w, "tasks", &data); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -369,11 +354,13 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ---------- Put Task ----------
 type PutTaskHandler struct {
 	db *sql.DB
+	t  *template.Template
 }
 
 func NewPutTaskHandler(db *sql.DB) *PutTaskHandler {
 	return &PutTaskHandler{
 		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -436,13 +423,8 @@ func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int64, userID int64,
 }
 
 func (h *PutTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
-	t, err := template.ParseFS(templates, "templates/partials/tasks.html")
-	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
-	}
-
 	w.WriteHeader(http.StatusOK)
-	if err := t.ExecuteTemplate(w, "tasks", &data); err != nil {
+	if err := h.t.ExecuteTemplate(w, "tasks", &data); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
