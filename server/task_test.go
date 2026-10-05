@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -132,6 +133,7 @@ func TestListTasksHandler(t *testing.T) {
 				}
 			}
 		})
+
 		t.Run("get created", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: "created"})
 			if err != nil {
@@ -165,6 +167,7 @@ func TestListTasksHandler(t *testing.T) {
 				}
 			}
 		})
+
 		t.Run("get done", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: "done"})
 			if err != nil {
@@ -198,6 +201,7 @@ func TestListTasksHandler(t *testing.T) {
 				}
 			}
 		})
+
 		t.Run("no rows", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 2, Limit: 100, Status: ""})
 			if err != nil {
@@ -208,6 +212,7 @@ func TestListTasksHandler(t *testing.T) {
 				t.Fatalf("length should be 0, but got %d", len(tasks))
 			}
 		})
+
 		t.Run("other user", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 2, ListTasksParams{Page: 1, Limit: 10, Status: ""})
 			if err != nil {
@@ -223,8 +228,6 @@ func TestListTasksHandler(t *testing.T) {
 	t.Run("ResponseHTTP", func(t *testing.T) {
 		client := NewTestDB(t)
 
-		h := NewListTasksHandler(client)
-
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
 				Tasks: []*ent.Task{
@@ -237,11 +240,17 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
+			h := NewListTasksHandler(client)
+
 			if err := h.ResponseHTTP(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			if !strings.Contains(rec.Body.String(), "<head>") {
@@ -254,6 +263,7 @@ func TestListTasksHandler(t *testing.T) {
 				t.Error("body should contain <footer> element, but not found")
 			}
 		})
+
 		t.Run("no data", func(t *testing.T) {
 			data := TaskData{
 				Tasks:     []*ent.Task{},
@@ -264,11 +274,17 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
+			h := NewListTasksHandler(client)
+
 			if err := h.ResponseHTTP(rec, data); err != nil {
 				t.Fatal(err)
 			}
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			if !strings.Contains(rec.Body.String(), "<head>") {
@@ -282,10 +298,9 @@ func TestListTasksHandler(t *testing.T) {
 			}
 		})
 	})
+
 	t.Run("ResponseHTMX", func(t *testing.T) {
 		client := NewTestDB(t)
-
-		h := NewListTasksHandler(client)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
@@ -299,11 +314,18 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
+			h := NewListTasksHandler(client)
+
 			if err := h.ResponseHTMX(rec, data); err != nil {
 				t.Fatal(err)
 			}
+
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			if strings.Contains(rec.Body.String(), "<head>") {
@@ -316,6 +338,7 @@ func TestListTasksHandler(t *testing.T) {
 				t.Error("body shouldn't contain <footer> element, but found")
 			}
 		})
+
 		t.Run("no data", func(t *testing.T) {
 			data := TaskData{
 				Tasks:     []*ent.Task{},
@@ -326,11 +349,18 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
+			h := NewListTasksHandler(client)
+
 			if err := h.ResponseHTMX(rec, data); err != nil {
 				t.Fatal(err)
 			}
+
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			if body := strings.TrimSpace(rec.Body.String()); body != "" {
@@ -338,6 +368,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 		})
 	})
+
 	t.Run("ServeHTTP", func(t *testing.T) {
 		client := NewTestDB(t)
 
@@ -357,17 +388,20 @@ func TestListTasksHandler(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		h := NewListTasksHandler(client)
-
 		t.Run("get without params", func(t *testing.T) {
 			ctx := SetUserIDIntoContext(t.Context(), 1)
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
 			rec := httptest.NewRecorder()
 
+			h := NewListTasksHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			body := rec.Body.String()
@@ -380,6 +414,7 @@ func TestListTasksHandler(t *testing.T) {
 				}
 			}
 		})
+
 		t.Run("get with params", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("page", "3")
@@ -390,15 +425,22 @@ func TestListTasksHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/tasks?%s", values.Encode()), nil)
 			rec := httptest.NewRecorder()
 
+			h := NewListTasksHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
 			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+			}
+
 			if !strings.Contains(rec.Body.String(), "<head>") {
 				t.Error("body should contain <head> element, but not found")
 			}
 		})
+
 		t.Run("get htmx", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("page", "2")
@@ -410,13 +452,51 @@ func TestListTasksHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
+			h := NewListTasksHandler(client)
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
 			}
+
 			if strings.Contains(rec.Body.String(), "<head>") {
 				t.Error("body shouldn't contain <head> element, but found")
+			}
+		})
+
+		t.Run("render failed http", func(t *testing.T) {
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
+			rec := httptest.NewRecorder()
+
+			h := NewListTasksHandler(client)
+			h.templateHTTP = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("expected status internal server error, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+			}
+		})
+
+		t.Run("render failed htmx", func(t *testing.T) {
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
+			req.Header.Set("HX-Request", "true")
+
+			rec := httptest.NewRecorder()
+
+			h := NewListTasksHandler(client)
+			h.templateHTMX = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("expected status internal server error, but got %d", rec.Code)
 			}
 		})
 	})
@@ -446,6 +526,10 @@ func TestGetTaskHandler(t *testing.T) {
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			body := rec.Body.String()
@@ -491,6 +575,24 @@ func TestGetTaskHandler(t *testing.T) {
 				t.Errorf("expected status not found, but got %d", rec.Code)
 			}
 		})
+
+		t.Run("render failed", func(t *testing.T) {
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1", nil)
+			req.SetPathValue("id", "1")
+			req.Header.Set("HX-Request", "true")
+
+			rec := httptest.NewRecorder()
+
+			h := NewGetTaskHandler(client)
+			h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("expected status internal server error, but got %d", rec.Code)
+			}
+		})
 	})
 }
 
@@ -531,6 +633,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 				t.Error("body shouldn't contain <footer> element, but found")
 			}
 		})
+
 		t.Run("not found", func(t *testing.T) {
 			ctx := SetUserIDIntoContext(t.Context(), 1)
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/2/edit", nil)
@@ -546,6 +649,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 				t.Errorf("expected status not found, but got %d", rec.Code)
 			}
 		})
+
 		t.Run("invalid path value", func(t *testing.T) {
 			ctx := SetUserIDIntoContext(t.Context(), 1)
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/foo/edit", nil)
@@ -559,6 +663,24 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			if rec.Code != http.StatusNotFound {
 				t.Errorf("expected status not found, but got %d", rec.Code)
+			}
+		})
+
+		t.Run("render failed", func(t *testing.T) {
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1/edit", nil)
+			req.SetPathValue("id", "1")
+			req.Header.Set("HX-Request", "true")
+
+			rec := httptest.NewRecorder()
+
+			h := NewGetTaskEditHandler(client)
+			h.t = template.Must(template.New("task_edit").Parse("<p>{{ .MissingField }}</p>"))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("expected status internal server error, but got %d", rec.Code)
 			}
 		})
 	})
@@ -671,6 +793,33 @@ func TestPostTaskHandler(t *testing.T) {
 			}
 			if tasks[0].Status != enttask.StatusCreated {
 				t.Errorf("status should be 'created', but got %s", tasks[0].Status)
+			}
+		})
+
+		t.Run("render failed", func(t *testing.T) {
+			client := NewTestDB(t)
+
+			if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+
+			values := url.Values{}
+			values.Set("title", "test")
+
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("HX-Request", "true")
+
+			rec := httptest.NewRecorder()
+
+			h := NewPostTaskHandler(client)
+			h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("expected status internal server error, but got %d", rec.Code)
 			}
 		})
 	})
@@ -789,6 +938,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("updated task %+v must match saved one %+v", updated, task)
 			}
 		})
+
 		t.Run("update non-existing task", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -800,6 +950,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Fatalf("expected ent.NotFoundError, but got %+v", err)
 			}
 		})
+
 		t.Run("update title only", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -833,6 +984,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("updated task %+v must match saved one %+v", updated, task)
 			}
 		})
+
 		t.Run("update status only", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -893,6 +1045,10 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("expected status ok, but got %d", rec.Code)
 			}
 
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+			}
+
 			body := rec.Body.String()
 			if strings.Contains(body, "<head>") {
 				t.Errorf("body shouldn't contain <head> element, but found")
@@ -923,6 +1079,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
+
 		t.Run("update title only", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -944,6 +1101,10 @@ func TestPutTaskHandler(t *testing.T) {
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			body := rec.Body.String()
@@ -976,6 +1137,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
+
 		t.Run("update status only", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -997,6 +1159,10 @@ func TestPutTaskHandler(t *testing.T) {
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status ok, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			body := rec.Body.String()
@@ -1029,6 +1195,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
+
 		t.Run("update non-existing task", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -1071,6 +1238,7 @@ func TestPutTaskHandler(t *testing.T) {
 				t.Errorf("user id should be 1, but got %d", task.UserID)
 			}
 		})
+
 		t.Run("invalid path value", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -1111,6 +1279,33 @@ func TestPutTaskHandler(t *testing.T) {
 			}
 			if task.UserID != 1 {
 				t.Errorf("user id should be 1, but got %d", task.UserID)
+			}
+		})
+
+		t.Run("render failed", func(t *testing.T) {
+			client := NewTestDB(t)
+
+			fixture(client, t)
+
+			values := url.Values{}
+			values.Set("title", "new test")
+			values.Set("status", "done")
+
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			req.SetPathValue("id", "1")
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("HX-Request", "true")
+
+			rec := httptest.NewRecorder()
+
+			h := NewPutTaskHandler(client)
+			h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("expected status internal server error, but got %d", rec.Code)
 			}
 		})
 	})
@@ -1154,6 +1349,7 @@ func TestDeleteTaskHandler(t *testing.T) {
 			t.Errorf("expected no tasks, but got %+v", tasks)
 		}
 	})
+
 	t.Run("delete non-existing task", func(t *testing.T) {
 		client := NewTestDB(t)
 
@@ -1188,6 +1384,7 @@ func TestDeleteTaskHandler(t *testing.T) {
 			t.Errorf("status should be 'created', but got %s", tasks[0].Status)
 		}
 	})
+
 	t.Run("invalid path value", func(t *testing.T) {
 		client := NewTestDB(t)
 

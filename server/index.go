@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -21,10 +22,18 @@ func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Authorized: IsAuthorized(r.Context()),
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := h.t.Execute(w, &data); err != nil {
-		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }

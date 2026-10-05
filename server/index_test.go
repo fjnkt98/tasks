@@ -1,6 +1,7 @@
 package server
 
 import (
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,10 @@ func TestGetIndex(t *testing.T) {
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status ok, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 		}
 
 		body := rec.Body.String()
@@ -36,9 +41,30 @@ func TestGetIndex(t *testing.T) {
 			t.Errorf("expected status ok, but got %d", rec.Code)
 		}
 
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+
 		body := rec.Body.String()
 		if !strings.Contains(body, `href="/signout"`) {
 			t.Error("body should contain sign out button")
+		}
+	})
+	t.Run("render failed", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+		rec := httptest.NewRecorder()
+
+		handler := NewIndexHandler()
+		handler.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 		}
 	})
 }

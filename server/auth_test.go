@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -53,6 +54,8 @@ func TestGetUserIDFromContext(t *testing.T) {
 }
 
 func extractCookies(t *testing.T, header http.Header) map[string]*http.Cookie {
+	t.Helper()
+
 	cookies := make(map[string]*http.Cookie)
 	for _, setCookieHeader := range header.Values("Set-Cookie") {
 		cookie, err := http.ParseSetCookie(setCookieHeader)
@@ -65,15 +68,39 @@ func extractCookies(t *testing.T, header http.Header) map[string]*http.Cookie {
 }
 
 func TestGetSignupHandler(t *testing.T) {
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
-	rec := httptest.NewRecorder()
+	t.Run("success", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		rec := httptest.NewRecorder()
 
-	h := NewGetSignupHandler()
-	h.ServeHTTP(rec, req)
+		h := NewGetSignupHandler()
+		h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status ok, but got %d", rec.Code)
-	}
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected status ok, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetSignupHandler()
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+	})
 }
 
 func TestPostSignupHandler(t *testing.T) {
@@ -97,6 +124,7 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
 			}
 		})
+
 		t.Run("password empty", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("username", "foo")
@@ -114,6 +142,7 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
 			}
 		})
+
 		t.Run("confirm-password empty", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("username", "foo")
@@ -131,6 +160,7 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
 			}
 		})
+
 		t.Run("password don't match confirm-password", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("username", "foo")
@@ -180,6 +210,7 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Errorf("users count should be 1, but got %d", count)
 			}
 		})
+
 		t.Run("validation failed", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -200,6 +231,10 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Errorf("expected status bad request, but got %d", rec.Code)
 			}
 
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+			}
+
 			body := rec.Body.String()
 			if !strings.Contains(body, `<div role="alert"`) {
 				t.Error("body should contain alert component, but not found")
@@ -208,6 +243,7 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Error("body should contain error message, but not found")
 			}
 		})
+
 		t.Run("user already exists", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -232,6 +268,10 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Errorf("expected status bad request, but got %d", rec.Code)
 			}
 
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+			}
+
 			body := rec.Body.String()
 			if !strings.Contains(body, `<div role="alert"`) {
 				t.Error("body should contain alert component, but not found")
@@ -240,31 +280,102 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Error("body should contain error message, but not found")
 			}
 		})
+
+		t.Run("render failed", func(t *testing.T) {
+			client := NewTestDB(t)
+
+			values := url.Values{}
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			rec := httptest.NewRecorder()
+
+			h := NewPostSignupHandler(client)
+			h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("expected status internal server error, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+			}
+		})
 	})
 }
 
 func TestGetSignupSuccessHandler(t *testing.T) {
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
-	rec := httptest.NewRecorder()
+	t.Run("success", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		rec := httptest.NewRecorder()
 
-	h := NewGetSignupSuccessHandler()
-	h.ServeHTTP(rec, req)
+		h := NewGetSignupSuccessHandler()
+		h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status ok, but got %d", rec.Code)
-	}
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected status ok, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetSignupSuccessHandler()
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+	})
 }
 
 func TestGetSigninHandler(t *testing.T) {
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
-	rec := httptest.NewRecorder()
+	t.Run("success", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		rec := httptest.NewRecorder()
 
-	h := NewGetSigninHandler()
-	h.ServeHTTP(rec, req)
+		h := NewGetSigninHandler()
+		h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status ok, but got %d", rec.Code)
-	}
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected status ok, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetSigninHandler()
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+	})
 }
 
 func TestPostSigninHandler(t *testing.T) {
@@ -287,6 +398,7 @@ func TestPostSigninHandler(t *testing.T) {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
 			}
 		})
+
 		t.Run("password empty", func(t *testing.T) {
 			values := url.Values{}
 			values.Set("username", "foo")
@@ -340,6 +452,7 @@ func TestPostSigninHandler(t *testing.T) {
 				}
 			})
 		})
+
 		t.Run("user not found", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -351,6 +464,7 @@ func TestPostSigninHandler(t *testing.T) {
 				t.Errorf("expected ErrInvalidCredentials, but got %+v", err)
 			}
 		})
+
 		t.Run("password not match", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -403,6 +517,7 @@ func TestPostSigninHandler(t *testing.T) {
 				t.Errorf("cookie Value should be set")
 			}
 		})
+
 		t.Run("bad request", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -421,7 +536,11 @@ func TestPostSigninHandler(t *testing.T) {
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status see other, but got %d", rec.Code)
+				t.Errorf("expected status bad request, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			body := rec.Body.String()
@@ -433,6 +552,7 @@ func TestPostSigninHandler(t *testing.T) {
 				t.Errorf("body should contain error message '%s', but not found", msg)
 			}
 		})
+
 		t.Run("invalid credentials", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -451,7 +571,11 @@ func TestPostSigninHandler(t *testing.T) {
 			h.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status see other, but got %d", rec.Code)
+				t.Errorf("expected status bad request, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 
 			body := rec.Body.String()
@@ -461,6 +585,29 @@ func TestPostSigninHandler(t *testing.T) {
 
 			if msg := ErrInvalidCredentials.Error(); !strings.Contains(body, msg) {
 				t.Errorf("body should contain error message '%s', but not found", msg)
+			}
+		})
+
+		t.Run("render failed", func(t *testing.T) {
+			client := NewTestDB(t)
+
+			values := url.Values{}
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			rec := httptest.NewRecorder()
+
+			h := NewPostSigninHandler(client)
+			h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("expected status internal server error, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 		})
 	})
@@ -506,6 +653,7 @@ func TestGetSignoutHandler(t *testing.T) {
 			t.Errorf("sessions should be cleared, but still exists %d sessions", count)
 		}
 	})
+
 	t.Run("unauthorized", func(t *testing.T) {
 		client := NewTestDB(t)
 

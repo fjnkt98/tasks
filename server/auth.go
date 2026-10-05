@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -69,10 +70,18 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage: "",
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := h.t.Execute(w, &data); err != nil {
-		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
@@ -168,12 +177,21 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ErrorMessage: err.Error(),
 		}
 
-		w.WriteHeader(http.StatusBadRequest)
-		if err := h.t.Execute(w, &data); err != nil {
-			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		var buf bytes.Buffer
+		if err := h.t.Execute(&buf, &data); err != nil {
+			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 			Handle500(w, r)
 			return
 		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err := buf.WriteTo(w); err != nil {
+			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			return
+		}
+
 		return
 	}
 
@@ -186,12 +204,21 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ErrorMessage: err.Error(),
 			}
 
-			w.WriteHeader(http.StatusBadRequest)
-			if err := h.t.Execute(w, &data); err != nil {
-				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			var buf bytes.Buffer
+			if err := h.t.Execute(&buf, &data); err != nil {
+				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 				Handle500(w, r)
 				return
 			}
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+			w.WriteHeader(http.StatusBadRequest)
+			if _, err := buf.WriteTo(w); err != nil {
+				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+				return
+			}
+
 			return
 		}
 
@@ -221,10 +248,18 @@ func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		ErrorMessage: "",
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := h.t.Execute(w, &data); err != nil {
-		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
@@ -253,10 +288,18 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage: "",
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := h.t.Execute(w, &data); err != nil {
-		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
@@ -348,12 +391,21 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ErrorMessage: err.Error(),
 		}
 
-		w.WriteHeader(http.StatusBadRequest)
-		if err := h.t.Execute(w, &data); err != nil {
-			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		var buf bytes.Buffer
+		if err := h.t.Execute(&buf, &data); err != nil {
+			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 			Handle500(w, r)
 			return
 		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err := buf.WriteTo(w); err != nil {
+			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			return
+		}
+
 		return
 	}
 
@@ -367,12 +419,21 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ErrorMessage: err.Error(),
 			}
 
-			w.WriteHeader(http.StatusBadRequest)
-			if err := h.t.Execute(w, &data); err != nil {
-				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			var buf bytes.Buffer
+			if err := h.t.Execute(&buf, &data); err != nil {
+				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 				Handle500(w, r)
 				return
 			}
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+			w.WriteHeader(http.StatusBadRequest)
+			if _, err := buf.WriteTo(w); err != nil {
+				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+				return
+			}
+
 			return
 		}
 

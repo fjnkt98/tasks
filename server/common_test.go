@@ -1,6 +1,7 @@
 package server
 
 import (
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -54,6 +55,10 @@ func TestHandle400(t *testing.T) {
 			t.Errorf("expected status bad request, but got %d", rec.Code)
 		}
 
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+
 		body := rec.Body.String()
 		if !strings.Contains(body, "<head>") {
 			t.Error("body should contain <head> element, but not found")
@@ -82,6 +87,10 @@ func TestHandle400(t *testing.T) {
 
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("expected status bad request, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 		}
 
 		body := rec.Body.String()
@@ -119,6 +128,27 @@ func TestHandle400(t *testing.T) {
 			t.Errorf("body should be 'bad request', but got %s", body)
 		}
 	})
+
+	t.Run("render failed", func(t *testing.T) {
+		original := template400
+		t.Cleanup(func() {
+			template400 = original
+		})
+		template400 = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+		rec := httptest.NewRecorder()
+
+		Handle400(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+
+		if body := rec.Body.String(); body != "server error\n" {
+			t.Errorf("body should be 'server error', but got '%s'", body)
+		}
+	})
 }
 
 func TestHandle404(t *testing.T) {
@@ -130,6 +160,10 @@ func TestHandle404(t *testing.T) {
 
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("expected status not found, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 		}
 
 		body := rec.Body.String()
@@ -160,6 +194,10 @@ func TestHandle404(t *testing.T) {
 
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("expected status not found, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 		}
 
 		body := rec.Body.String()
@@ -196,6 +234,27 @@ func TestHandle404(t *testing.T) {
 			t.Errorf("body should be 'not found', but got %s", body)
 		}
 	})
+
+	t.Run("render failed", func(t *testing.T) {
+		original := template404
+		t.Cleanup(func() {
+			template404 = original
+		})
+		template404 = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+		rec := httptest.NewRecorder()
+
+		Handle404(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+
+		if body := rec.Body.String(); body != "server error\n" {
+			t.Errorf("body should be 'server error', but got '%s'", body)
+		}
+	})
 }
 
 func TestHandle500(t *testing.T) {
@@ -207,6 +266,10 @@ func TestHandle500(t *testing.T) {
 
 		if rec.Code != http.StatusInternalServerError {
 			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 		}
 
 		body := rec.Body.String()
@@ -239,6 +302,10 @@ func TestHandle500(t *testing.T) {
 			t.Errorf("expected status internal server error, but got %d", rec.Code)
 		}
 
+		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
+		}
+
 		body := rec.Body.String()
 		if !strings.Contains(body, "<head>") {
 			t.Error("body should contain <head> element, but not found")
@@ -269,8 +336,29 @@ func TestHandle500(t *testing.T) {
 		if rec.Code != http.StatusInternalServerError {
 			t.Errorf("expected status internal server error, but got %d", rec.Code)
 		}
+
 		if body := rec.Body.String(); body != "server error\n" {
 			t.Errorf("body should be 'server error', but got %s", body)
+		}
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		original := template500
+		t.Cleanup(func() {
+			template500 = original
+		})
+		template500 = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+		rec := httptest.NewRecorder()
+
+		Handle500(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status internal server error, but got %d", rec.Code)
+		}
+		if body := rec.Body.String(); body != "server error\n" {
+			t.Errorf("body should be 'server error', but got '%s'", body)
 		}
 	})
 }

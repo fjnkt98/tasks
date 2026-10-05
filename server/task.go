@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"html/template"
@@ -110,8 +111,15 @@ func (h *ListTasksHandler) GetTasks(ctx context.Context, userID int, params List
 }
 
 func (h *ListTasksHandler) ResponseHTTP(w http.ResponseWriter, data TaskData) error {
+	var buf bytes.Buffer
+	if err := h.templateHTTP.Execute(&buf, &data); err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	w.WriteHeader(http.StatusOK)
-	if err := h.templateHTTP.Execute(w, &data); err != nil {
+	if _, err := buf.WriteTo(w); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -119,8 +127,15 @@ func (h *ListTasksHandler) ResponseHTTP(w http.ResponseWriter, data TaskData) er
 }
 
 func (h *ListTasksHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
+	var buf bytes.Buffer
+	if err := h.templateHTMX.ExecuteTemplate(&buf, "tasks", &data); err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	w.WriteHeader(http.StatusOK)
-	if err := h.templateHTMX.ExecuteTemplate(w, "tasks", &data); err != nil {
+	if _, err := buf.WriteTo(w); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -177,8 +192,15 @@ func NewGetTaskHandler(client *ent.Client) *GetTaskHandler {
 }
 
 func (h *GetTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
+	var buf bytes.Buffer
+	if err := h.t.ExecuteTemplate(&buf, "tasks", &data); err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	w.WriteHeader(http.StatusOK)
-	if err := h.t.ExecuteTemplate(w, "tasks", &data); err != nil {
+	if _, err := buf.WriteTo(w); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -235,8 +257,15 @@ func NewGetTaskEditHandler(client *ent.Client) *GetTaskEditHandler {
 }
 
 func (h *GetTaskEditHandler) ResponseHTMX(w http.ResponseWriter, t *ent.Task) error {
+	var buf bytes.Buffer
+	if err := h.t.ExecuteTemplate(&buf, "task_edit", &t); err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	w.WriteHeader(http.StatusOK)
-	if err := h.t.ExecuteTemplate(w, "task_edit", &t); err != nil {
+	if _, err := buf.WriteTo(w); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -300,8 +329,15 @@ func (h *PostTaskHandler) GetParams(r *http.Request) (CreateTaskParams, error) {
 }
 
 func (h *PostTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
+	var buf bytes.Buffer
+	if err := h.t.ExecuteTemplate(&buf, "tasks", &data); err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	w.WriteHeader(http.StatusCreated)
-	if err := h.t.ExecuteTemplate(w, "tasks", &data); err != nil {
+	if _, err := buf.WriteTo(w); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 
@@ -401,8 +437,15 @@ func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int, userID int, par
 }
 
 func (h *PutTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
+	var buf bytes.Buffer
+	if err := h.t.ExecuteTemplate(&buf, "tasks", &data); err != nil {
+		return fmt.Errorf("render template: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
 	w.WriteHeader(http.StatusOK)
-	if err := h.t.ExecuteTemplate(w, "tasks", &data); err != nil {
+	if _, err := buf.WriteTo(w); err != nil {
 		return fmt.Errorf("write response: %w", err)
 	}
 

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"errors"
 	"html/template"
 	"log/slog"
@@ -35,9 +36,17 @@ func Handle400(w http.ResponseWriter, r *http.Request) {
 		Authorized: IsAuthorized(r.Context()),
 	}
 
-	w.WriteHeader(http.StatusBadRequest)
-	if err := template400.Execute(w, &data); err != nil {
+	var buf bytes.Buffer
+	if err := template400.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusBadRequest)
+	if _, err := buf.WriteTo(w); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -55,9 +64,17 @@ func Handle404(w http.ResponseWriter, r *http.Request) {
 		Authorized: IsAuthorized(r.Context()),
 	}
 
-	w.WriteHeader(http.StatusNotFound)
-	if err := template404.Execute(w, &data); err != nil {
+	var buf bytes.Buffer
+	if err := template404.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusNotFound)
+	if _, err := buf.WriteTo(w); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -75,9 +92,17 @@ func Handle500(w http.ResponseWriter, r *http.Request) {
 		Authorized: IsAuthorized(r.Context()),
 	}
 
-	w.WriteHeader(http.StatusInternalServerError)
-	if err := template500.Execute(w, &data); err != nil {
+	var buf bytes.Buffer
+	if err := template500.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusInternalServerError)
+	if _, err := buf.WriteTo(w); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
