@@ -46,6 +46,20 @@ func IsAuthorized(ctx context.Context) bool {
 	return GetUserIDFromContext(ctx) != 0
 }
 
+const AuthCookieName = "session_token"
+
+func NewAuthCookie(value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name:     AuthCookieName,
+		Value:    value,
+		MaxAge:   maxAge,
+		Path:     "/",
+		Secure:   settings.UseSecureCookie,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
+}
+
 // ---------- Signup ----------
 type SignupData struct {
 	LayoutData
@@ -442,16 +456,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie := http.Cookie{
-		Name:     "session_token",
-		Value:    token,
-		MaxAge:   86400,
-		Path:     "/",
-		Secure:   settings.UseSecureCookie,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
-	http.SetCookie(w, &cookie)
+	http.SetCookie(w, NewAuthCookie(token, 86400))
 
 	http.Redirect(w, r, "/tasks", http.StatusSeeOther)
 }
@@ -468,7 +473,7 @@ func NewGetSignoutHandler(client *ent.Client) *GetSignoutHandler {
 }
 
 func (h *GetSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("session_token")
+	cookie, err := r.Cookie(AuthCookieName)
 	if err != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
@@ -480,9 +485,7 @@ func (h *GetSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie.Value = ""
-	cookie.MaxAge = -1
-	http.SetCookie(w, cookie)
+	http.SetCookie(w, NewAuthCookie("", -1))
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

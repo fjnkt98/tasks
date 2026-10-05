@@ -8,7 +8,6 @@ import (
 
 	"github.com/fjnkt98/tasks/ent"
 	"github.com/fjnkt98/tasks/ent/session"
-	"github.com/fjnkt98/tasks/settings"
 )
 
 type Middleware func(http.Handler) http.Handler
@@ -79,7 +78,7 @@ func NewCORSMiddleware(origin string) Middleware {
 func NewSessionMiddleware(client *ent.Client) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie("session_token")
+			cookie, err := r.Cookie(AuthCookieName)
 			if err != nil {
 				next.ServeHTTP(w, r)
 				return
@@ -88,9 +87,7 @@ func NewSessionMiddleware(client *ent.Client) Middleware {
 			s, err := client.Session.Query().Where(session.Token(cookie.Value)).Only(r.Context())
 			if err != nil {
 				if ent.IsNotFound(err) {
-					cookie.Value = ""
-					cookie.MaxAge = -1
-					http.SetCookie(w, cookie)
+					http.SetCookie(w, NewAuthCookie("", -1))
 
 					next.ServeHTTP(w, r)
 					return
@@ -102,9 +99,7 @@ func NewSessionMiddleware(client *ent.Client) Middleware {
 			}
 
 			if s.ExpiresAt.Before(time.Now()) {
-				cookie.Value = ""
-				cookie.MaxAge = -1
-				http.SetCookie(w, cookie)
+				http.SetCookie(w, NewAuthCookie("", -1))
 
 				next.ServeHTTP(w, r)
 				return
@@ -117,16 +112,7 @@ func NewSessionMiddleware(client *ent.Client) Middleware {
 				return
 			}
 
-			cookie = &http.Cookie{
-				Name:     "session_token",
-				Value:    cookie.Value,
-				MaxAge:   86400,
-				Path:     "/",
-				Secure:   settings.UseSecureCookie,
-				HttpOnly: true,
-				SameSite: http.SameSiteStrictMode,
-			}
-			http.SetCookie(w, cookie)
+			http.SetCookie(w, NewAuthCookie(cookie.Value, 86400))
 
 			ctx := SetUserIDIntoContext(r.Context(), user.ID)
 			next.ServeHTTP(w, r.WithContext(ctx))

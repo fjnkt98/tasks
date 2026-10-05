@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/fjnkt98/tasks/ent"
-	"github.com/fjnkt98/tasks/settings"
 )
 
 func TestNewSessionToken(t *testing.T) {
@@ -505,8 +504,8 @@ func TestPostSigninHandler(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			cookies := extractCookies(t, rec.Header())
-			tokenCookie, ok := cookies["session_token"]
+			cookies := extractCookies(t, rec.Result().Header)
+			tokenCookie, ok := cookies[AuthCookieName]
 			if !ok {
 				t.Fatal("session_token cookie should be set")
 			}
@@ -515,6 +514,9 @@ func TestPostSigninHandler(t *testing.T) {
 			}
 			if tokenCookie.Value != s.Token {
 				t.Errorf("cookie Value should be set")
+			}
+			if tokenCookie.Path != "/" {
+				t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
 			}
 		})
 
@@ -626,15 +628,7 @@ func TestGetSignoutHandler(t *testing.T) {
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/signout", nil)
-		req.AddCookie(&http.Cookie{
-			Name:     "session_token",
-			Value:    "token",
-			MaxAge:   86400,
-			Path:     "/",
-			Secure:   settings.UseSecureCookie,
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-		})
+		req.AddCookie(NewAuthCookie("token", 86400))
 
 		rec := httptest.NewRecorder()
 
@@ -651,6 +645,21 @@ func TestGetSignoutHandler(t *testing.T) {
 		}
 		if count != 0 {
 			t.Errorf("sessions should be cleared, but still exists %d sessions", count)
+		}
+
+		cookies := extractCookies(t, rec.Result().Header)
+		tokenCookie, ok := cookies[AuthCookieName]
+		if !ok {
+			t.Fatal("session_token cookie should be set")
+		}
+		if tokenCookie.MaxAge != -1 {
+			t.Errorf("cookie MaxAge should be reset")
+		}
+		if tokenCookie.Value != "" {
+			t.Errorf("cookie Value should be reset")
+		}
+		if tokenCookie.Path != "/" {
+			t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
 		}
 	})
 

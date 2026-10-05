@@ -14,8 +14,6 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
-
-	"github.com/fjnkt98/tasks/settings"
 )
 
 var mu sync.Mutex
@@ -289,17 +287,10 @@ func TestSessionMiddleware(t *testing.T) {
 			t.Errorf("Set-Cookie header shouldn't be set, but got %+v", c)
 		}
 	})
+
 	t.Run("expired", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
-		req.AddCookie(&http.Cookie{
-			Name:     "session_token",
-			Value:    "token2",
-			MaxAge:   86400,
-			Path:     "/",
-			Secure:   settings.UseSecureCookie,
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-		})
+		req.AddCookie(NewAuthCookie("token2", 86400))
 
 		rec := httptest.NewRecorder()
 
@@ -312,8 +303,8 @@ func TestSessionMiddleware(t *testing.T) {
 			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
-		cookies := extractCookies(t, rec.Header())
-		tokenCookie, ok := cookies["session_token"]
+		cookies := extractCookies(t, rec.Result().Header)
+		tokenCookie, ok := cookies[AuthCookieName]
 		if !ok {
 			t.Fatal("session_token cookie should be set")
 		}
@@ -323,18 +314,14 @@ func TestSessionMiddleware(t *testing.T) {
 		if tokenCookie.Value != "" {
 			t.Errorf("cookie Value should be reset, but got %v", tokenCookie.Value)
 		}
+		if tokenCookie.Path != "/" {
+			t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
+		}
 	})
+
 	t.Run("session not found", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
-		req.AddCookie(&http.Cookie{
-			Name:     "session_token",
-			Value:    "token3",
-			MaxAge:   86400,
-			Path:     "/",
-			Secure:   settings.UseSecureCookie,
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-		})
+		req.AddCookie(NewAuthCookie("token3", 86400))
 
 		rec := httptest.NewRecorder()
 
@@ -347,8 +334,8 @@ func TestSessionMiddleware(t *testing.T) {
 			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
-		cookies := extractCookies(t, rec.Header())
-		tokenCookie, ok := cookies["session_token"]
+		cookies := extractCookies(t, rec.Result().Header)
+		tokenCookie, ok := cookies[AuthCookieName]
 		if !ok {
 			t.Fatal("session_token cookie should be set")
 		}
@@ -358,18 +345,14 @@ func TestSessionMiddleware(t *testing.T) {
 		if tokenCookie.Value != "" {
 			t.Errorf("cookie Value should be reset")
 		}
+		if tokenCookie.Path != "/" {
+			t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
+		}
 	})
+
 	t.Run("authorized", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
-		req.AddCookie(&http.Cookie{
-			Name:     "session_token",
-			Value:    "token1",
-			MaxAge:   86400,
-			Path:     "/",
-			Secure:   settings.UseSecureCookie,
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-		})
+		req.AddCookie(NewAuthCookie("token1", 86400))
 
 		rec := httptest.NewRecorder()
 
@@ -382,8 +365,8 @@ func TestSessionMiddleware(t *testing.T) {
 			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 
-		cookies := extractCookies(t, rec.Header())
-		tokenCookie, ok := cookies["session_token"]
+		cookies := extractCookies(t, rec.Result().Header)
+		tokenCookie, ok := cookies[AuthCookieName]
 		if !ok {
 			t.Fatal("session_token cookie should be set")
 		}
@@ -392,6 +375,9 @@ func TestSessionMiddleware(t *testing.T) {
 		}
 		if tokenCookie.Value != "token1" {
 			t.Errorf("cookie Value should be set")
+		}
+		if tokenCookie.Path != "/" {
+			t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
 		}
 	})
 }
@@ -419,6 +405,7 @@ func TestLoginRequiredMiddleware(t *testing.T) {
 			t.Errorf("body should be 'test', but got '%s'", body)
 		}
 	})
+
 	t.Run("unauthorized", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
