@@ -68,10 +68,10 @@ func newHandler(client *ent.Client) http.Handler {
 		)
 		mux.Handle("POST /signout", m(NewPostSignoutHandler(client)))
 
-		mux.Handle("GET /tasks/", m(NewListTasksHandler(client)))
+		mux.Handle("GET /tasks", m(NewListTasksHandler(client)))
 		mux.Handle("GET /tasks/{id}", m(NewGetTaskHandler(client)))
 		mux.Handle("GET /tasks/{id}/edit", m(NewGetTaskEditHandler(client)))
-		mux.Handle("POST /tasks/", m(NewPostTaskHandler(client)))
+		mux.Handle("POST /tasks", m(NewPostTaskHandler(client)))
 		mux.Handle("PUT /tasks/{id}", m(NewPutTaskHandler(client)))
 		mux.Handle("DELETE /tasks/{id}", m(NewDeleteTaskHandler(client)))
 	}
