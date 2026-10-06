@@ -33,35 +33,25 @@ func newHandler(client *ent.Client) http.Handler {
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
 
+	m := NewChainedMiddleware(
+		NewRecoveryMiddleware(),
+		NewCrossOriginProtectionMiddleware(),
+		NewByteLimitMiddleware(),
+		NewSessionMiddleware(client),
+	)
+
+	mux.Handle("GET /", m(NewIndexHandler()))
+
+	mux.Handle("GET /signup", m(NewGetSignupHandler()))
+	mux.Handle("POST /signup", m(NewPostSignupHandler(client)))
+	mux.Handle("GET /signup/success", m(NewGetSignupSuccessHandler()))
+	mux.Handle("GET /signin", m((NewGetSigninHandler())))
+	mux.Handle("POST /signin", m((NewPostSigninHandler(client))))
+
 	{
 		m := NewChainedMiddleware(
-			NewCrossOriginProtectionMiddleware(),
-			NewByteLimitMiddleware(),
-			NewSessionMiddleware(client),
-			NewRecoveryMiddleware(),
-		)
-		mux.Handle("GET /", m(NewIndexHandler()))
-	}
-	{
-		m := NewChainedMiddleware(
-			NewCrossOriginProtectionMiddleware(),
-			NewByteLimitMiddleware(),
-			NewSessionMiddleware(client),
-			NewRecoveryMiddleware(),
-		)
-		mux.Handle("GET /signup", m(NewGetSignupHandler()))
-		mux.Handle("POST /signup", m(NewPostSignupHandler(client)))
-		mux.Handle("GET /signup/success", m(NewGetSignupSuccessHandler()))
-		mux.Handle("GET /signin", m((NewGetSigninHandler())))
-		mux.Handle("POST /signin", m((NewPostSigninHandler(client))))
-	}
-	{
-		m := NewChainedMiddleware(
-			NewCrossOriginProtectionMiddleware(),
-			NewByteLimitMiddleware(),
-			NewSessionMiddleware(client),
+			m,
 			NewLoginRequiredMiddleware(),
-			NewRecoveryMiddleware(),
 		)
 		mux.Handle("POST /signout", m(NewPostSignoutHandler(client)))
 

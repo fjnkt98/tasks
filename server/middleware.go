@@ -46,6 +46,9 @@ func NewRecoveryMiddleware() Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
+					if err == http.ErrAbortHandler {
+						panic(err)
+					}
 					slog.ErrorContext(r.Context(), "panic recovered", slog.Any("error", err))
 					Handle500(w, r)
 				}
