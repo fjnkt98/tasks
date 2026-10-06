@@ -190,6 +190,50 @@ func TestPostSignupHandler(t *testing.T) {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
 			}
 		})
+
+		t.Run("password contains whitespace", func(t *testing.T) {
+			values := url.Values{}
+			values.Set("username", "foo")
+			values.Set("password", "password ")
+			values.Set("confirm-password", "password ")
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+
+			h := NewPostSignupHandler(client)
+			params, err := h.GetParams(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if params.Password != "password " {
+				t.Errorf("password shoud be 'password ', but got '%s'", params.Password)
+			}
+		})
+
+		t.Run("password too long", func(t *testing.T) {
+			values := url.Values{}
+			values.Set("username", "foo")
+			values.Set("password", strings.Repeat("p", 73))
+			values.Set("confirm-password", strings.Repeat("p", 73))
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+
+			h := NewPostSignupHandler(client)
+			_, err := h.GetParams(req)
+			if err == nil {
+				t.Fatal("err shouldn't be nil, but got nil")
+			}
+			if msg := "password too long"; err.Error() != msg {
+				t.Errorf("error should be '%s', but got '%s'", msg, err)
+			}
+		})
 	})
 
 	t.Run("ServeHTTP", func(t *testing.T) {
@@ -227,8 +271,8 @@ func TestPostSignupHandler(t *testing.T) {
 
 			values := url.Values{}
 			values.Set("username", "\t")
-			values.Set("password", "\n")
-			values.Set("confirm-password", " ")
+			values.Set("password", "")
+			values.Set("confirm-password", "")
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -449,6 +493,49 @@ func TestPostSigninHandler(t *testing.T) {
 				t.Fatal("err shouldn't be nil, but got nil")
 			}
 			if msg := "password is required"; err.Error() != msg {
+				t.Errorf("error should be '%s', but got '%s'", msg, err)
+			}
+		})
+
+		t.Run("password contains whitespace", func(t *testing.T) {
+			values := url.Values{}
+			values.Set("username", "foo")
+			values.Set("password", "password ")
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?password=foo", strings.NewReader(values.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+
+			h := NewPostSigninHandler(client)
+			params, err := h.GetParams(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if params.Password != "password " {
+				t.Errorf("password shoud be 'password ', but got '%s'", params.Password)
+			}
+		})
+
+		t.Run("password too long", func(t *testing.T) {
+			values := url.Values{}
+			values.Set("username", "foo")
+			values.Set("password", strings.Repeat("p", 73))
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?password=foo", strings.NewReader(values.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+
+			h := NewPostSigninHandler(client)
+			_, err := h.GetParams(req)
+			if err == nil {
+				t.Fatal("err shouldn't be nil, but got nil")
+			}
+			if msg := "password too long"; err.Error() != msg {
 				t.Errorf("error should be '%s', but got '%s'", msg, err)
 			}
 		})

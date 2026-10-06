@@ -125,12 +125,15 @@ func (h *PostSignupHandler) GetParams(r *http.Request) (SignupParams, error) {
 		errs = append(errs, "username is required")
 	}
 
-	password := strings.TrimSpace(r.PostForm.Get("password"))
+	password := r.PostForm.Get("password")
 	if utf8.RuneCountInString(password) == 0 {
 		errs = append(errs, "password is required")
 	}
+	if len(password) > 72 {
+		errs = append(errs, "password too long")
+	}
 
-	confirmPassword := strings.TrimSpace(r.PostForm.Get("confirm-password"))
+	confirmPassword := r.PostForm.Get("confirm-password")
 	if utf8.RuneCountInString(confirmPassword) == 0 {
 		errs = append(errs, "confirm-password is required")
 	}
@@ -353,9 +356,12 @@ func (h *PostSigninHandler) GetParams(r *http.Request) (SigninParams, error) {
 		errs = append(errs, "username is required")
 	}
 
-	password := strings.TrimSpace(r.PostForm.Get("password"))
+	password := r.PostForm.Get("password")
 	if utf8.RuneCountInString(password) == 0 {
 		errs = append(errs, "password is required")
+	}
+	if len(password) > 72 {
+		errs = append(errs, "password too long")
 	}
 
 	if len(errs) > 0 {
