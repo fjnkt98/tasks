@@ -18,6 +18,7 @@ import (
 	"github.com/fjnkt98/tasks/ent/session"
 	"github.com/fjnkt98/tasks/ent/user"
 	"github.com/fjnkt98/tasks/settings"
+	"github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -153,32 +154,17 @@ func (h *PostSignupHandler) GetParams(r *http.Request) (SignupParams, error) {
 }
 
 func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) error {
-	tx, err := h.client.Tx(ctx)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() // nolint:errcheck
-
-	_, err = tx.User.Query().Where(user.Name(params.Username)).Only(ctx)
-	if err != nil {
-		if !ent.IsNotFound(err) {
-			return fmt.Errorf("get user by name: %w", err)
-		}
-	} else {
-		return ErrDuplicatedUsername
-	}
-
 	digest, err := bcrypt.GenerateFromPassword([]byte(params.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest: %w", err)
 	}
 
-	if _, err := tx.User.Create().SetName(params.Username).SetPassword(string(digest)).Save(ctx); err != nil {
+	if _, err := h.client.User.Create().SetName(params.Username).SetPassword(string(digest)).Save(ctx); err != nil {
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return ErrDuplicatedUsername
+		}
 		return fmt.Errorf("create user: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return nil
@@ -375,13 +361,7 @@ func (h *PostSigninHandler) GetParams(r *http.Request) (SigninParams, error) {
 }
 
 func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (string, error) {
-	tx, err := h.client.Tx(ctx)
-	if err != nil {
-		return "", fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck
-
-	u, err := tx.User.Query().Where(user.Name(params.Username)).Only(ctx)
+	u, err := h.client.User.Query().Where(user.Name(params.Username)).Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
 			return "", ErrInvalidCredentials
@@ -398,13 +378,9 @@ func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (st
 		return "", fmt.Errorf("generate session token: %w", err)
 	}
 
-	_, err = tx.Session.Create().SetUserID(u.ID).SetToken(token).SetExpiresAt(time.Now().Add(24 * time.Hour)).Save(ctx)
+	_, err = h.client.Session.Create().SetUserID(u.ID).SetToken(token).SetExpiresAt(time.Now().Add(24 * time.Hour)).Save(ctx)
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return "", fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return token, nil
