@@ -13,7 +13,6 @@ func TestNewServer(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected nil, but got %v", err)
 	}
-
 }
 
 func TestNewHandler(t *testing.T) {
@@ -36,4 +35,20 @@ func TestNewHandler(t *testing.T) {
 			t.Errorf("Access-Control-Allow-Origin header should be empty, but got %s", allowOrigin)
 		}
 	})
+}
+
+func TestCrossOriginProtection(t *testing.T) {
+	client := NewTestDB(t)
+	h := newHandler(client)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/signout", nil)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected status forbidden, but got %d", rec.Code)
+	}
 }

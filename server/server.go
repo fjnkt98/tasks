@@ -19,7 +19,6 @@ var templates embed.FS
 var statics embed.FS
 
 func NewServer(port int, client *ent.Client) (*http.Server, error) {
-
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      newHandler(client),
@@ -37,6 +36,7 @@ func newHandler(client *ent.Client) http.Handler {
 
 	{
 		m := NewChainedMiddleware(
+			NewCrossOriginProtectionMiddleware(),
 			NewByteLimitMiddleware(),
 			NewSessionMiddleware(client),
 			NewRecoveryMiddleware(),
@@ -45,6 +45,7 @@ func newHandler(client *ent.Client) http.Handler {
 	}
 	{
 		m := NewChainedMiddleware(
+			NewCrossOriginProtectionMiddleware(),
 			NewByteLimitMiddleware(),
 			NewSessionMiddleware(client),
 			NewCORSMiddleware(settings.CorsAllowOrigin),
@@ -58,13 +59,14 @@ func newHandler(client *ent.Client) http.Handler {
 	}
 	{
 		m := NewChainedMiddleware(
+			NewCrossOriginProtectionMiddleware(),
 			NewByteLimitMiddleware(),
 			NewSessionMiddleware(client),
 			NewLoginRequiredMiddleware(),
 			NewCORSMiddleware(settings.CorsAllowOrigin),
 			NewRecoveryMiddleware(),
 		)
-		mux.Handle("GET /signout", m(NewGetSignoutHandler(client)))
+		mux.Handle("POST /signout", m(NewPostSignoutHandler(client)))
 
 		mux.Handle("GET /tasks/", m(NewListTasksHandler(client)))
 		mux.Handle("GET /tasks/{id}", m(NewGetTaskHandler(client)))

@@ -675,7 +675,7 @@ func TestPostSigninHandler(t *testing.T) {
 	})
 }
 
-func TestGetSignoutHandler(t *testing.T) {
+func TestPostSignoutHandler(t *testing.T) {
 	t.Run("authorized", func(t *testing.T) {
 		client := NewTestDB(t)
 
@@ -687,12 +687,12 @@ func TestGetSignoutHandler(t *testing.T) {
 		}
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/signout", nil)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signout", nil)
 		req.AddCookie(NewAuthCookie("token", 86400))
 
 		rec := httptest.NewRecorder()
 
-		h := NewGetSignoutHandler(client)
+		h := NewPostSignoutHandler(client)
 		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusSeeOther {
@@ -726,10 +726,10 @@ func TestGetSignoutHandler(t *testing.T) {
 	t.Run("unauthorized", func(t *testing.T) {
 		client := NewTestDB(t)
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signout", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signout", nil)
 		rec := httptest.NewRecorder()
 
-		h := NewGetSignoutHandler(client)
+		h := NewPostSignoutHandler(client)
 		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusSeeOther {

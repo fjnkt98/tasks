@@ -137,3 +137,8 @@ func NewByteLimitMiddleware() Middleware {
 		return http.MaxBytesHandler(next, 1<<20)
 	}
 }
+
+func NewCrossOriginProtectionMiddleware() Middleware {
+	protection := http.NewCrossOriginProtection()
+	return protection.Handler
+}

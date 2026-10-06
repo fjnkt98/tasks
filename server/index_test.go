@@ -29,6 +29,7 @@ func TestGetIndex(t *testing.T) {
 			t.Error("body should contain sign in button")
 		}
 	})
+
 	t.Run("authorized", func(t *testing.T) {
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
@@ -46,10 +47,11 @@ func TestGetIndex(t *testing.T) {
 		}
 
 		body := rec.Body.String()
-		if !strings.Contains(body, `href="/signout"`) {
+		if !strings.Contains(body, `"/signout"`) {
 			t.Error("body should contain sign out button")
 		}
 	})
+
 	t.Run("render failed", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()

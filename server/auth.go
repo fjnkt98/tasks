@@ -482,17 +482,17 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------- Signout ----------
-type GetSignoutHandler struct {
+type PostSignoutHandler struct {
 	client *ent.Client
 }
 
-func NewGetSignoutHandler(client *ent.Client) *GetSignoutHandler {
-	return &GetSignoutHandler{
+func NewPostSignoutHandler(client *ent.Client) *PostSignoutHandler {
+	return &PostSignoutHandler{
 		client: client,
 	}
 }
 
-func (h *GetSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *PostSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(AuthCookieName)
 	if err != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)

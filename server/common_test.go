@@ -107,7 +107,7 @@ func TestHandle400(t *testing.T) {
 			t.Error("body should contain 'Bad Request', but not found")
 		}
 
-		if !strings.Contains(body, `href="/signout"`) {
+		if !strings.Contains(body, `"/signout"`) {
 			t.Error("body should contain sign out button")
 		}
 	})
@@ -214,7 +214,7 @@ func TestHandle404(t *testing.T) {
 			t.Error("body should contains 'Not Found', but not found")
 		}
 
-		if !strings.Contains(body, `href="/signout"`) {
+		if !strings.Contains(body, `"/signout"`) {
 			t.Error("body should contain sign out button")
 		}
 	})
@@ -320,7 +320,7 @@ func TestHandle500(t *testing.T) {
 			t.Error("body should contain 'An Error Occurred!', but not found")
 		}
 
-		if !strings.Contains(body, `href="/signout"`) {
+		if !strings.Contains(body, `"/signout"`) {
 			t.Error("body shoud contain sign out button")
 		}
 	})
