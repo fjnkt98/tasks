@@ -15,6 +15,8 @@ import (
 	"unicode/utf8"
 )
 
+var ErrBadRequest = errors.New("bad request")
+
 // ---------- List Tasks ----------
 type ListTasksHandler struct {
 	db           *sql.DB

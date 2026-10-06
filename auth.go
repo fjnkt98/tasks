@@ -23,6 +23,12 @@ import (
 var ErrDuplicatedUsername = errors.New("username was already used")
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
+type contextKey int
+
+const (
+	contextKeyUser contextKey = iota
+)
+
 func NewSessionToken() (string, error) {
 	b := make([]byte, 32)
 	_, err := rand.Read(b)

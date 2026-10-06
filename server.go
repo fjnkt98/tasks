@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"embed"
 	"fmt"
+	"html/template"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -16,10 +19,18 @@ var templates embed.FS
 //go:embed static
 var statics embed.FS
 
+func IsHTMX(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
+}
+
+type LayoutData struct {
+	Authorized bool
+}
+
 func NewServer(port int, db *sql.DB) (*http.Server, error) {
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      newHandler(db),
+		Handler:      NewHandler(db),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -27,7 +38,7 @@ func NewServer(port int, db *sql.DB) (*http.Server, error) {
 	return server, nil
 }
 
-func newHandler(db *sql.DB) http.Handler {
+func NewHandler(db *sql.DB) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
@@ -63,4 +74,88 @@ func newHandler(db *sql.DB) http.Handler {
 	}
 
 	return otelhttp.NewHandler(mux, "http-request")
+}
+
+var template400 = template.Must(template.ParseFS(templates, "templates/layout.html", "templates/400.html"))
+
+func Handle400(w http.ResponseWriter, r *http.Request) {
+	if IsHTMX(r) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	data := LayoutData{
+		Authorized: IsAuthorized(r.Context()),
+	}
+
+	var buf bytes.Buffer
+	if err := template400.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusBadRequest)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
+}
+
+var template404 = template.Must(template.ParseFS(templates, "templates/layout.html", "templates/404.html"))
+
+func Handle404(w http.ResponseWriter, r *http.Request) {
+	if IsHTMX(r) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	data := LayoutData{
+		Authorized: IsAuthorized(r.Context()),
+	}
+
+	var buf bytes.Buffer
+	if err := template404.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusNotFound)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
+}
+
+var template500 = template.Must(template.ParseFS(templates, "templates/layout.html", "templates/500.html"))
+
+func Handle500(w http.ResponseWriter, r *http.Request) {
+	if IsHTMX(r) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	data := LayoutData{
+		Authorized: IsAuthorized(r.Context()),
+	}
+
+	var buf bytes.Buffer
+	if err := template500.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusInternalServerError)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
 }
