@@ -74,6 +74,21 @@ func TestListTasksHandler(t *testing.T) {
 				t.Errorf("expected %+v, but got %+v", want, params)
 			}
 		})
+
+		t.Run("too large page and limit", func(t *testing.T) {
+			values := url.Values{}
+			values.Set("page", "1001")
+			values.Set("limit", "1001")
+			params := h.GetParams(values)
+			want := ListTasksParams{
+				Page:   1000,
+				Limit:  1000,
+				Status: "",
+			}
+			if params != want {
+				t.Errorf("expected %+v, but got %+v", want, params)
+			}
+		})
 	})
 
 	t.Run("GetTasks", func(t *testing.T) {

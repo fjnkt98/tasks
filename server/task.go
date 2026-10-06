@@ -63,6 +63,9 @@ func (h *ListTasksHandler) GetParams(values url.Values) ListTasksParams {
 		if page <= 0 {
 			page = 1
 		}
+		if page > 1000 {
+			page = 1000
+		}
 	}
 
 	var limit int
@@ -75,6 +78,9 @@ func (h *ListTasksHandler) GetParams(values url.Values) ListTasksParams {
 		}
 		if limit <= 0 {
 			limit = 10
+		}
+		if limit > 1000 {
+			limit = 1000
 		}
 	}
 
@@ -162,6 +168,9 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		NextPage:  params.Page + 1,
 		Limit:     params.Limit,
 		Status:    params.Status,
+	}
+	if params.Page >= 1000 {
+		data.LastIndex = -1
 	}
 
 	if IsHTMX(r) {
