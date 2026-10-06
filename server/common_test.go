@@ -2,21 +2,27 @@ package server
 
 import (
 	"html/template"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/fjnkt98/tasks/ent"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	m.Run()
+}
 
 func NewTestDB(t *testing.T) *ent.Client {
 	t.Helper()
 
 	client, err := ent.SetupClient(t.Context(), "file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		client.Close() // nolint:errcheck
@@ -29,18 +35,14 @@ func TestIsHTMX(t *testing.T) {
 	t.Run("normal request", func(t *testing.T) {
 		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 
-		if IsHTMX(r) {
-			t.Errorf("expected false, but got true")
-		}
+		assert.False(t, IsHTMX(r))
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
 		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		r.Header.Set("HX-Request", "true")
 
-		if !IsHTMX(r) {
-			t.Errorf("expected true, but got false")
-		}
+		assert.True(t, IsHTMX(r))
 	})
 }
 
@@ -51,31 +53,15 @@ func TestHandle400(t *testing.T) {
 
 		Handle400(rec, req)
 
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("expected status bad request, but got %d", rec.Code)
-		}
-
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		if !strings.Contains(body, "<head>") {
-			t.Error("body should contain <head> element, but not found")
-		}
-		if !strings.Contains(body, "<body") {
-			t.Error("body should contain <body> element, but not found")
-		}
-		if !strings.Contains(body, "<footer") {
-			t.Error("body should contain <footer> element, but not found")
-		}
-		if !strings.Contains(body, "Bad Request") {
-			t.Error("body should contain 'Bad Request', but not found")
-		}
-
-		if !strings.Contains(body, `href="/signin"`) {
-			t.Error("body should contain sign in button")
-		}
+		assert.Contains(t, body, "<head>")
+		assert.Contains(t, body, "<body")
+		assert.Contains(t, body, "<footer")
+		assert.Contains(t, body, "Bad Request")
+		assert.Contains(t, body, `href="/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -85,31 +71,15 @@ func TestHandle400(t *testing.T) {
 
 		Handle400(rec, req)
 
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("expected status bad request, but got %d", rec.Code)
-		}
-
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		if !strings.Contains(body, "<head>") {
-			t.Error("body should contain <head> element, but not found")
-		}
-		if !strings.Contains(body, "<body") {
-			t.Error("body should contain <body> element, but not found")
-		}
-		if !strings.Contains(body, "<footer") {
-			t.Error("body should contain <footer> element, but not found")
-		}
-		if !strings.Contains(body, "Bad Request") {
-			t.Error("body should contain 'Bad Request', but not found")
-		}
-
-		if !strings.Contains(body, `"/signout"`) {
-			t.Error("body should contain sign out button")
-		}
+		assert.Contains(t, body, "<head>")
+		assert.Contains(t, body, "<body")
+		assert.Contains(t, body, "<footer")
+		assert.Contains(t, body, "Bad Request")
+		assert.Contains(t, body, `"/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -120,13 +90,8 @@ func TestHandle400(t *testing.T) {
 
 		Handle400(rec, req)
 
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("expected status bad request, but got %d", rec.Code)
-		}
-
-		if body := rec.Body.String(); body != "bad request\n" {
-			t.Errorf("body should be 'bad request', but got %s", body)
-		}
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "bad request\n", rec.Body.String())
 	})
 
 	t.Run("render failed", func(t *testing.T) {
@@ -141,13 +106,8 @@ func TestHandle400(t *testing.T) {
 
 		Handle400(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
-
-		if body := rec.Body.String(); body != "server error\n" {
-			t.Errorf("body should be 'server error', but got '%s'", body)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "server error\n", rec.Body.String())
 	})
 }
 
@@ -158,31 +118,15 @@ func TestHandle404(t *testing.T) {
 
 		Handle404(rec, req)
 
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected status not found, but got %d", rec.Code)
-		}
-
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		if !strings.Contains(body, "<head>") {
-			t.Error("body should contain <head> element, but not found")
-		}
-		if !strings.Contains(body, "<body") {
-			t.Error("body should contain <body> element, but not found")
-		}
-		if !strings.Contains(body, "<footer") {
-			t.Error("body should contain <footer> element, but not found")
-		}
-		if !strings.Contains(body, "Not Found") {
-			t.Error("body should contain 'Not Found', but not found")
-		}
-
-		if !strings.Contains(body, `href="/signin"`) {
-			t.Error("body should contain sign in button")
-		}
+		assert.Contains(t, body, "<head>")
+		assert.Contains(t, body, "<body")
+		assert.Contains(t, body, "<footer")
+		assert.Contains(t, body, "Not Found")
+		assert.Contains(t, body, `href="/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -192,31 +136,15 @@ func TestHandle404(t *testing.T) {
 
 		Handle404(rec, req)
 
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected status not found, but got %d", rec.Code)
-		}
-
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		if !strings.Contains(body, "<head>") {
-			t.Error("body should contains <head> element, but not found")
-		}
-		if !strings.Contains(body, "<body") {
-			t.Error("body should contains <body> element, but not found")
-		}
-		if !strings.Contains(body, "<footer") {
-			t.Error("body should contains <footer> element, but not found")
-		}
-		if !strings.Contains(body, "Not Found") {
-			t.Error("body should contains 'Not Found', but not found")
-		}
-
-		if !strings.Contains(body, `"/signout"`) {
-			t.Error("body should contain sign out button")
-		}
+		assert.Contains(t, body, "<head>")
+		assert.Contains(t, body, "<body")
+		assert.Contains(t, body, "<footer")
+		assert.Contains(t, body, "Not Found")
+		assert.Contains(t, body, `"/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -227,12 +155,8 @@ func TestHandle404(t *testing.T) {
 
 		Handle404(rec, req)
 
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected status not found, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "not found\n" {
-			t.Errorf("body should be 'not found', but got %s", body)
-		}
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "not found\n", rec.Body.String())
 	})
 
 	t.Run("render failed", func(t *testing.T) {
@@ -247,13 +171,8 @@ func TestHandle404(t *testing.T) {
 
 		Handle404(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
-
-		if body := rec.Body.String(); body != "server error\n" {
-			t.Errorf("body should be 'server error', but got '%s'", body)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "server error\n", rec.Body.String())
 	})
 }
 
@@ -264,31 +183,15 @@ func TestHandle500(t *testing.T) {
 
 		Handle500(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
-
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		if !strings.Contains(body, "<head>") {
-			t.Error("body should contain <head> element, but not found")
-		}
-		if !strings.Contains(body, "<body") {
-			t.Error("body should contain <body> element, but not found")
-		}
-		if !strings.Contains(body, "<footer") {
-			t.Error("body should contain <footer> element, but not found")
-		}
-		if !strings.Contains(body, "An Error Occurred!") {
-			t.Error("body should contain 'An Error Occurred!', but not found")
-		}
-
-		if !strings.Contains(body, `href="/signin"`) {
-			t.Error("body shoud contain sign in button")
-		}
+		assert.Contains(t, body, "<head>")
+		assert.Contains(t, body, "<body")
+		assert.Contains(t, body, "<footer")
+		assert.Contains(t, body, "An Error Occurred!")
+		assert.Contains(t, body, `href="/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -298,31 +201,15 @@ func TestHandle500(t *testing.T) {
 
 		Handle500(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
-
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		if !strings.Contains(body, "<head>") {
-			t.Error("body should contain <head> element, but not found")
-		}
-		if !strings.Contains(body, "<body") {
-			t.Error("body should contain <body> element, but not found")
-		}
-		if !strings.Contains(body, "<footer") {
-			t.Error("body should contain <footer> element, but not found")
-		}
-		if !strings.Contains(body, "An Error Occurred!") {
-			t.Error("body should contain 'An Error Occurred!', but not found")
-		}
-
-		if !strings.Contains(body, `"/signout"`) {
-			t.Error("body shoud contain sign out button")
-		}
+		assert.Contains(t, body, "<head>")
+		assert.Contains(t, body, "<body")
+		assert.Contains(t, body, "<footer")
+		assert.Contains(t, body, "An Error Occurred!")
+		assert.Contains(t, body, `"/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -333,13 +220,8 @@ func TestHandle500(t *testing.T) {
 
 		Handle500(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
-
-		if body := rec.Body.String(); body != "server error\n" {
-			t.Errorf("body should be 'server error', but got %s", body)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "server error\n", rec.Body.String())
 	})
 
 	t.Run("render failed", func(t *testing.T) {
@@ -354,11 +236,7 @@ func TestHandle500(t *testing.T) {
 
 		Handle500(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "server error\n" {
-			t.Errorf("body should be 'server error', but got '%s'", body)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "server error\n", rec.Body.String())
 	})
 }

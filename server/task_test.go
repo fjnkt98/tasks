@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 
 	"github.com/fjnkt98/tasks/ent"
 	enttask "github.com/fjnkt98/tasks/ent/task"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestListTasksHandler(t *testing.T) {
@@ -27,9 +28,7 @@ func TestListTasksHandler(t *testing.T) {
 				Limit:  10,
 				Status: "",
 			}
-			if params != want {
-				t.Errorf("expected %+v, but got %+v", want, params)
-			}
+			assert.Equal(t, want, params)
 		})
 		t.Run("specified values will be used", func(t *testing.T) {
 			values := url.Values{}
@@ -42,9 +41,7 @@ func TestListTasksHandler(t *testing.T) {
 				Limit:  50,
 				Status: "done",
 			}
-			if params != want {
-				t.Errorf("expected %+v, but got %+v", want, params)
-			}
+			assert.Equal(t, want, params)
 		})
 		t.Run("default value will be used if page or limit is invalid", func(t *testing.T) {
 			values := url.Values{}
@@ -56,9 +53,7 @@ func TestListTasksHandler(t *testing.T) {
 				Limit:  10,
 				Status: "",
 			}
-			if params != want {
-				t.Errorf("expected %+v, but got %+v", want, params)
-			}
+			assert.Equal(t, want, params)
 		})
 		t.Run("default value will be used if page or limit is negative", func(t *testing.T) {
 			values := url.Values{}
@@ -70,9 +65,7 @@ func TestListTasksHandler(t *testing.T) {
 				Limit:  10,
 				Status: "",
 			}
-			if params != want {
-				t.Errorf("expected %+v, but got %+v", want, params)
-			}
+			assert.Equal(t, want, params)
 		})
 
 		t.Run("too large page and limit", func(t *testing.T) {
@@ -85,42 +78,34 @@ func TestListTasksHandler(t *testing.T) {
 				Limit:  1000,
 				Status: "",
 			}
-			if params != want {
-				t.Errorf("expected %+v, but got %+v", want, params)
-			}
+			assert.Equal(t, want, params)
 		})
 	})
 
 	t.Run("GetTasks", func(t *testing.T) {
 		client := NewTestDB(t)
 
-		if _, err := client.User.CreateBulk(
+		_, err := client.User.CreateBulk(
 			client.User.Create().SetName("user1").SetPassword("user1"),
 			client.User.Create().SetName("user2").SetPassword("user2"),
-		).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		).Save(t.Context())
+		require.NoError(t, err)
 
-		if _, err := client.Task.CreateBulk(
+		_, err = client.Task.CreateBulk(
 			client.Task.Create().SetTitle("test1").SetStatus(enttask.StatusCreated).SetUserID(1),
 			client.Task.Create().SetTitle("test2").SetStatus(enttask.StatusDone).SetUserID(1),
 			client.Task.Create().SetTitle("test3").SetStatus(enttask.StatusDone).SetUserID(1),
 			client.Task.Create().SetTitle("test4").SetStatus(enttask.StatusCreated).SetUserID(1),
-		).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		).Save(t.Context())
+		require.NoError(t, err)
 
 		h := NewListTasksHandler(client)
 
 		t.Run("get all", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: ""})
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if len(tasks) != 4 {
-				t.Fatalf("length should be 4, but got %d", len(tasks))
-			}
+			require.Len(t, tasks, 4)
 
 			wants := []struct {
 				ID     int
@@ -134,30 +119,18 @@ func TestListTasksHandler(t *testing.T) {
 				{ID: 2, Title: "test2", Status: enttask.StatusDone, UserID: 1},
 			}
 			for i := range 4 {
-				if wants[i].ID != tasks[i].ID {
-					t.Errorf("id should be %v, but got %v", wants[i].ID, tasks[i].ID)
-				}
-				if wants[i].Title != tasks[i].Title {
-					t.Errorf("title should be %v, but got %v", wants[i].Title, tasks[i].Title)
-				}
-				if wants[i].Status != tasks[i].Status {
-					t.Errorf("status should be %v, but got %v", wants[i].Status, tasks[i].Status)
-				}
-				if wants[i].UserID != tasks[i].UserID {
-					t.Errorf("user id should be %v, but got %v", wants[i].UserID, tasks[i].UserID)
-				}
+				assert.Equal(t, wants[i].ID, tasks[i].ID)
+				assert.Equal(t, wants[i].Title, tasks[i].Title)
+				assert.Equal(t, wants[i].Status, tasks[i].Status)
+				assert.Equal(t, wants[i].UserID, tasks[i].UserID)
 			}
 		})
 
 		t.Run("get created", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: "created"})
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if len(tasks) != 2 {
-				t.Fatalf("length should be 2, but got %d", len(tasks))
-			}
+			require.Len(t, tasks, 2)
 			wants := []struct {
 				ID     int
 				Title  string
@@ -168,30 +141,18 @@ func TestListTasksHandler(t *testing.T) {
 				{ID: 1, Title: "test1", Status: enttask.StatusCreated, UserID: 1},
 			}
 			for i := range 2 {
-				if wants[i].ID != tasks[i].ID {
-					t.Errorf("id should be %v, but got %v", wants[i].ID, tasks[i].ID)
-				}
-				if wants[i].Title != tasks[i].Title {
-					t.Errorf("title should be %v, but got %v", wants[i].Title, tasks[i].Title)
-				}
-				if wants[i].Status != tasks[i].Status {
-					t.Errorf("status should be %v, but got %v", wants[i].Status, tasks[i].Status)
-				}
-				if wants[i].UserID != tasks[i].UserID {
-					t.Errorf("user id should be %v, but got %v", wants[i].UserID, tasks[i].UserID)
-				}
+				assert.Equal(t, wants[i].ID, tasks[i].ID)
+				assert.Equal(t, wants[i].Title, tasks[i].Title)
+				assert.Equal(t, wants[i].Status, tasks[i].Status)
+				assert.Equal(t, wants[i].UserID, tasks[i].UserID)
 			}
 		})
 
 		t.Run("get done", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: "done"})
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if len(tasks) != 2 {
-				t.Fatalf("length should be 4, but got %d", len(tasks))
-			}
+			require.Len(t, tasks, 2)
 			wants := []struct {
 				ID     int
 				Title  string
@@ -202,41 +163,25 @@ func TestListTasksHandler(t *testing.T) {
 				{ID: 2, Title: "test2", Status: enttask.StatusDone, UserID: 1},
 			}
 			for i := range 2 {
-				if wants[i].ID != tasks[i].ID {
-					t.Errorf("id should be %v, but got %v", wants[i].ID, tasks[i].ID)
-				}
-				if wants[i].Title != tasks[i].Title {
-					t.Errorf("title should be %v, but got %v", wants[i].Title, tasks[i].Title)
-				}
-				if wants[i].Status != tasks[i].Status {
-					t.Errorf("status should be %v, but got %v", wants[i].Status, tasks[i].Status)
-				}
-				if wants[i].UserID != tasks[i].UserID {
-					t.Errorf("user id should be %v, but got %v", wants[i].UserID, tasks[i].UserID)
-				}
+				assert.Equal(t, wants[i].ID, tasks[i].ID)
+				assert.Equal(t, wants[i].Title, tasks[i].Title)
+				assert.Equal(t, wants[i].Status, tasks[i].Status)
+				assert.Equal(t, wants[i].UserID, tasks[i].UserID)
 			}
 		})
 
 		t.Run("no rows", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 2, Limit: 100, Status: ""})
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if len(tasks) != 0 {
-				t.Fatalf("length should be 0, but got %d", len(tasks))
-			}
+			require.Len(t, tasks, 0)
 		})
 
 		t.Run("other user", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 2, ListTasksParams{Page: 1, Limit: 10, Status: ""})
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if len(tasks) != 0 {
-				t.Fatalf("length should be 0, but got %d", len(tasks))
-			}
+			require.Len(t, tasks, 0)
 		})
 	})
 
@@ -257,26 +202,14 @@ func TestListTasksHandler(t *testing.T) {
 
 			h := NewListTasksHandler(client)
 
-			if err := h.ResponseHTTP(rec, data); err != nil {
-				t.Fatal(err)
-			}
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			require.NoError(t, h.ResponseHTTP(rec, data))
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
-			if !strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("body should contain <head> element, but not found")
-			}
-			if !strings.Contains(rec.Body.String(), "<body") {
-				t.Error("body should contain <body> element, but not found")
-			}
-			if !strings.Contains(rec.Body.String(), "<footer") {
-				t.Error("body should contain <footer> element, but not found")
-			}
+			assert.Contains(t, rec.Body.String(), "<head>")
+			assert.Contains(t, rec.Body.String(), "<body")
+			assert.Contains(t, rec.Body.String(), "<footer")
 		})
 
 		t.Run("no data", func(t *testing.T) {
@@ -291,26 +224,14 @@ func TestListTasksHandler(t *testing.T) {
 
 			h := NewListTasksHandler(client)
 
-			if err := h.ResponseHTTP(rec, data); err != nil {
-				t.Fatal(err)
-			}
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			require.NoError(t, h.ResponseHTTP(rec, data))
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
-			if !strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("body should contain <head> element, but not found")
-			}
-			if !strings.Contains(rec.Body.String(), "<body") {
-				t.Error("body should contain <body> element, but not found")
-			}
-			if !strings.Contains(rec.Body.String(), "<footer") {
-				t.Error("body should contain <footer> element, but not found")
-			}
+			assert.Contains(t, rec.Body.String(), "<head>")
+			assert.Contains(t, rec.Body.String(), "<body")
+			assert.Contains(t, rec.Body.String(), "<footer")
 		})
 	})
 
@@ -331,27 +252,15 @@ func TestListTasksHandler(t *testing.T) {
 
 			h := NewListTasksHandler(client)
 
-			if err := h.ResponseHTMX(rec, data); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, h.ResponseHTMX(rec, data))
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
-			if strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("body shouldn't contain <head> element, but found")
-			}
-			if strings.Contains(rec.Body.String(), "<body") {
-				t.Error("body shouldn't contain <body> element, but found")
-			}
-			if strings.Contains(rec.Body.String(), "<footer") {
-				t.Error("body shouldn't contain <footer> element, but found")
-			}
+			assert.NotContains(t, rec.Body.String(), "<head>")
+			assert.NotContains(t, rec.Body.String(), "<body")
+			assert.NotContains(t, rec.Body.String(), "<footer")
 		})
 
 		t.Run("no data", func(t *testing.T) {
@@ -366,42 +275,32 @@ func TestListTasksHandler(t *testing.T) {
 
 			h := NewListTasksHandler(client)
 
-			if err := h.ResponseHTMX(rec, data); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, h.ResponseHTMX(rec, data))
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
-			if body := strings.TrimSpace(rec.Body.String()); body != "" {
-				t.Errorf("body should be empty, but got %s", body)
-			}
+			assert.Empty(t, strings.TrimSpace(rec.Body.String()))
 		})
 	})
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		client := NewTestDB(t)
 
-		if _, err := client.User.CreateBulk(
+		_, err := client.User.CreateBulk(
 			client.User.Create().SetName("user1").SetPassword("user1"),
 			client.User.Create().SetName("user2").SetPassword("user2"),
-		).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		).Save(t.Context())
+		require.NoError(t, err)
 
-		if _, err := client.Task.CreateBulk(
+		_, err = client.Task.CreateBulk(
 			client.Task.Create().SetTitle("test1").SetStatus(enttask.StatusCreated).SetUserID(1),
 			client.Task.Create().SetTitle("test2").SetStatus(enttask.StatusDone).SetUserID(1),
 			client.Task.Create().SetTitle("test3").SetStatus(enttask.StatusDone).SetUserID(1),
 			client.Task.Create().SetTitle("test4").SetStatus(enttask.StatusCreated).SetUserID(1),
-		).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		).Save(t.Context())
+		require.NoError(t, err)
 
 		t.Run("get without params", func(t *testing.T) {
 			ctx := SetUserIDIntoContext(t.Context(), 1)
@@ -411,22 +310,14 @@ func TestListTasksHandler(t *testing.T) {
 			h := NewListTasksHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if !strings.Contains(body, "<head>") {
-				t.Error("body should contain <head> element, but not found")
-			}
+			assert.Contains(t, body, "<head>")
 			for i := range 4 {
-				if !strings.Contains(body, fmt.Sprintf(`id="task-%d"`, i+1)) {
-					t.Error("body should contain task element, but not found")
-				}
+				assert.Contains(t, body, fmt.Sprintf(`id="task-%d"`, i+1))
 			}
 		})
 
@@ -443,17 +334,11 @@ func TestListTasksHandler(t *testing.T) {
 			h := NewListTasksHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
-			if !strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("body should contain <head> element, but not found")
-			}
+			assert.Contains(t, rec.Body.String(), "<head>")
 		})
 
 		t.Run("get htmx", func(t *testing.T) {
@@ -470,13 +355,9 @@ func TestListTasksHandler(t *testing.T) {
 			h := NewListTasksHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if strings.Contains(rec.Body.String(), "<head>") {
-				t.Error("body shouldn't contain <head> element, but found")
-			}
+			assert.NotContains(t, rec.Body.String(), "<head>")
 		})
 
 		t.Run("render failed http", func(t *testing.T) {
@@ -489,13 +370,9 @@ func TestListTasksHandler(t *testing.T) {
 
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusInternalServerError {
-				t.Errorf("expected status internal server error, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 		})
 
 		t.Run("render failed htmx", func(t *testing.T) {
@@ -510,9 +387,7 @@ func TestListTasksHandler(t *testing.T) {
 
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusInternalServerError {
-				t.Errorf("expected status internal server error, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		})
 	})
 }
@@ -521,12 +396,10 @@ func TestGetTaskHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
 		client := NewTestDB(t)
 
-		if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+		require.NoError(t, err)
+		_, err = client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context())
+		require.NoError(t, err)
 
 		t.Run("normal", func(t *testing.T) {
 			ctx := SetUserIDIntoContext(t.Context(), 1)
@@ -539,24 +412,14 @@ func TestGetTaskHandler(t *testing.T) {
 			h := NewGetTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if strings.Contains(body, "<head>") {
-				t.Error("body shouldn't contain <head> element, but found")
-			}
-			if strings.Contains(body, "<body>") {
-				t.Error("body shouldn't contain <body> element, but found")
-			}
-			if strings.Contains(body, "<footer>") {
-				t.Error("body shouldn't contain <footer> element, but found")
-			}
+			assert.NotContains(t, body, "<head>")
+			assert.NotContains(t, body, "<body>")
+			assert.NotContains(t, body, "<footer>")
 		})
 
 		t.Run("not found", func(t *testing.T) {
@@ -570,9 +433,7 @@ func TestGetTaskHandler(t *testing.T) {
 			h := NewGetTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusNotFound {
-				t.Errorf("expected status not found, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusNotFound, rec.Code)
 		})
 
 		t.Run("invalid path value", func(t *testing.T) {
@@ -586,9 +447,7 @@ func TestGetTaskHandler(t *testing.T) {
 			h := NewGetTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusNotFound {
-				t.Errorf("expected status not found, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusNotFound, rec.Code)
 		})
 
 		t.Run("render failed", func(t *testing.T) {
@@ -604,9 +463,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusInternalServerError {
-				t.Errorf("expected status internal server error, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		})
 	})
 }
@@ -615,12 +472,10 @@ func TestGetTaskEditHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
 		client := NewTestDB(t)
 
-		if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+		require.NoError(t, err)
+		_, err = client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context())
+		require.NoError(t, err)
 
 		t.Run("normal", func(t *testing.T) {
 			ctx := SetUserIDIntoContext(t.Context(), 1)
@@ -633,20 +488,12 @@ func TestGetTaskEditHandler(t *testing.T) {
 			h := NewGetTaskEditHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
 			body := rec.Body.String()
-			if strings.Contains(body, "<head>") {
-				t.Error("body shouldn't contain <head> element, but found")
-			}
-			if strings.Contains(body, "<body>") {
-				t.Error("body shouldn't contain <body> element, but found")
-			}
-			if strings.Contains(body, "<footer>") {
-				t.Error("body shouldn't contain <footer> element, but found")
-			}
+			assert.NotContains(t, body, "<head>")
+			assert.NotContains(t, body, "<body>")
+			assert.NotContains(t, body, "<footer>")
 		})
 
 		t.Run("not found", func(t *testing.T) {
@@ -660,9 +507,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 			h := NewGetTaskEditHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusNotFound {
-				t.Errorf("expected status not found, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusNotFound, rec.Code)
 		})
 
 		t.Run("invalid path value", func(t *testing.T) {
@@ -676,9 +521,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 			h := NewGetTaskEditHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusNotFound {
-				t.Errorf("expected status not found, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusNotFound, rec.Code)
 		})
 
 		t.Run("render failed", func(t *testing.T) {
@@ -694,9 +537,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusInternalServerError {
-				t.Errorf("expected status internal server error, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		})
 	})
 }
@@ -713,19 +554,13 @@ func TestPostTaskHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostTaskHandler(client)
 			params, err := h.GetParams(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if params.Title != "test" {
-				t.Errorf("title should be 'test', but got %s", params.Title)
-			}
+			assert.Equal(t, "test", params.Title)
 		})
 
 		t.Run("empty title", func(t *testing.T) {
@@ -735,15 +570,11 @@ func TestPostTaskHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks?title=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostTaskHandler(client)
 			_, err := h.GetParams(req)
-			if !errors.Is(err, ErrBadRequest) {
-				t.Errorf("expected ErrBadRequest, but got %s", err)
-			}
+			assert.ErrorIs(t, err, ErrBadRequest)
 		})
 
 		t.Run("space only", func(t *testing.T) {
@@ -754,15 +585,11 @@ func TestPostTaskHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks?title=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostTaskHandler(client)
 			_, err := h.GetParams(req)
-			if !errors.Is(err, ErrBadRequest) {
-				t.Errorf("expected ErrBadRequest, but got %s", err)
-			}
+			assert.ErrorIs(t, err, ErrBadRequest)
 		})
 	})
 
@@ -770,9 +597,8 @@ func TestPostTaskHandler(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
 			client := NewTestDB(t)
 
-			if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+			require.NoError(t, err)
 
 			values := url.Values{}
 			values.Set("title", "test")
@@ -787,44 +613,27 @@ func TestPostTaskHandler(t *testing.T) {
 			h := NewPostTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusCreated {
-				t.Errorf("expected status created, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusCreated, rec.Code)
 
 			body := rec.Body.String()
-			if strings.Contains(body, "<head>") {
-				t.Error("body shouldn't contain <head> element, but found")
-			}
-			if strings.Contains(body, "<body") {
-				t.Error("body shouldn't contain <body> element, but found")
-			}
-			if strings.Contains(body, "<footer") {
-				t.Error("body shouldn't contain <footer> element, but found")
-			}
+			assert.NotContains(t, body, "<head>")
+			assert.NotContains(t, body, "<body")
+			assert.NotContains(t, body, "<footer")
 
 			tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if len(tasks) != 1 {
-				t.Fatalf("length should be 1, but got %d", len(tasks))
-			}
+			require.Len(t, tasks, 1)
 
-			if tasks[0].Title != "test" {
-				t.Errorf("title should be 'test', but got %s", tasks[0].Title)
-			}
-			if tasks[0].Status != enttask.StatusCreated {
-				t.Errorf("status should be 'created', but got %s", tasks[0].Status)
-			}
+			assert.Equal(t, "test", tasks[0].Title)
+			assert.Equal(t, enttask.StatusCreated, tasks[0].Status)
 		})
 
 		t.Run("invalid request body", func(t *testing.T) {
 			client := NewTestDB(t)
 
-			if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+			require.NoError(t, err)
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader("title=test&foo=%zz"))
@@ -836,26 +645,19 @@ func TestPostTaskHandler(t *testing.T) {
 			h := NewPostTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status bad request, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
 			tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if len(tasks) != 0 {
-				t.Fatalf("length should be 0, but got %d", len(tasks))
-			}
+			require.Len(t, tasks, 0)
 		})
 
 		t.Run("render failed", func(t *testing.T) {
 			client := NewTestDB(t)
 
-			if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+			require.NoError(t, err)
 
 			values := url.Values{}
 			values.Set("title", "test")
@@ -872,9 +674,7 @@ func TestPostTaskHandler(t *testing.T) {
 
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusInternalServerError {
-				t.Errorf("expected status internal server error, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		})
 	})
 }
@@ -892,19 +692,13 @@ func TestPutTaskHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
 
-			if params.Title != "test" {
-				t.Errorf("title should be 'test', but got %s", params.Title)
-			}
-			if params.Status != "done" {
-				t.Errorf("status should be 'done', but got %s", params.Status)
-			}
+			assert.Equal(t, "test", params.Title)
+			assert.Equal(t, "done", params.Status)
 		})
 
 		t.Run("empty", func(t *testing.T) {
@@ -914,19 +708,13 @@ func TestPutTaskHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1?title=foo&status=bar", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
 
-			if params.Title != "" {
-				t.Errorf("title should be empty, but got %s", params.Title)
-			}
-			if params.Status != "" {
-				t.Errorf("status should be empty, but got %s", params.Status)
-			}
+			assert.Equal(t, "", params.Title)
+			assert.Equal(t, "", params.Status)
 		})
 
 		t.Run("title contains space", func(t *testing.T) {
@@ -938,30 +726,22 @@ func TestPutTaskHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1?title=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
 
-			if params.Title != "" {
-				t.Errorf("title should be empty, but got %s", params.Title)
-			}
-			if params.Status != "" {
-				t.Errorf("status should be empty, but got %s", params.Status)
-			}
+			assert.Equal(t, "", params.Title)
+			assert.Equal(t, "", params.Status)
 		})
 	})
 
 	var fixture = func(client *ent.Client, t *testing.T) {
 		t.Helper()
-		if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+		require.NoError(t, err)
+		_, err = client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context())
+		require.NoError(t, err)
 	}
 
 	t.Run("UpdateTask", func(t *testing.T) {
@@ -977,27 +757,20 @@ func TestPutTaskHandler(t *testing.T) {
 
 			h := NewPutTaskHandler(client)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if updated.Title != "new test" {
-				t.Errorf("title should be 'new test', but got %s", updated.Title)
-			}
-			if updated.Status != enttask.StatusDone {
-				t.Errorf("status should be 'done', but got %s", updated.Status)
-			}
+			assert.Equal(t, "new test", updated.Title)
+			assert.Equal(t, enttask.StatusDone, updated.Status)
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.ID != updated.ID || task.Title != updated.Title ||
-				task.Status != updated.Status || task.UserID != updated.UserID ||
-				!task.CreatedAt.Equal(updated.CreatedAt) || !task.UpdatedAt.Equal(updated.UpdatedAt) {
-				t.Errorf("updated task %+v must match saved one %+v", updated, task)
-			}
+			assert.Equal(t, updated.ID, task.ID)
+			assert.Equal(t, updated.Title, task.Title)
+			assert.Equal(t, updated.Status, task.Status)
+			assert.Equal(t, updated.UserID, task.UserID)
+			assert.WithinDuration(t, updated.CreatedAt, task.CreatedAt, 0)
+			assert.WithinDuration(t, updated.UpdatedAt, task.UpdatedAt, 0)
 		})
 
 		t.Run("update non-existing task", func(t *testing.T) {
@@ -1007,9 +780,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			h := NewPutTaskHandler(client)
 			_, err := h.UpdateTask(t.Context(), 2, 1, UpdateTaskParams{})
-			if !ent.IsNotFound(err) {
-				t.Fatalf("expected ent.NotFoundError, but got %+v", err)
-			}
+			require.True(t, ent.IsNotFound(err), "unexpected error: %v", err)
 		})
 
 		t.Run("update title only", func(t *testing.T) {
@@ -1023,27 +794,20 @@ func TestPutTaskHandler(t *testing.T) {
 
 			h := NewPutTaskHandler(client)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if updated.Title != "new test" {
-				t.Errorf("title should be 'new test', but got %s", updated.Title)
-			}
-			if updated.Status != enttask.StatusCreated {
-				t.Errorf("status should be 'created', but got %s", updated.Status)
-			}
+			assert.Equal(t, "new test", updated.Title)
+			assert.Equal(t, enttask.StatusCreated, updated.Status)
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.ID != updated.ID || task.Title != updated.Title ||
-				task.Status != updated.Status || task.UserID != updated.UserID ||
-				!task.CreatedAt.Equal(updated.CreatedAt) || !task.UpdatedAt.Equal(updated.UpdatedAt) {
-				t.Errorf("updated task %+v must match saved one %+v", updated, task)
-			}
+			assert.Equal(t, updated.ID, task.ID)
+			assert.Equal(t, updated.Title, task.Title)
+			assert.Equal(t, updated.Status, task.Status)
+			assert.Equal(t, updated.UserID, task.UserID)
+			assert.WithinDuration(t, updated.CreatedAt, task.CreatedAt, 0)
+			assert.WithinDuration(t, updated.UpdatedAt, task.UpdatedAt, 0)
 		})
 
 		t.Run("update status only", func(t *testing.T) {
@@ -1057,27 +821,20 @@ func TestPutTaskHandler(t *testing.T) {
 
 			h := NewPutTaskHandler(client)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if updated.Title != "test" {
-				t.Errorf("title should be 'test', but got %s", updated.Title)
-			}
-			if updated.Status != enttask.StatusDone {
-				t.Errorf("status should be 'done', but got %s", updated.Status)
-			}
+			assert.Equal(t, "test", updated.Title)
+			assert.Equal(t, enttask.StatusDone, updated.Status)
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.ID != updated.ID || task.Title != updated.Title ||
-				task.Status != updated.Status || task.UserID != updated.UserID ||
-				!task.CreatedAt.Equal(updated.CreatedAt) || !task.UpdatedAt.Equal(updated.UpdatedAt) {
-				t.Errorf("updated task %+v must match saved one %+v", updated, task)
-			}
+			assert.Equal(t, updated.ID, task.ID)
+			assert.Equal(t, updated.Title, task.Title)
+			assert.Equal(t, updated.Status, task.Status)
+			assert.Equal(t, updated.UserID, task.UserID)
+			assert.WithinDuration(t, updated.CreatedAt, task.CreatedAt, 0)
+			assert.WithinDuration(t, updated.UpdatedAt, task.UpdatedAt, 0)
 		})
 	})
 
@@ -1102,43 +859,23 @@ func TestPutTaskHandler(t *testing.T) {
 			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if strings.Contains(body, "<head>") {
-				t.Errorf("body shouldn't contain <head> element, but found")
-			}
-			if strings.Contains(body, "<body") {
-				t.Errorf("body shouldn't contain <body> element, but found")
-			}
-			if strings.Contains(body, "<footer") {
-				t.Errorf("body shouldn't contain <footer> element, but found")
-			}
+			assert.NotContains(t, body, "<head>")
+			assert.NotContains(t, body, "<body")
+			assert.NotContains(t, body, "<footer")
 
-			if !strings.Contains(body, `id="task-1"`) {
-				t.Error("body should contain `id=\"task-1\"`, but not found")
-			}
+			assert.Contains(t, body, `id="task-1"`)
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.Title != "new test" {
-				t.Errorf("title should be 'new test', but got %s", task.Title)
-			}
-			if task.Status != enttask.StatusDone {
-				t.Errorf("status should 'done', but got %s", task.Status)
-			}
-			if task.UserID != 1 {
-				t.Errorf("user id should be 1, but got %d", task.UserID)
-			}
+			assert.Equal(t, "new test", task.Title)
+			assert.Equal(t, enttask.StatusDone, task.Status)
+			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("update title only", func(t *testing.T) {
@@ -1160,43 +897,23 @@ func TestPutTaskHandler(t *testing.T) {
 			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if strings.Contains(body, "<head>") {
-				t.Errorf("body shouldn't contain <head> element, but found")
-			}
-			if strings.Contains(body, "<body") {
-				t.Errorf("body shouldn't contain <body> element, but found")
-			}
-			if strings.Contains(body, "<footer") {
-				t.Errorf("body shouldn't contain <footer> element, but found")
-			}
+			assert.NotContains(t, body, "<head>")
+			assert.NotContains(t, body, "<body")
+			assert.NotContains(t, body, "<footer")
 
-			if !strings.Contains(body, `id="task-1"`) {
-				t.Error("body should contain `id=\"task-1\"`, but not found")
-			}
+			assert.Contains(t, body, `id="task-1"`)
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.Title != "new test" {
-				t.Errorf("title should be 'new test', but got %s", task.Title)
-			}
-			if task.Status != enttask.StatusCreated {
-				t.Errorf("status should be 'created', but got %s", task.Status)
-			}
-			if task.UserID != 1 {
-				t.Errorf("user id should be 1, but got %d", task.UserID)
-			}
+			assert.Equal(t, "new test", task.Title)
+			assert.Equal(t, enttask.StatusCreated, task.Status)
+			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("update status only", func(t *testing.T) {
@@ -1218,43 +935,23 @@ func TestPutTaskHandler(t *testing.T) {
 			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("expected status ok, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusOK, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if strings.Contains(body, "<head>") {
-				t.Errorf("body shouldn't contain <head> element, but found")
-			}
-			if strings.Contains(body, "<body") {
-				t.Errorf("body shouldn't contain <body> element, but found")
-			}
-			if strings.Contains(body, "<footer") {
-				t.Errorf("body shouldn't contain <footer> element, but found")
-			}
+			assert.NotContains(t, body, "<head>")
+			assert.NotContains(t, body, "<body")
+			assert.NotContains(t, body, "<footer")
 
-			if !strings.Contains(body, `id="task-1"`) {
-				t.Error("body should contain `id=\"task-1\"`, but not found")
-			}
+			assert.Contains(t, body, `id="task-1"`)
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.Title != "test" {
-				t.Errorf("title should be 'test', but got %s", task.Title)
-			}
-			if task.Status != enttask.StatusDone {
-				t.Errorf("status should be 'done', but got %s", task.Status)
-			}
-			if task.UserID != 1 {
-				t.Errorf("user id should be 1, but got %d", task.UserID)
-			}
+			assert.Equal(t, "test", task.Title)
+			assert.Equal(t, enttask.StatusDone, task.Status)
+			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("update non-existing task", func(t *testing.T) {
@@ -1276,28 +973,16 @@ func TestPutTaskHandler(t *testing.T) {
 			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusNotFound {
-				t.Errorf("expected status not found, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusNotFound, rec.Code)
 
-			if body := rec.Body.String(); body != "not found\n" {
-				t.Errorf("body should be 'not found', but got '%s'", body)
-			}
+			assert.Equal(t, "not found\n", rec.Body.String())
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.Title != "test" {
-				t.Errorf("title should be 'test', but got %s", task.Title)
-			}
-			if task.Status != enttask.StatusCreated {
-				t.Errorf("status should be 'created', but got %s", task.Status)
-			}
-			if task.UserID != 1 {
-				t.Errorf("user id should be 1, but got %d", task.UserID)
-			}
+			assert.Equal(t, "test", task.Title)
+			assert.Equal(t, enttask.StatusCreated, task.Status)
+			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("invalid path value", func(t *testing.T) {
@@ -1319,28 +1004,16 @@ func TestPutTaskHandler(t *testing.T) {
 			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusNotFound {
-				t.Errorf("expected status not found, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusNotFound, rec.Code)
 
-			if body := rec.Body.String(); body != "not found\n" {
-				t.Errorf("body should be 'not found', but got '%s'", body)
-			}
+			assert.Equal(t, "not found\n", rec.Body.String())
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.Title != "test" {
-				t.Errorf("title should be 'test', but got %s", task.Title)
-			}
-			if task.Status != enttask.StatusCreated {
-				t.Errorf("status should be 'created', but got %s", task.Status)
-			}
-			if task.UserID != 1 {
-				t.Errorf("user id should be 1, but got %d", task.UserID)
-			}
+			assert.Equal(t, "test", task.Title)
+			assert.Equal(t, enttask.StatusCreated, task.Status)
+			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("invalid request body", func(t *testing.T) {
@@ -1359,24 +1032,14 @@ func TestPutTaskHandler(t *testing.T) {
 			h := NewPutTaskHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status bad request, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if task.Title != "test" {
-				t.Errorf("title should be 'test', but got %s", task.Title)
-			}
-			if task.Status != enttask.StatusCreated {
-				t.Errorf("status should be 'created', but got %s", task.Status)
-			}
-			if task.UserID != 1 {
-				t.Errorf("user id should be 1, but got %d", task.UserID)
-			}
+			assert.Equal(t, "test", task.Title)
+			assert.Equal(t, enttask.StatusCreated, task.Status)
+			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("render failed", func(t *testing.T) {
@@ -1401,9 +1064,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusInternalServerError {
-				t.Errorf("expected status internal server error, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		})
 	})
 }
@@ -1411,12 +1072,10 @@ func TestPutTaskHandler(t *testing.T) {
 func TestDeleteTaskHandler(t *testing.T) {
 	var fixture = func(client *ent.Client, t *testing.T) {
 		t.Helper()
-		if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+		require.NoError(t, err)
+		_, err = client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context())
+		require.NoError(t, err)
 	}
 
 	t.Run("delete successfully", func(t *testing.T) {
@@ -1433,18 +1092,12 @@ func TestDeleteTaskHandler(t *testing.T) {
 		h := NewDeleteTaskHandler(client)
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 
 		tasks, err := client.Task.Query().Limit(100).All(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
-		if len(tasks) != 0 {
-			t.Errorf("expected no tasks, but got %+v", tasks)
-		}
+		assert.Len(t, tasks, 0)
 	})
 
 	t.Run("delete non-existing task", func(t *testing.T) {
@@ -1461,25 +1114,15 @@ func TestDeleteTaskHandler(t *testing.T) {
 		h := NewDeleteTaskHandler(client)
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 
 		tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
-		if len(tasks) != 1 {
-			t.Fatalf("expected 1 tasks, but got %+v", tasks)
-		}
+		require.Len(t, tasks, 1)
 
-		if tasks[0].Title != "test" {
-			t.Errorf("title should be 'test', but got %s", tasks[0].Title)
-		}
-		if tasks[0].Status != enttask.StatusCreated {
-			t.Errorf("status should be 'created', but got %s", tasks[0].Status)
-		}
+		assert.Equal(t, "test", tasks[0].Title)
+		assert.Equal(t, enttask.StatusCreated, tasks[0].Status)
 	})
 
 	t.Run("invalid path value", func(t *testing.T) {
@@ -1496,24 +1139,14 @@ func TestDeleteTaskHandler(t *testing.T) {
 		h := NewDeleteTaskHandler(client)
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected status not found, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusNotFound, rec.Code)
 
 		tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
-		if len(tasks) != 1 {
-			t.Fatalf("expected 1 tasks, but got %+v", tasks)
-		}
+		require.Len(t, tasks, 1)
 
-		if tasks[0].Title != "test" {
-			t.Errorf("title should be 'test', but got %s", tasks[0].Title)
-		}
-		if tasks[0].Status != enttask.StatusCreated {
-			t.Errorf("status should be 'created', but got %s", tasks[0].Status)
-		}
+		assert.Equal(t, "test", tasks[0].Title)
+		assert.Equal(t, enttask.StatusCreated, tasks[0].Status)
 	})
 }

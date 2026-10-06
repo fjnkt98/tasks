@@ -7,11 +7,13 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var mu sync.Mutex
@@ -70,9 +72,7 @@ func TestChainedMiddleware(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	want := []string{"m1 before", "m2 before", "main", "m2 after", "m1 after"}
-	if !reflect.DeepEqual(data, want) {
-		t.Errorf("expected '%+v', but got '%+v'", want, data)
-	}
+	assert.Equal(t, want, data)
 }
 
 func TestRecoveryMidelleware(t *testing.T) {
@@ -86,9 +86,7 @@ func TestRecoveryMidelleware(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("expected status internal server error, but got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 func TestLoggingMiddleware(t *testing.T) {
@@ -125,9 +123,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	}
 
 	var data Log
-	if err := json.Unmarshal(msg, &data); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, json.Unmarshal(msg, &data))
 
 	var want = Log{
 		Level:   "INFO",
@@ -139,27 +135,23 @@ func TestLoggingMiddleware(t *testing.T) {
 		Host:    "localhost:80",
 		Delta:   1234,
 	}
-	if data != want {
-		t.Errorf("expected %+v, but got %+v", want, data)
-	}
+	assert.Equal(t, want, data)
 }
 
 func TestSessionMiddleware(t *testing.T) {
 	client := NewTestDB(t)
 
-	if _, err := client.User.CreateBulk(
+	_, err := client.User.CreateBulk(
 		client.User.Create().SetName("foo").SetPassword("foo"),
 		client.User.Create().SetName("bar").SetPassword("bar"),
 		client.User.Create().SetName("baz").SetPassword("baz"),
-	).Save(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := client.Session.CreateBulk(
+	).Save(t.Context())
+	require.NoError(t, err)
+	_, err = client.Session.CreateBulk(
 		client.Session.Create().SetUserID(1).SetToken("token1").SetExpiresAt(time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)),
 		client.Session.Create().SetUserID(2).SetToken("token2").SetExpiresAt(time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC)),
-	).Save(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	).Save(t.Context())
+	require.NoError(t, err)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -175,16 +167,10 @@ func TestSessionMiddleware(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("body should be 'test', but got '%s'", body)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "test\n", rec.Body.String())
 
-		if c := rec.Header().Values("Set-Cookie"); len(c) > 0 {
-			t.Errorf("Set-Cookie header shouldn't be set, but got %+v", c)
-		}
+		assert.Empty(t, rec.Header().Values("Set-Cookie"))
 	})
 
 	t.Run("expired", func(t *testing.T) {
@@ -195,27 +181,15 @@ func TestSessionMiddleware(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("body should be 'test', but got '%s'", body)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "test\n", rec.Body.String())
 
 		cookies := extractCookies(t, rec.Result().Header)
 		tokenCookie, ok := cookies[AuthCookieName]
-		if !ok {
-			t.Fatal("session_token cookie should be set")
-		}
-		if tokenCookie.MaxAge != -1 {
-			t.Errorf("cookie MaxAge should be reset, but got %v", tokenCookie.MaxAge)
-		}
-		if tokenCookie.Value != "" {
-			t.Errorf("cookie Value should be reset, but got %v", tokenCookie.Value)
-		}
-		if tokenCookie.Path != "/" {
-			t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
-		}
+		require.True(t, ok, "session_token cookie should be set")
+		assert.Equal(t, -1, tokenCookie.MaxAge)
+		assert.Equal(t, "", tokenCookie.Value)
+		assert.Equal(t, "/", tokenCookie.Path)
 	})
 
 	t.Run("session not found", func(t *testing.T) {
@@ -226,27 +200,15 @@ func TestSessionMiddleware(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("body should be 'test', but got '%s'", body)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "test\n", rec.Body.String())
 
 		cookies := extractCookies(t, rec.Result().Header)
 		tokenCookie, ok := cookies[AuthCookieName]
-		if !ok {
-			t.Fatal("session_token cookie should be set")
-		}
-		if tokenCookie.MaxAge != -1 {
-			t.Errorf("cookie MaxAge should be reset")
-		}
-		if tokenCookie.Value != "" {
-			t.Errorf("cookie Value should be reset")
-		}
-		if tokenCookie.Path != "/" {
-			t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
-		}
+		require.True(t, ok, "session_token cookie should be set")
+		assert.Equal(t, -1, tokenCookie.MaxAge)
+		assert.Equal(t, "", tokenCookie.Value)
+		assert.Equal(t, "/", tokenCookie.Path)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -257,27 +219,15 @@ func TestSessionMiddleware(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("body should be 'test', but got '%s'", body)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "test\n", rec.Body.String())
 
 		cookies := extractCookies(t, rec.Result().Header)
 		tokenCookie, ok := cookies[AuthCookieName]
-		if !ok {
-			t.Fatal("session_token cookie should be set")
-		}
-		if tokenCookie.MaxAge != 86400 {
-			t.Errorf("cookie MaxAge should be set")
-		}
-		if tokenCookie.Value != "token1" {
-			t.Errorf("cookie Value should be set")
-		}
-		if tokenCookie.Path != "/" {
-			t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
-		}
+		require.True(t, ok, "session_token cookie should be set")
+		assert.Equal(t, 86400, tokenCookie.MaxAge)
+		assert.Equal(t, "token1", tokenCookie.Value)
+		assert.Equal(t, "/", tokenCookie.Path)
 	})
 }
 
@@ -297,12 +247,8 @@ func TestLoginRequiredMiddleware(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("body should be 'test', but got '%s'", body)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "test\n", rec.Body.String())
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
@@ -311,8 +257,6 @@ func TestLoginRequiredMiddleware(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusSeeOther {
-			t.Errorf("expected status see other, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusSeeOther, rec.Code)
 	})
 }

@@ -4,15 +4,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewServer(t *testing.T) {
 	client := NewTestDB(t)
 
 	_, err := NewServer(8000, client)
-	if err != nil {
-		t.Errorf("expected nil, but got %v", err)
-	}
+	assert.NoError(t, err)
 }
 
 func TestNewHandler(t *testing.T) {
@@ -25,9 +25,7 @@ func TestNewHandler(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 }
 
@@ -42,7 +40,5 @@ func TestCrossOriginProtection(t *testing.T) {
 
 	h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("expected status forbidden, but got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusForbidden, rec.Code)
 }

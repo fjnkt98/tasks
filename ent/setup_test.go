@@ -1,24 +1,23 @@
 package ent
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestSetupClient(t *testing.T) {
 	dsn := "file::memory:"
 	client, err := SetupClient(t.Context(), dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := client.Close(); err != nil {
-			t.Error(err)
-		}
+		assert.NoError(t, client.Close())
 	})
 
 	_, err = client.Task.Create().SetTitle("test").SetUserID(999).Save(t.Context())
-	if !IsConstraintError(err) {
-		t.Fatalf("expected constraint error, but got %v", err)
-	}
+	require.True(t, IsConstraintError(err), "unexpected error: %v", err)
 }
 
 func TestEnforceForeignKeys(t *testing.T) {
@@ -35,12 +34,8 @@ func TestEnforceForeignKeys(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			got, err := enforceForeignKeys(test.Value)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != test.Want {
-				t.Errorf("expected '%s', but got '%s'", test.Want, got)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, test.Want, got)
 		})
 	}
 
@@ -53,9 +48,7 @@ func TestEnforceForeignKeys(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			_, err := enforceForeignKeys(test.Value)
-			if err == nil {
-				t.Fatal("expected error, but got nil")
-			}
+			require.Error(t, err)
 		})
 	}
 }

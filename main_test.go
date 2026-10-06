@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"testing"
 	"testing/slogtest"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTraceHandler(t *testing.T) {
@@ -22,23 +25,17 @@ func TestTraceHandler(t *testing.T) {
 				continue
 			}
 			var m map[string]any
-			if err := json.Unmarshal(line, &m); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, json.Unmarshal(line, &m))
 			ms = append(ms, m)
 		}
 		return ms
 	}
 
-	if err := slogtest.TestHandler(h, results); err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, slogtest.TestHandler(h, results))
 }
 
 func TestSetup(t *testing.T) {
 	shutdown, err := setup(t.Context(), "localhost:4137", "test")
+	require.NoError(t, err)
 	defer shutdown() // nolint:errcheck
-	if err != nil {
-		t.Fatal(err)
-	}
 }

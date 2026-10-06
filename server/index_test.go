@@ -4,8 +4,9 @@ import (
 	"html/template"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetIndex(t *testing.T) {
@@ -16,18 +17,12 @@ func TestGetIndex(t *testing.T) {
 		handler := NewIndexHandler()
 		handler.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		if !strings.Contains(body, `href="/signin"`) {
-			t.Error("body should contain sign in button")
-		}
+		assert.Contains(t, body, `href="/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -38,18 +33,12 @@ func TestGetIndex(t *testing.T) {
 		handler := NewIndexHandler()
 		handler.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		if !strings.Contains(body, `"/signout"`) {
-			t.Error("body should contain sign out button")
-		}
+		assert.Contains(t, body, `"/signout"`)
 	})
 
 	t.Run("render failed", func(t *testing.T) {
@@ -61,12 +50,8 @@ func TestGetIndex(t *testing.T) {
 
 		handler.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }

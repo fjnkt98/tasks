@@ -2,53 +2,42 @@ package server
 
 import (
 	"context"
-	"errors"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/fjnkt98/tasks/ent"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewSessionToken(t *testing.T) {
 	token, err := NewSessionToken()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(token) != 64 {
-		t.Errorf("token length should be 64, but got %d", len(token))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 64, len(token))
 }
 
 func TestSetUserIDIntoContext(t *testing.T) {
 	ctx := SetUserIDIntoContext(t.Context(), 1)
 
-	v := ctx.Value(contextKeyUser)
-	if ty := reflect.TypeOf(v).String(); ty != "int" {
-		t.Errorf("expected type `int`, but got `%s`", ty)
-	}
+	assert.Equal(t, 1, ctx.Value(contextKeyUser))
 }
 
 func TestGetUserIDFromContext(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		v := GetUserIDFromContext(t.Context())
-		if v != 0 {
-			t.Errorf("expected 0, but got %d", v)
-		}
+		assert.Equal(t, 0, v)
 	})
 
 	t.Run("found", func(t *testing.T) {
 		ctx := context.WithValue(t.Context(), contextKeyUser, int(1))
 		v := GetUserIDFromContext(ctx)
-		if v != 1 {
-			t.Errorf("expected 1, but got %d", v)
-		}
+		assert.Equal(t, 1, v)
 	})
 }
 
@@ -58,9 +47,8 @@ func extractCookies(t *testing.T, header http.Header) map[string]*http.Cookie {
 	cookies := make(map[string]*http.Cookie)
 	for _, setCookieHeader := range header.Values("Set-Cookie") {
 		cookie, err := http.ParseSetCookie(setCookieHeader)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
+
 		cookies[cookie.Name] = cookie
 	}
 	return cookies
@@ -74,13 +62,8 @@ func TestGetSignupHandler(t *testing.T) {
 		h := NewGetSignupHandler()
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 
 	t.Run("render failed", func(t *testing.T) {
@@ -92,13 +75,8 @@ func TestGetSignupHandler(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
-
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }
 
@@ -113,18 +91,13 @@ func TestPostSignupHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?username=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
-			if err == nil {
-				t.Fatal("err shoudn't be nil, but got nil")
-			}
-			if msg := "username is required"; err.Error() != msg {
-				t.Errorf("error should be '%s', but got '%s'", msg, err)
-			}
+
+			require.Error(t, err)
+			assert.EqualError(t, err, "username is required")
 		})
 
 		t.Run("password empty", func(t *testing.T) {
@@ -134,18 +107,13 @@ func TestPostSignupHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?password=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
-			if err == nil {
-				t.Fatal("err shoudn't be nil, but got nil")
-			}
-			if msg := "password is required"; err.Error() != msg {
-				t.Errorf("error should be '%s', but got '%s'", msg, err)
-			}
+
+			require.Error(t, err)
+			assert.EqualError(t, err, "password is required")
 		})
 
 		t.Run("confirm-password empty", func(t *testing.T) {
@@ -155,18 +123,13 @@ func TestPostSignupHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?confirm-password=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
-			if err == nil {
-				t.Fatal("err shoudn't be nil, but got nil")
-			}
-			if msg := "confirm-password is required"; err.Error() != msg {
-				t.Errorf("error should be '%s', but got '%s'", msg, err)
-			}
+
+			require.Error(t, err)
+			assert.EqualError(t, err, "confirm-password is required")
 		})
 
 		t.Run("password don't match confirm-password", func(t *testing.T) {
@@ -177,18 +140,13 @@ func TestPostSignupHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
-			if err == nil {
-				t.Fatal("err shouldn't be nil, but got nil")
-			}
-			if msg := "password not match"; err.Error() != msg {
-				t.Errorf("error should be '%s', but got '%s'", msg, err)
-			}
+
+			require.Error(t, err)
+			assert.EqualError(t, err, "password not match")
 		})
 
 		t.Run("password contains whitespace", func(t *testing.T) {
@@ -199,18 +157,13 @@ func TestPostSignupHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSignupHandler(client)
 			params, err := h.GetParams(req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if params.Password != "password " {
-				t.Errorf("password shoud be 'password ', but got '%s'", params.Password)
-			}
+
+			require.NoError(t, err)
+			assert.Equal(t, "password ", params.Password)
 		})
 
 		t.Run("password too long", func(t *testing.T) {
@@ -221,18 +174,13 @@ func TestPostSignupHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
-			if err == nil {
-				t.Fatal("err shouldn't be nil, but got nil")
-			}
-			if msg := "password too long"; err.Error() != msg {
-				t.Errorf("error should be '%s', but got '%s'", msg, err)
-			}
+
+			require.Error(t, err)
+			assert.EqualError(t, err, "password too long")
 		})
 	})
 
@@ -253,17 +201,11 @@ func TestPostSignupHandler(t *testing.T) {
 			h := NewPostSignupHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusSeeOther {
-				t.Errorf("expected status see other, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusSeeOther, rec.Code)
 
 			count, err := client.User.Query().Count(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if count != 1 {
-				t.Errorf("users count should be 1, but got %d", count)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, 1, count)
 		})
 
 		t.Run("validation failed", func(t *testing.T) {
@@ -282,21 +224,13 @@ func TestPostSignupHandler(t *testing.T) {
 			h := NewPostSignupHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status bad request, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if !strings.Contains(body, `<div role="alert"`) {
-				t.Error("body should contain alert component, but not found")
-			}
-			if !strings.Contains(body, "username is required; password is required; confirm-password is required") {
-				t.Error("body should contain error message, but not found")
-			}
+			assert.Contains(t, body, `<div role="alert"`)
+			assert.Contains(t, body, "username is required; password is required; confirm-password is required")
 		})
 
 		t.Run("invalid request body", func(t *testing.T) {
@@ -310,21 +244,16 @@ func TestPostSignupHandler(t *testing.T) {
 			h := NewPostSignupHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status bad request, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 		})
 
 		t.Run("user already exists", func(t *testing.T) {
 			client := NewTestDB(t)
 
-			if _, err := client.User.Create().SetName("user1").SetPassword("password").Save(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			_, err := client.User.Create().SetName("user1").SetPassword("password").Save(t.Context())
+			require.NoError(t, err)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -339,21 +268,13 @@ func TestPostSignupHandler(t *testing.T) {
 			h := NewPostSignupHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status bad request, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if !strings.Contains(body, `<div role="alert"`) {
-				t.Error("body should contain alert component, but not found")
-			}
-			if !strings.Contains(body, "username was already used") {
-				t.Error("body should contain error message, but not found")
-			}
+			assert.Contains(t, body, `<div role="alert"`)
+			assert.Contains(t, body, "username was already used")
 		})
 
 		t.Run("render failed", func(t *testing.T) {
@@ -370,13 +291,9 @@ func TestPostSignupHandler(t *testing.T) {
 
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusInternalServerError {
-				t.Errorf("expected status internal server error, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 		})
 	})
 }
@@ -389,13 +306,9 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 		h := NewGetSignupSuccessHandler()
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 
 	t.Run("render failed", func(t *testing.T) {
@@ -407,13 +320,9 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }
 
@@ -425,13 +334,9 @@ func TestGetSigninHandler(t *testing.T) {
 		h := NewGetSigninHandler()
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code)
 
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 
 	t.Run("render failed", func(t *testing.T) {
@@ -443,13 +348,9 @@ func TestGetSigninHandler(t *testing.T) {
 
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusInternalServerError {
-			t.Errorf("expected status internal server error, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-		if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-			t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-		}
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }
 
@@ -463,18 +364,12 @@ func TestPostSigninHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?username=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSigninHandler(client)
 			_, err := h.GetParams(req)
-			if err == nil {
-				t.Fatal("err shouldn't be nil, but got nil")
-			}
-			if msg := "username is required"; err.Error() != msg {
-				t.Errorf("error should be '%s', but got '%s'", msg, err)
-			}
+			require.Error(t, err)
+			assert.EqualError(t, err, "username is required")
 		})
 
 		t.Run("password empty", func(t *testing.T) {
@@ -483,18 +378,12 @@ func TestPostSigninHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?password=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSigninHandler(client)
 			_, err := h.GetParams(req)
-			if err == nil {
-				t.Fatal("err shouldn't be nil, but got nil")
-			}
-			if msg := "password is required"; err.Error() != msg {
-				t.Errorf("error should be '%s', but got '%s'", msg, err)
-			}
+			require.Error(t, err)
+			assert.EqualError(t, err, "password is required")
 		})
 
 		t.Run("password contains whitespace", func(t *testing.T) {
@@ -504,19 +393,13 @@ func TestPostSigninHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?password=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSigninHandler(client)
 			params, err := h.GetParams(req)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
-			if params.Password != "password " {
-				t.Errorf("password shoud be 'password ', but got '%s'", params.Password)
-			}
+			assert.Equal(t, "password ", params.Password)
 		})
 
 		t.Run("password too long", func(t *testing.T) {
@@ -526,27 +409,19 @@ func TestPostSigninHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?password=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			if err := req.ParseForm(); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, req.ParseForm())
 
 			h := NewPostSigninHandler(client)
 			_, err := h.GetParams(req)
-			if err == nil {
-				t.Fatal("err shouldn't be nil, but got nil")
-			}
-			if msg := "password too long"; err.Error() != msg {
-				t.Errorf("error should be '%s', but got '%s'", msg, err)
-			}
+			require.Error(t, err)
+			assert.EqualError(t, err, "password too long")
 		})
 	})
 
 	var fixture = func(client *ent.Client, t *testing.T) {
 		t.Helper()
 
-		if err := NewPostSignupHandler(client).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, NewPostSignupHandler(client).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}))
 	}
 
 	t.Run("Signin", func(t *testing.T) {
@@ -558,22 +433,14 @@ func TestPostSigninHandler(t *testing.T) {
 
 				h := NewPostSigninHandler(client)
 				token, err := h.Signin(t.Context(), SigninParams{Username: "user1", Password: "password"})
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 
 				s, err := client.Session.Get(t.Context(), 1)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 
-				if s.Token != token {
-					t.Error("generated token should match saved session's one")
-				}
+				assert.Equal(t, token, s.Token)
 
-				if !s.ExpiresAt.Equal(time.Date(2000, 1, 2, 0, 0, 0, 0, time.UTC)) {
-					t.Errorf("expires timestamp should be 2000-01-02T00:00:00Z, but got %v", s.ExpiresAt)
-				}
+				assert.WithinDuration(t, time.Date(2000, 1, 2, 0, 0, 0, 0, time.UTC), s.ExpiresAt, 0)
 			})
 		})
 
@@ -584,9 +451,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 			h := NewPostSigninHandler(client)
 			_, err := h.Signin(t.Context(), SigninParams{Username: "user2", Password: "password"})
-			if !errors.Is(err, ErrInvalidCredentials) {
-				t.Errorf("expected ErrInvalidCredentials, but got %+v", err)
-			}
+			assert.ErrorIs(t, err, ErrInvalidCredentials)
 		})
 
 		t.Run("password not match", func(t *testing.T) {
@@ -596,9 +461,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 			h := NewPostSigninHandler(client)
 			_, err := h.Signin(t.Context(), SigninParams{Username: "user1", Password: "foo"})
-			if !errors.Is(err, ErrInvalidCredentials) {
-				t.Errorf("expected ErrInvalidCredentials, but got %+v", err)
-			}
+			assert.ErrorIs(t, err, ErrInvalidCredentials)
 		})
 	})
 
@@ -620,29 +483,17 @@ func TestPostSigninHandler(t *testing.T) {
 			h := NewPostSigninHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusSeeOther {
-				t.Errorf("expected status see other, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusSeeOther, rec.Code)
 
 			s, err := client.Session.Get(t.Context(), 1)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			cookies := extractCookies(t, rec.Result().Header)
 			tokenCookie, ok := cookies[AuthCookieName]
-			if !ok {
-				t.Fatal("session_token cookie should be set")
-			}
-			if tokenCookie.MaxAge != 86400 {
-				t.Errorf("cookie MaxAge should be set")
-			}
-			if tokenCookie.Value != s.Token {
-				t.Errorf("cookie Value should be set")
-			}
-			if tokenCookie.Path != "/" {
-				t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
-			}
+			require.True(t, ok, "session_token cookie should be set")
+			assert.Equal(t, 86400, tokenCookie.MaxAge)
+			assert.Equal(t, s.Token, tokenCookie.Value)
+			assert.Equal(t, "/", tokenCookie.Path)
 		})
 
 		t.Run("bad request", func(t *testing.T) {
@@ -662,22 +513,14 @@ func TestPostSigninHandler(t *testing.T) {
 			h := NewPostSigninHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status bad request, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if !strings.Contains(body, `<h1 class="text-4xl font-bold">Sign in</h1>`) {
-				t.Errorf("body should be sign in page")
-			}
+			assert.Contains(t, body, `<h1 class="text-4xl font-bold">Sign in</h1>`)
 
-			if msg := "password is required"; !strings.Contains(body, msg) {
-				t.Errorf("body should contain error message '%s', but not found", msg)
-			}
+			assert.Contains(t, body, "password is required")
 		})
 
 		t.Run("invalid credentials", func(t *testing.T) {
@@ -697,22 +540,14 @@ func TestPostSigninHandler(t *testing.T) {
 			h := NewPostSigninHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status bad request, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
-			if !strings.Contains(body, `<h1 class="text-4xl font-bold">Sign in</h1>`) {
-				t.Errorf("body should be sign in page")
-			}
+			assert.Contains(t, body, `<h1 class="text-4xl font-bold">Sign in</h1>`)
 
-			if msg := ErrInvalidCredentials.Error(); !strings.Contains(body, msg) {
-				t.Errorf("body should contain error message '%s', but not found", msg)
-			}
+			assert.Contains(t, body, ErrInvalidCredentials.Error())
 		})
 
 		t.Run("invalid request body", func(t *testing.T) {
@@ -728,13 +563,9 @@ func TestPostSigninHandler(t *testing.T) {
 			h := NewPostSigninHandler(client)
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("expected status bad request, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 		})
 
 		t.Run("render failed", func(t *testing.T) {
@@ -751,13 +582,9 @@ func TestPostSigninHandler(t *testing.T) {
 
 			h.ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusInternalServerError {
-				t.Errorf("expected status internal server error, but got %d", rec.Code)
-			}
+			assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
-				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
-			}
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 		})
 	})
 }
@@ -766,12 +593,10 @@ func TestPostSignoutHandler(t *testing.T) {
 	t.Run("authorized", func(t *testing.T) {
 		client := NewTestDB(t)
 
-		if _, err := client.User.Create().SetName("user1").SetPassword("password").Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := client.Session.Create().SetUserID(1).SetToken("token").SetExpiresAt(time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)).Save(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		_, err := client.User.Create().SetName("user1").SetPassword("password").Save(t.Context())
+		require.NoError(t, err)
+		_, err = client.Session.Create().SetUserID(1).SetToken("token").SetExpiresAt(time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)).Save(t.Context())
+		require.NoError(t, err)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signout", nil)
@@ -782,32 +607,18 @@ func TestPostSignoutHandler(t *testing.T) {
 		h := NewPostSignoutHandler(client)
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusSeeOther {
-			t.Errorf("expected status see otehr, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusSeeOther, rec.Code)
 
 		count, err := client.Session.Query().Count(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if count != 0 {
-			t.Errorf("sessions should be cleared, but still exists %d sessions", count)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
 
 		cookies := extractCookies(t, rec.Result().Header)
 		tokenCookie, ok := cookies[AuthCookieName]
-		if !ok {
-			t.Fatal("session_token cookie should be set")
-		}
-		if tokenCookie.MaxAge != -1 {
-			t.Errorf("cookie MaxAge should be reset")
-		}
-		if tokenCookie.Value != "" {
-			t.Errorf("cookie Value should be reset")
-		}
-		if tokenCookie.Path != "/" {
-			t.Errorf("cookie Path should be '/', but got '%v'", tokenCookie.Path)
-		}
+		require.True(t, ok, "session_token cookie should be set")
+		assert.Equal(t, -1, tokenCookie.MaxAge)
+		assert.Equal(t, "", tokenCookie.Value)
+		assert.Equal(t, "/", tokenCookie.Path)
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
@@ -819,8 +630,6 @@ func TestPostSignoutHandler(t *testing.T) {
 		h := NewPostSignoutHandler(client)
 		h.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusSeeOther {
-			t.Errorf("expected status see otehr, but got %d", rec.Code)
-		}
+		assert.Equal(t, http.StatusSeeOther, rec.Code)
 	})
 }
