@@ -1,4 +1,4 @@
-package server
+package main
 
 import (
 	"database/sql"
@@ -7,9 +7,6 @@ import (
 	"net/http"
 	"slices"
 	"time"
-
-	"github.com/fjnkt98/tasks/repository"
-	"github.com/fjnkt98/tasks/settings"
 )
 
 type Middleware func(http.Handler) http.Handler
@@ -48,6 +45,9 @@ func NewRecoveryMiddleware() Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
+					if err == http.ErrAbortHandler {
+						panic(err)
+					}
 					slog.ErrorContext(r.Context(), "panic recovered", slog.Any("error", err))
 					Handle500(w, r)
 				}
@@ -58,42 +58,22 @@ func NewRecoveryMiddleware() Middleware {
 	}
 }
 
-func NewCORSMiddleware(origin string) Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 func NewSessionMiddleware(db *sql.DB) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie("session_token")
+			cookie, err := r.Cookie(AuthCookieName)
 			if err != nil {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			q := repository.New(db)
-
-			session, err := q.GetSessionByToken(r.Context(), cookie.Value)
-			if err != nil {
+			q := "SELECT user_id, expires_at FROM sessions WHERE token = ? LIMIT 1"
+			row := db.QueryRowContext(r.Context(), q, cookie.Value)
+			var userID int
+			var expiresAt int64
+			if err := row.Scan(&userID, &expiresAt); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					cookie.Value = ""
-					cookie.MaxAge = -1
-					http.SetCookie(w, cookie)
+					http.SetCookie(w, NewAuthCookie("", -1))
 
 					next.ServeHTTP(w, r)
 					return
@@ -104,34 +84,24 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
-			if session.ExpiresAt < time.Now().Unix() {
-				cookie.Value = ""
-				cookie.MaxAge = -1
-				http.SetCookie(w, cookie)
+			if expiresAt <= time.Now().Unix() {
+				http.SetCookie(w, NewAuthCookie("", -1))
 
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			user, err := q.GetUser(r.Context(), session.UserID)
-			if err != nil {
+			q = "SELECT id FROM users WHERE id = ? LIMIT 1"
+			row = db.QueryRowContext(r.Context(), q, userID)
+			if err := row.Scan(&userID); err != nil {
 				slog.ErrorContext(r.Context(), "get user", slog.Any("error", err))
 				Handle500(w, r)
 				return
 			}
 
-			cookie = &http.Cookie{
-				Name:     "session_token",
-				Value:    cookie.Value,
-				MaxAge:   86400,
-				Path:     "/",
-				Secure:   settings.UseSecureCookie,
-				HttpOnly: true,
-				SameSite: http.SameSiteStrictMode,
-			}
-			http.SetCookie(w, cookie)
+			http.SetCookie(w, NewAuthCookie(cookie.Value, 86400))
 
-			ctx := SetUserIDIntoContext(r.Context(), user.ID)
+			ctx := SetUserIDIntoContext(r.Context(), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -147,4 +117,15 @@ func NewLoginRequiredMiddleware() Middleware {
 			http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		})
 	}
+}
+
+func NewByteLimitMiddleware() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.MaxBytesHandler(next, 1<<20)
+	}
+}
+
+func NewCrossOriginProtectionMiddleware() Middleware {
+	protection := http.NewCrossOriginProtection()
+	return protection.Handler
 }

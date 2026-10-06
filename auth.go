@@ -1,6 +1,7 @@
-package server
+package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -14,8 +15,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fjnkt98/tasks/repository"
 	"github.com/fjnkt98/tasks/settings"
+	"github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -28,12 +29,12 @@ func NewSessionToken() (string, error) {
 	return hex.EncodeToString(b), err
 }
 
-func SetUserIDIntoContext(ctx context.Context, userID int64) context.Context {
+func SetUserIDIntoContext(ctx context.Context, userID int) context.Context {
 	return context.WithValue(ctx, contextKeyUser, userID)
 }
 
-func GetUserIDFromContext(ctx context.Context) int64 {
-	value, ok := ctx.Value(contextKeyUser).(int64)
+func GetUserIDFromContext(ctx context.Context) int {
+	value, ok := ctx.Value(contextKeyUser).(int)
 	if !ok {
 		return 0
 	}
@@ -42,6 +43,20 @@ func GetUserIDFromContext(ctx context.Context) int64 {
 
 func IsAuthorized(ctx context.Context) bool {
 	return GetUserIDFromContext(ctx) != 0
+}
+
+const AuthCookieName = "session_token"
+
+func NewAuthCookie(value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name:     AuthCookieName,
+		Value:    value,
+		MaxAge:   maxAge,
+		Path:     "/",
+		Secure:   settings.UseSecureCookie,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
 }
 
 // ---------- Signup ----------
@@ -68,10 +83,18 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage: "",
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := h.t.Execute(w, &data); err != nil {
-		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
@@ -96,17 +119,20 @@ type SignupParams struct {
 func (h *PostSignupHandler) GetParams(r *http.Request) (SignupParams, error) {
 	errs := make([]string, 0)
 
-	username := strings.TrimSpace(r.FormValue("username"))
+	username := strings.TrimSpace(r.PostForm.Get("username"))
 	if utf8.RuneCountInString(username) == 0 {
 		errs = append(errs, "username is required")
 	}
 
-	password := strings.TrimSpace(r.FormValue("password"))
+	password := r.PostForm.Get("password")
 	if utf8.RuneCountInString(password) == 0 {
 		errs = append(errs, "password is required")
 	}
+	if len(password) > 72 {
+		errs = append(errs, "password too long")
+	}
 
-	confirmPassword := strings.TrimSpace(r.FormValue("confirm-password"))
+	confirmPassword := r.PostForm.Get("confirm-password")
 	if utf8.RuneCountInString(confirmPassword) == 0 {
 		errs = append(errs, "confirm-password is required")
 	}
@@ -125,43 +151,39 @@ func (h *PostSignupHandler) GetParams(r *http.Request) (SignupParams, error) {
 	}, nil
 }
 
-func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) error {
-	tx, err := h.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() // nolint:errcheck
-
-	q := repository.New(h.db).WithTx(tx)
-
-	if _, err := q.GetUserByName(ctx, params.Username); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("get user by name: %w", err)
-		}
-	} else {
-		return ErrDuplicatedUsername
-	}
-
-	digest, err := bcrypt.GenerateFromPassword([]byte(params.Password), bcrypt.DefaultCost)
+func CreateUser(ctx context.Context, db *sql.DB, username string, password string) error {
+	digest, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest: %w", err)
 	}
 
-	if err := q.CreateUser(ctx, repository.CreateUserParams{
-		Name:     params.Username,
-		Password: string(digest),
-	}); err != nil {
-		return fmt.Errorf("create user: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
+	q := "INSERT INTO users (name, digest) VALUES (?, ?)"
+	if _, err := db.ExecContext(ctx, q, username, string(digest)); err != nil {
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return ErrDuplicatedUsername
+		}
+		return fmt.Errorf("insert user: %w", err)
 	}
 
 	return nil
 }
 
+func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) error {
+	return CreateUser(ctx, h.db, params.Username, params.Password)
+}
+
 func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		var ErrMaxBytesExceeded *http.MaxBytesError
+		if errors.As(err, &ErrMaxBytesExceeded) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		Handle400(w, r)
+		return
+	}
+
 	params, err := h.GetParams(r)
 	if err != nil {
 		data := SignupData{
@@ -171,12 +193,21 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ErrorMessage: err.Error(),
 		}
 
-		w.WriteHeader(http.StatusBadRequest)
-		if err := h.t.Execute(w, &data); err != nil {
-			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		var buf bytes.Buffer
+		if err := h.t.Execute(&buf, &data); err != nil {
+			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 			Handle500(w, r)
 			return
 		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err := buf.WriteTo(w); err != nil {
+			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			return
+		}
+
 		return
 	}
 
@@ -189,12 +220,21 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ErrorMessage: err.Error(),
 			}
 
-			w.WriteHeader(http.StatusBadRequest)
-			if err := h.t.Execute(w, &data); err != nil {
-				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			var buf bytes.Buffer
+			if err := h.t.Execute(&buf, &data); err != nil {
+				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 				Handle500(w, r)
 				return
 			}
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+			w.WriteHeader(http.StatusBadRequest)
+			if _, err := buf.WriteTo(w); err != nil {
+				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+				return
+			}
+
 			return
 		}
 
@@ -224,10 +264,18 @@ func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		ErrorMessage: "",
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := h.t.Execute(w, &data); err != nil {
-		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
@@ -256,10 +304,18 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage: "",
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if err := h.t.Execute(w, &data); err != nil {
-		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
@@ -284,14 +340,17 @@ type SigninParams struct {
 func (h *PostSigninHandler) GetParams(r *http.Request) (SigninParams, error) {
 	errs := make([]string, 0)
 
-	username := strings.TrimSpace(r.FormValue("username"))
+	username := strings.TrimSpace(r.PostForm.Get("username"))
 	if utf8.RuneCountInString(username) == 0 {
 		errs = append(errs, "username is required")
 	}
 
-	password := strings.TrimSpace(r.FormValue("password"))
+	password := r.PostForm.Get("password")
 	if utf8.RuneCountInString(password) == 0 {
 		errs = append(errs, "password is required")
+	}
+	if len(password) > 72 {
+		errs = append(errs, "password too long")
 	}
 
 	if len(errs) > 0 {
@@ -305,23 +364,18 @@ func (h *PostSigninHandler) GetParams(r *http.Request) (SigninParams, error) {
 }
 
 func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (string, error) {
-	tx, err := h.db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck
-
-	q := repository.New(h.db).WithTx(tx)
-
-	user, err := q.GetUserByName(ctx, params.Username)
-	if err != nil {
+	q := "SELECT id, digest FROM users WHERE name = ? LIMIT 1"
+	row := h.db.QueryRowContext(ctx, q, params.Username)
+	var userID int
+	var digest string
+	if err := row.Scan(&userID, &digest); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", ErrInvalidCredentials
 		}
 		return "", fmt.Errorf("get user by name: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(params.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(digest), []byte(params.Password)); err != nil {
 		return "", ErrInvalidCredentials
 	}
 
@@ -330,23 +384,25 @@ func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (st
 		return "", fmt.Errorf("generate session token: %w", err)
 	}
 
-	_, err = q.CreateSession(ctx, repository.CreateSessionParams{
-		UserID:    user.ID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
-	})
-	if err != nil {
-		return "", fmt.Errorf("create session: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return "", fmt.Errorf("commit transaction: %w", err)
+	q = "INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)"
+	if _, err := h.db.ExecContext(ctx, q, userID, token, time.Now().Add(24*time.Hour).Unix()); err != nil {
+		return "", fmt.Errorf("insert session: %w", err)
 	}
 
 	return token, nil
 }
 
 func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		var ErrMaxBytesExceeded *http.MaxBytesError
+		if errors.As(err, &ErrMaxBytesExceeded) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		Handle400(w, r)
+		return
+	}
+
 	params, err := h.GetParams(r)
 	if err != nil {
 
@@ -357,12 +413,21 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ErrorMessage: err.Error(),
 		}
 
-		w.WriteHeader(http.StatusBadRequest)
-		if err := h.t.Execute(w, &data); err != nil {
-			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		var buf bytes.Buffer
+		if err := h.t.Execute(&buf, &data); err != nil {
+			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 			Handle500(w, r)
 			return
 		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err := buf.WriteTo(w); err != nil {
+			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			return
+		}
+
 		return
 	}
 
@@ -376,12 +441,21 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ErrorMessage: err.Error(),
 			}
 
-			w.WriteHeader(http.StatusBadRequest)
-			if err := h.t.Execute(w, &data); err != nil {
-				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			var buf bytes.Buffer
+			if err := h.t.Execute(&buf, &data); err != nil {
+				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 				Handle500(w, r)
 				return
 			}
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+			w.WriteHeader(http.StatusBadRequest)
+			if _, err := buf.WriteTo(w); err != nil {
+				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+				return
+			}
+
 			return
 		}
 
@@ -390,49 +464,37 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie := http.Cookie{
-		Name:     "session_token",
-		Value:    token,
-		MaxAge:   86400,
-		Path:     "/",
-		Secure:   settings.UseSecureCookie,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
-	http.SetCookie(w, &cookie)
+	http.SetCookie(w, NewAuthCookie(token, 86400))
 
 	http.Redirect(w, r, "/tasks", http.StatusSeeOther)
 }
 
 // ---------- Signout ----------
-type GetSignoutHandler struct {
+type PostSignoutHandler struct {
 	db *sql.DB
 }
 
-func NewGetSignoutHandler(db *sql.DB) *GetSignoutHandler {
-	return &GetSignoutHandler{
+func NewPostSignoutHandler(db *sql.DB) *PostSignoutHandler {
+	return &PostSignoutHandler{
 		db: db,
 	}
 }
 
-func (h *GetSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	q := repository.New(h.db)
-
-	cookie, err := r.Cookie("session_token")
+func (h *PostSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie(AuthCookieName)
 	if err != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
-	if err := q.DeleteSessionByToken(r.Context(), cookie.Value); err != nil {
+	q := "DELETE FROM sessions WHERE token = ?"
+	if _, err := h.db.ExecContext(r.Context(), q, cookie.Value); err != nil {
 		slog.ErrorContext(r.Context(), "delete session by token", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
 
-	cookie.Value = ""
-	cookie.MaxAge = -1
-	http.SetCookie(w, cookie)
+	http.SetCookie(w, NewAuthCookie("", -1))
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

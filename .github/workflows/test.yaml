@@ -9,12 +9,13 @@ jobs:
     permissions:
       contents: read
     env:
-      CORS_ALLOW_ORIGIN: "http://localhost:8000"
       DATABASE_URL: "file:app.db"
       GOOGLE_CLOUD_PROJECT_NAME: "tasks"
       OTEL_COLLECTOR_URL: "localhost:4317"
       PORT: "8000"
       USE_SECURE_COOKIE: "false"
+
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -24,8 +25,6 @@ jobs:
           version: 2026.8.0
           install: true
           cache: true
-      - name: migrate
-        run: dbmate up
       - name: lint
         run: mise tasks run 'lint:*'
       - name: test

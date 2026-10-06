@@ -1,12 +1,11 @@
 [tools]
 actionlint = "1.7.12"
-dbmate = "2.35.0"
 go = "1.27.1"
 golangci-lint = "2.14.0"
 node = "24"
 pinact = "4.1.0"
-sqlc = "1.31.1"
 sqlite = "3.53.4"
+sqlite3def = "3.11.26"
 terraform = "1.16.4"
 tflint = "latest"
 
@@ -23,21 +22,20 @@ DBMATE_STRICT = "1"
 OTEL_COLLECTOR_URL = { required = true }
 GOOGLE_CLOUD_PROJECT_NAME = { required = true }
 
-CORS_ALLOW_ORIGIN = { required = true }
 USE_SECURE_COOKIE = "false"
 
-[tasks."format:go"]
+[tasks."db:migrate"]
+run = ["sqlite3def --file=schema.sql app.db --apply --enable-drop"]
+
+[tasks."fmt:go"]
 run = ["go fmt"]
 
-[tasks."format:terraform"]
+[tasks."fmt:terraform"]
 dir = "infrastructure/terraform"
 run = ["terraform fmt"]
 
 [tasks."lint:go"]
 run = ["go mod tidy -diff", "golangci-lint run"]
-
-[tasks."lint:sqlc"]
-run = ["sqlc diff", "sqlc vet"]
 
 [tasks."lint:action"]
 run = ["actionlint", "pinact run --check"]

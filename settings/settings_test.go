@@ -1,6 +1,10 @@
 package settings
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestMustParseInt(t *testing.T) {
 	for _, test := range []struct {
@@ -12,18 +16,13 @@ func TestMustParseInt(t *testing.T) {
 		{Name: "negative", Value: "-34", Expected: -34},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			if actual := MustParseInt(test.Value); actual != test.Expected {
-				t.Errorf("expected %v, but got %v", test.Expected, actual)
-			}
+			assert.Equal(t, test.Expected, MustParseInt(test.Value))
 		})
 	}
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("The code did not panic")
-		}
-	}()
-	MustParseInt("foo")
+	assert.Panics(t, func() {
+		MustParseInt("foo")
+	})
 }
 
 func TestParseBool(t *testing.T) {
@@ -39,9 +38,7 @@ func TestParseBool(t *testing.T) {
 		{Name: "other", Value: "foo", Expected: false},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			if actual := ParseBool(test.Value); actual != test.Expected {
-				t.Errorf("expected %v, but got %v", test.Expected, actual)
-			}
+			assert.Equal(t, test.Expected, ParseBool(test.Value))
 		})
 	}
 }

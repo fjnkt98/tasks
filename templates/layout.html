@@ -25,7 +25,9 @@
       </div>
       <div class="flex-none">
         {{ if .Authorized }}
-        <a class="btn btn-ghost" href="/signout">Sign out</a>
+        <form method="post" action="/signout">
+          <button type="submit" class="btn btn-ghost">Sign out</button>
+        </form>
         {{ else }}
         <a class="btn btn-ghost" href="/signin">Sign in</a>
         {{ end }}

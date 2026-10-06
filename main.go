@@ -10,12 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/fjnkt98/tasks/repository"
-	"github.com/fjnkt98/tasks/server"
 	"github.com/fjnkt98/tasks/settings"
-	_ "github.com/mattn/go-sqlite3"
-
-	"github.com/urfave/cli/v3"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -48,6 +43,14 @@ func (h *traceHandler) Handle(ctx context.Context, record slog.Record) error {
 }
 
 func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) (func() error, error) {
+	// logger
+	logger := slog.New(&traceHandler{
+		Handler:        slog.NewJSONHandler(os.Stdout, nil),
+		gcpProjectName: gcpProjectName,
+	})
+	slog.SetDefault(logger)
+
+	// opentelemetry
 	var shutdowns []func(context.Context) error
 
 	shutdown := func() error {
@@ -98,84 +101,61 @@ func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) 
 	shutdowns = append(shutdowns, tracerProvider.Shutdown)
 	otel.SetTracerProvider(tracerProvider)
 
-	// logger
-	logger := slog.New(&traceHandler{
-		Handler:        slog.NewJSONHandler(os.Stdout, nil),
-		gcpProjectName: gcpProjectName,
-	})
-	slog.SetDefault(logger)
-
 	return shutdown, nil
 }
 
-func NewCmd() *cli.Command {
-	return &cli.Command{
-		Name: "app",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name: "migrate",
-			},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) (err error) {
-			shutdown, err := setup(ctx, settings.OtelCollectorURL, settings.GoogleCloudProjectName)
-			defer func() {
-				err = errors.Join(err, shutdown())
-			}()
-			if err != nil {
-				return err
-			}
-
-			port := settings.Port
-
-			if cmd.Bool("migrate") {
-				if err := repository.Migrate(settings.DatabaseURL); err != nil {
-					return fmt.Errorf("migrate: %w", err)
-				}
-			}
-			db, err := repository.NewDB(settings.DatabaseURL)
-			if err != nil {
-				return fmt.Errorf("open database: %w", err)
-			}
-			defer func() {
-				err = errors.Join(err, db.Close())
-			}()
-
-			s, err := server.NewServer(port, db)
-			if err != nil {
-				return fmt.Errorf("create server: %w", err)
-			}
-
-			ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-			defer stop()
-
-			errs := make(chan error, 1)
-			go func() {
-				slog.InfoContext(ctx, "start server", slog.Int("port", port))
-				if err := s.ListenAndServe(); err != http.ErrServerClosed {
-					errs <- err
-				}
-			}()
-
-			select {
-			case err = <-errs:
-				return fmt.Errorf("server error: %w", err)
-			case <-ctx.Done():
-				if err := s.Shutdown(ctx); err != nil {
-					return fmt.Errorf("shutdown server: %w", err)
-				}
-			}
-			slog.InfoContext(ctx, "shutting down server", slog.Int("port", port))
-
-			return nil
-		},
+func run(ctx context.Context) (err error) {
+	shutdown, err := setup(ctx, settings.OtelCollectorURL, settings.GoogleCloudProjectName)
+	defer func() {
+		err = errors.Join(err, shutdown())
+	}()
+	if err != nil {
+		return err
 	}
+
+	port := settings.Port
+
+	db, err := NewDB(ctx, settings.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, db.Close())
+	}()
+
+	s, err := NewServer(port, db)
+	if err != nil {
+		return fmt.Errorf("create server: %w", err)
+	}
+
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	errs := make(chan error, 1)
+	go func() {
+		slog.InfoContext(ctx, "start server", slog.Int("port", port))
+		if err := s.ListenAndServe(); err != http.ErrServerClosed {
+			errs <- err
+		}
+	}()
+
+	select {
+	case err = <-errs:
+		return fmt.Errorf("server error: %w", err)
+	case <-ctx.Done():
+		if err := s.Shutdown(ctx); err != nil {
+			return fmt.Errorf("shutdown server: %w", err)
+		}
+	}
+	slog.InfoContext(ctx, "shutting down server", slog.Int("port", port))
+
+	return nil
 }
 
 func main() {
 	ctx := context.Background()
 
-	cmd := NewCmd()
-	if err := cmd.Run(ctx, os.Args); err != nil {
+	if err := run(ctx); err != nil {
 		slog.ErrorContext(ctx, "comnand failed", slog.Any("error", err))
 		os.Exit(1)
 	}
