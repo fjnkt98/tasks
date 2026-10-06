@@ -16,8 +16,7 @@ import (
 )
 
 func TestNewSessionToken(t *testing.T) {
-	token, err := NewSessionToken()
-	require.NoError(t, err)
+	token := NewSessionToken()
 	assert.Equal(t, 64, len(token))
 }
 
@@ -88,6 +87,50 @@ func TestCreateUser(t *testing.T) {
 		var count int
 		require.NoError(t, row.Scan(&count))
 		assert.Equal(t, 1, count)
+	})
+}
+
+func TestLogin(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
+	}
+
+	t.Run("user not found", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		_, err := Login(t.Context(), db, "user2", "password")
+		assert.ErrorIs(t, err, ErrInvalidCredentials)
+	})
+
+	t.Run("password not match", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		_, err := Login(t.Context(), db, "user1", "invalid")
+		assert.ErrorIs(t, err, ErrInvalidCredentials)
+	})
+
+	t.Run("password too long", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		_, err := Login(t.Context(), db, "user1", strings.Repeat("p", 73))
+		assert.ErrorIs(t, err, ErrInvalidCredentials)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		token, err := Login(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
+
+		row := db.QueryRowContext(t.Context(), "SELECT token FROM sessions")
+		var saved string
+		require.NoError(t, row.Scan(&saved))
+		assert.Equal(t, saved, token)
 	})
 }
 

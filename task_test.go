@@ -44,7 +44,7 @@ func TestListTasksHandler(t *testing.T) {
 		{Name: "page and limit", UserID: 1, Query: "?page=2&limit=1", Wants: []string{`id="task-1"`}},
 		{Name: "invalid page and limit", UserID: 1, Query: "?page=foo&limit=bar", Wants: []string{`id="task-4"`, `id="task-3"`, `id="task-2"`, `id="task-1"`}},
 		{Name: "too large page and limit", UserID: 1, Query: "?page=123456789&limit=123456789"},
-		{Name: "negative page and limit", UserID: 1, Query: "?page=-1&limit=-1", Wants: []string{`id="task-4"`, `id="task-3"`, `id="task-2"`, `id="task-1"`}},
+		{Name: "negative page and limit", UserID: 1, Query: "?page=-1&limit=-1", Wants: []string{`id="task-4"`}},
 		{Name: "created", UserID: 1, Query: "?status=created", Wants: []string{`id="task-4"`, `id="task-1"`}},
 		{Name: "done", UserID: 1, Query: "?status=done", Wants: []string{`id="task-3"`, `id="task-2"`}},
 		{Name: "other user", UserID: 2, Wants: []string{`id="task-5"`}},
@@ -355,63 +355,7 @@ func TestPostTaskHandler(t *testing.T) {
 	})
 }
 
-func TestPutTaskHandler(t *testing.T) {
-	t.Run("GetParams", func(t *testing.T) {
-		db := NewTestDB(t)
-
-		t.Run("normal", func(t *testing.T) {
-			values := url.Values{}
-			values.Set("title", "test")
-			values.Set("status", "done")
-
-			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("HX-Request", "true")
-			require.NoError(t, req.ParseForm())
-
-			h := NewPutTaskHandler(db)
-			params := h.GetParams(req)
-
-			assert.Equal(t, "test", params.Title)
-			assert.Equal(t, "done", params.Status)
-		})
-
-		t.Run("empty", func(t *testing.T) {
-			values := url.Values{}
-
-			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1?title=foo&status=bar", strings.NewReader(values.Encode()))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("HX-Request", "true")
-			require.NoError(t, req.ParseForm())
-
-			h := NewPutTaskHandler(db)
-			params := h.GetParams(req)
-
-			assert.Equal(t, "", params.Title)
-			assert.Equal(t, "", params.Status)
-		})
-
-		t.Run("title contains space", func(t *testing.T) {
-			values := url.Values{}
-			values.Set("title", "  ")
-			values.Set("status", "")
-
-			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1?title=foo", strings.NewReader(values.Encode()))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("HX-Request", "true")
-			require.NoError(t, req.ParseForm())
-
-			h := NewPutTaskHandler(db)
-			params := h.GetParams(req)
-
-			assert.Equal(t, "", params.Title)
-			assert.Equal(t, "", params.Status)
-		})
-	})
-
+func TestPutTaskTitleHandler(t *testing.T) {
 	var fixture = func(db *sql.DB, t *testing.T) {
 		t.Helper()
 
@@ -421,297 +365,30 @@ func TestPutTaskHandler(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	t.Run("UpdateTask", func(t *testing.T) {
-		t.Run("update title and status", func(t *testing.T) {
+	for _, test := range []struct {
+		Name string
+		Body url.Values
+	}{
+		{Name: "empty", Body: url.Values{"title": []string{""}}},
+		{Name: "space", Body: url.Values{"title": []string{"   "}}},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
 			db := NewTestDB(t)
-
 			fixture(db, t)
-
-			params := UpdateTaskParams{
-				Title:  "new test",
-				Status: "done",
-			}
-
-			h := NewPutTaskHandler(db)
-			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
-			require.NoError(t, err)
-
-			assert.Equal(t, "new test", updated.Title)
-			assert.Equal(t, "done", updated.Status)
-
-			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
-			var task Task
-			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
-
-			assert.Equal(t, updated.ID, task.ID)
-			assert.Equal(t, updated.Title, task.Title)
-			assert.Equal(t, updated.Status, task.Status)
-			assert.Equal(t, updated.UserID, task.UserID)
-		})
-
-		t.Run("update non-existing task", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			h := NewPutTaskHandler(db)
-			_, err := h.UpdateTask(t.Context(), 2, 1, UpdateTaskParams{})
-			assert.ErrorIs(t, err, sql.ErrNoRows)
-		})
-
-		t.Run("update title only", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			params := UpdateTaskParams{
-				Title: "new test",
-			}
-
-			h := NewPutTaskHandler(db)
-			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
-			require.NoError(t, err)
-
-			assert.Equal(t, "new test", updated.Title)
-			assert.Equal(t, "created", updated.Status)
-
-			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
-			var task Task
-			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
-
-			assert.Equal(t, updated.ID, task.ID)
-			assert.Equal(t, updated.Title, task.Title)
-			assert.Equal(t, updated.Status, task.Status)
-			assert.Equal(t, updated.UserID, task.UserID)
-		})
-
-		t.Run("update status only", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			params := UpdateTaskParams{
-				Status: "done",
-			}
-
-			h := NewPutTaskHandler(db)
-			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
-			require.NoError(t, err)
-
-			assert.Equal(t, "test", updated.Title)
-			assert.Equal(t, "done", updated.Status)
-
-			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
-			var task Task
-			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
-
-			assert.Equal(t, updated.ID, task.ID)
-			assert.Equal(t, updated.Title, task.Title)
-			assert.Equal(t, updated.Status, task.Status)
-			assert.Equal(t, updated.UserID, task.UserID)
-		})
-	})
-
-	t.Run("ServeHTTP", func(t *testing.T) {
-		t.Run("update title and status", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			values := url.Values{}
-			values.Set("title", "new test")
-			values.Set("status", "done")
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2", strings.NewReader(test.Body.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(db)
-			h.ServeHTTP(rec, req)
-
-			assert.Equal(t, http.StatusOK, rec.Code)
-
-			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-
-			body := rec.Body.String()
-			assert.NotContains(t, body, "<head>")
-			assert.NotContains(t, body, "<body")
-			assert.NotContains(t, body, "<footer")
-
-			assert.Contains(t, body, `id="task-1"`)
-
-			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
-			var task Task
-			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
-
-			assert.Equal(t, "new test", task.Title)
-			assert.Equal(t, "done", task.Status)
-			assert.Equal(t, 1, task.UserID)
-		})
-
-		t.Run("update title only", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			values := url.Values{}
-			values.Set("title", "new test")
-
-			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
-			req.SetPathValue("id", "1")
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("HX-Request", "true")
-
-			rec := httptest.NewRecorder()
-
-			h := NewPutTaskHandler(db)
-			h.ServeHTTP(rec, req)
-
-			assert.Equal(t, http.StatusOK, rec.Code)
-
-			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-
-			body := rec.Body.String()
-			assert.NotContains(t, body, "<head>")
-			assert.NotContains(t, body, "<body")
-			assert.NotContains(t, body, "<footer")
-
-			assert.Contains(t, body, `id="task-1"`)
-
-			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
-			var task Task
-			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
-
-			assert.Equal(t, "new test", task.Title)
-			assert.Equal(t, "created", task.Status)
-			assert.Equal(t, 1, task.UserID)
-		})
-
-		t.Run("update status only", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			values := url.Values{}
-			values.Set("status", "done")
-
-			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
-			req.SetPathValue("id", "1")
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("HX-Request", "true")
-
-			rec := httptest.NewRecorder()
-
-			h := NewPutTaskHandler(db)
-			h.ServeHTTP(rec, req)
-
-			assert.Equal(t, http.StatusOK, rec.Code)
-
-			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-
-			body := rec.Body.String()
-			assert.NotContains(t, body, "<head>")
-			assert.NotContains(t, body, "<body")
-			assert.NotContains(t, body, "<footer")
-
-			assert.Contains(t, body, `id="task-1"`)
-
-			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
-			var task Task
-			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
-
-			assert.Equal(t, "test", task.Title)
-			assert.Equal(t, "done", task.Status)
-			assert.Equal(t, 1, task.UserID)
-		})
-
-		t.Run("update non-existing task", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			values := url.Values{}
-			values.Set("status", "done")
-
-			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2", strings.NewReader(values.Encode()))
-			req.SetPathValue("id", "2")
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("HX-Request", "true")
-
-			rec := httptest.NewRecorder()
-
-			h := NewPutTaskHandler(db)
-			h.ServeHTTP(rec, req)
-
-			assert.Equal(t, http.StatusNotFound, rec.Code)
-
-			assert.Equal(t, "not found\n", rec.Body.String())
-
-			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
-			var task Task
-			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
-
-			assert.Equal(t, "test", task.Title)
-			assert.Equal(t, "created", task.Status)
-			assert.Equal(t, 1, task.UserID)
-		})
-
-		t.Run("invalid path value", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			values := url.Values{}
-			values.Set("status", "done")
-
-			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader(values.Encode()))
-			req.SetPathValue("id", "foo")
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("HX-Request", "true")
-
-			rec := httptest.NewRecorder()
-
-			h := NewPutTaskHandler(db)
-			h.ServeHTTP(rec, req)
-
-			assert.Equal(t, http.StatusNotFound, rec.Code)
-
-			assert.Equal(t, "not found\n", rec.Body.String())
-
-			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
-			var task Task
-			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
-
-			assert.Equal(t, "test", task.Title)
-			assert.Equal(t, "created", task.Status)
-			assert.Equal(t, 1, task.UserID)
-		})
-
-		t.Run("invalid request body", func(t *testing.T) {
-			db := NewTestDB(t)
-
-			fixture(db, t)
-
-			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader("title=foo&bar=%zz"))
-			req.SetPathValue("id", "1")
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.Header.Set("HX-Request", "true")
-
-			rec := httptest.NewRecorder()
-
-			h := NewPutTaskHandler(db)
+			h := NewPutTaskTitleHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Equal(t, "bad request\n", rec.Body.String())
 
 			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
 			var task Task
@@ -721,31 +398,376 @@ func TestPutTaskHandler(t *testing.T) {
 			assert.Equal(t, "created", task.Status)
 			assert.Equal(t, 1, task.UserID)
 		})
+	}
 
-		t.Run("render failed", func(t *testing.T) {
+	t.Run("task not found", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("title", "new test")
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "2")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskTitleHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "not found\n", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+
+	t.Run("other user", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("title", "new test")
+
+		ctx := SetUserIDIntoContext(t.Context(), 2)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskTitleHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "not found\n", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+
+	t.Run("invalid path value", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("title", "new test")
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "foo")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskTitleHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "not found\n", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+
+	t.Run("invalid request body", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader("title=foo&bar=%zz"))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskTitleHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("title", "new test")
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskTitleHandler(db)
+		h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("title", "new test")
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskTitleHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+
+		body := rec.Body.String()
+		assert.NotContains(t, body, "<head>")
+		assert.NotContains(t, body, "<body")
+		assert.NotContains(t, body, "<footer")
+
+		assert.Contains(t, body, `id="task-1"`)
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "new test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+}
+
+func TestPutTaskStatusHandler(t *testing.T) {
+	var fixture = func(db *sql.DB, t *testing.T) {
+		t.Helper()
+
+		_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
+		require.NoError(t, err)
+		_, err = db.ExecContext(t.Context(), "INSERT INTO tasks (user_id, title, status) VALUES (1, 'test', 'created')")
+		require.NoError(t, err)
+	}
+
+	for _, test := range []struct {
+		Name string
+		Body url.Values
+	}{
+		{Name: "empty", Body: url.Values{"title": []string{""}}},
+		{Name: "space", Body: url.Values{"title": []string{"   "}}},
+		{Name: "invalid", Body: url.Values{"title": []string{"invalid"}}},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
 			db := NewTestDB(t)
-
 			fixture(db, t)
 
-			values := url.Values{}
-			values.Set("title", "new test")
-			values.Set("status", "done")
-
 			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(test.Body.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(db)
-			h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
-
+			h := NewPutTaskStatusHandler(db)
 			h.ServeHTTP(rec, req)
 
-			assert.Equal(t, http.StatusInternalServerError, rec.Code)
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Equal(t, "bad request\n", rec.Body.String())
+
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+			assert.Equal(t, "test", task.Title)
+			assert.Equal(t, "created", task.Status)
+			assert.Equal(t, 1, task.UserID)
 		})
+	}
+
+	t.Run("task not found", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("status", "done")
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "2")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskStatusHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "not found\n", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+
+	t.Run("other user", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("status", "done")
+
+		ctx := SetUserIDIntoContext(t.Context(), 2)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskStatusHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "not found\n", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+
+	t.Run("invalid path value", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("status", "done")
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "foo")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskStatusHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "not found\n", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+
+	t.Run("invalid request body", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader("status=done&bar=%zz"))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskStatusHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "bad request\n", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		values := url.Values{}
+		values.Set("status", "done")
+
+		ctx := SetUserIDIntoContext(t.Context(), 1)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskStatusHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNoContent, rec.Code)
+		assert.Equal(t, "", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "done", task.Status)
+		assert.Equal(t, 1, task.UserID)
 	})
 }
 

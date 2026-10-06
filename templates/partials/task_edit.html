@@ -2,7 +2,7 @@
 <li id="task-{{ $.ID }}">
   <form
     class="list-row items-center"
-    hx-put="/tasks/{{ $.ID }}"
+    hx-put="/tasks/{{ $.ID }}/title"
     hx-target="#task-{{ $.ID }}"
     hx-swap="outerHTML"
   >

@@ -69,7 +69,8 @@ func NewHandler(db *sql.DB) http.Handler {
 		mux.Handle("GET /tasks/{id}", m(NewGetTaskHandler(db)))
 		mux.Handle("GET /tasks/{id}/edit", m(NewGetTaskEditHandler(db)))
 		mux.Handle("POST /tasks", m(NewPostTaskHandler(db)))
-		mux.Handle("PUT /tasks/{id}", m(NewPutTaskHandler(db)))
+		mux.Handle("PUT /tasks/{id}/title", m(NewPutTaskTitleHandler(db)))
+		mux.Handle("PUT /tasks/{id}/status", m(NewPutTaskStatusHandler(db)))
 		mux.Handle("DELETE /tasks/{id}", m(NewDeleteTaskHandler(db)))
 	}
 
