@@ -1,23 +1,55 @@
-package ent
+package main
 
 import (
+	"bytes"
+	"database/sql"
+	"fmt"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
+	_ "embed"
+
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetupClient(t *testing.T) {
-	dsn := "file::memory:"
-	client, err := SetupClient(t.Context(), dsn)
+//go:embed schema.sql
+var schema []byte
+
+func NewTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	file := filepath.Join(t.TempDir(), "test.db")
+	cmd := exec.CommandContext(t.Context(), "sqlite3def", file, "--apply")
+	cmd.Stdin = bytes.NewReader(schema)
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("sqlite3def failed: %v\n%s", err, out)
+	}
+
+	dsn, err := enforceForeignKeys(fmt.Sprintf("file:%s", file))
+	require.NoError(t, err)
+
+	db, err := sql.Open("sqlite3", dsn)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		assert.NoError(t, client.Close())
+		assert.NoError(t, db.Close())
 	})
 
-	_, err = client.Task.Create().SetTitle("test").SetUserID(999).Save(t.Context())
-	require.True(t, IsConstraintError(err), "unexpected error: %v", err)
+	return db
+}
+
+func TestNewDB(t *testing.T) {
+	dsn := "file::memory:"
+	db, err := NewDB(t.Context(), dsn)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		assert.NoError(t, db.Close())
+	})
 }
 
 func TestEnforceForeignKeys(t *testing.T) {

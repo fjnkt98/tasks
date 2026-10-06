@@ -5,4 +5,5 @@ set -e
 rm -f /app/app.db
 
 litestream restore -if-replica-exists -config /etc/litestream.yaml /app/app.db
-litestream replicate -exec '/app/app --migrate' -config /etc/litestream.yaml
+sqlite3def --file=/app/schema.sql /app/app.db --apply --enable-drop
+litestream replicate -exec /app/app -config /etc/litestream.yaml

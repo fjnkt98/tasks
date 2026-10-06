@@ -1,7 +1,8 @@
-package server
+package main
 
 import (
 	"context"
+	"database/sql"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/fjnkt98/tasks/ent"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +82,7 @@ func TestGetSignupHandler(t *testing.T) {
 
 func TestPostSignupHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
 		t.Run("username empty", func(t *testing.T) {
 			values := url.Values{}
@@ -93,7 +93,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 
 			require.Error(t, err)
@@ -109,7 +109,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 
 			require.Error(t, err)
@@ -125,7 +125,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 
 			require.Error(t, err)
@@ -142,7 +142,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 
 			require.Error(t, err)
@@ -159,7 +159,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			params, err := h.GetParams(req)
 
 			require.NoError(t, err)
@@ -176,7 +176,7 @@ func TestPostSignupHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			_, err := h.GetParams(req)
 
 			require.Error(t, err)
@@ -186,7 +186,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -198,18 +198,19 @@ func TestPostSignupHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusSeeOther, rec.Code)
 
-			count, err := client.User.Query().Count(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM users")
+			var count int
+			require.NoError(t, row.Scan(&count))
 			assert.Equal(t, 1, count)
 		})
 
 		t.Run("validation failed", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
 			values := url.Values{}
 			values.Set("username", "\t")
@@ -221,7 +222,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -234,14 +235,14 @@ func TestPostSignupHandler(t *testing.T) {
 		})
 
 		t.Run("invalid request body", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader("username=user1&password=password&confirm-password=password&foo=%zz"))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -250,9 +251,9 @@ func TestPostSignupHandler(t *testing.T) {
 		})
 
 		t.Run("user already exists", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			_, err := client.User.Create().SetName("user1").SetPassword("password").Save(t.Context())
+			_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 			require.NoError(t, err)
 
 			values := url.Values{}
@@ -265,7 +266,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -278,7 +279,7 @@ func TestPostSignupHandler(t *testing.T) {
 		})
 
 		t.Run("render failed", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
 			values := url.Values{}
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
@@ -286,7 +287,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSignupHandler(client)
+			h := NewPostSignupHandler(db)
 			h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
 
 			h.ServeHTTP(rec, req)
@@ -356,7 +357,7 @@ func TestGetSigninHandler(t *testing.T) {
 
 func TestPostSigninHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
 		t.Run("username empty", func(t *testing.T) {
 			values := url.Values{}
@@ -366,7 +367,7 @@ func TestPostSigninHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			_, err := h.GetParams(req)
 			require.Error(t, err)
 			assert.EqualError(t, err, "username is required")
@@ -380,7 +381,7 @@ func TestPostSigninHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			_, err := h.GetParams(req)
 			require.Error(t, err)
 			assert.EqualError(t, err, "password is required")
@@ -395,7 +396,7 @@ func TestPostSigninHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			params, err := h.GetParams(req)
 			require.NoError(t, err)
 
@@ -411,55 +412,56 @@ func TestPostSigninHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			_, err := h.GetParams(req)
 			require.Error(t, err)
 			assert.EqualError(t, err, "password too long")
 		})
 	})
 
-	var fixture = func(client *ent.Client, t *testing.T) {
+	var fixture = func(db *sql.DB, t *testing.T) {
 		t.Helper()
 
-		require.NoError(t, NewPostSignupHandler(client).Signup(t.Context(), SignupParams{Username: "user1", Password: "password"}))
+		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
 	}
 
 	t.Run("Signin", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				client := NewTestDB(t)
+				db := NewTestDB(t)
 
-				fixture(client, t)
+				fixture(db, t)
 
-				h := NewPostSigninHandler(client)
+				h := NewPostSigninHandler(db)
 				token, err := h.Signin(t.Context(), SigninParams{Username: "user1", Password: "password"})
 				require.NoError(t, err)
 
-				s, err := client.Session.Get(t.Context(), 1)
-				require.NoError(t, err)
+				row := db.QueryRowContext(t.Context(), "SELECT token, expires_at FROM sessions WHERE id = 1")
+				var savedToken string
+				var expiresAt int64
+				require.NoError(t, row.Scan(&savedToken, &expiresAt))
 
-				assert.Equal(t, token, s.Token)
-
-				assert.WithinDuration(t, time.Date(2000, 1, 2, 0, 0, 0, 0, time.UTC), s.ExpiresAt, 0)
+				assert.Equal(t, savedToken, token)
+				assert.Equal(t, time.Date(2000, 1, 2, 0, 0, 0, 0, time.UTC).Unix(), expiresAt)
 			})
 		})
 
 		t.Run("user not found", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			_, err := h.Signin(t.Context(), SigninParams{Username: "user2", Password: "password"})
 			assert.ErrorIs(t, err, ErrInvalidCredentials)
 		})
 
 		t.Run("password not match", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			_, err := h.Signin(t.Context(), SigninParams{Username: "user1", Password: "foo"})
 			assert.ErrorIs(t, err, ErrInvalidCredentials)
 		})
@@ -467,9 +469,9 @@ func TestPostSigninHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -480,26 +482,28 @@ func TestPostSigninHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusSeeOther, rec.Code)
 
-			s, err := client.Session.Get(t.Context(), 1)
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT token, expires_at FROM sessions WHERE id = 1")
+			var token string
+			var expiresAt int64
+			require.NoError(t, row.Scan(&token, &expiresAt))
 
 			cookies := extractCookies(t, rec.Result().Header)
 			tokenCookie, ok := cookies[AuthCookieName]
 			require.True(t, ok, "session_token cookie should be set")
 			assert.Equal(t, 86400, tokenCookie.MaxAge)
-			assert.Equal(t, s.Token, tokenCookie.Value)
+			assert.Equal(t, token, tokenCookie.Value)
 			assert.Equal(t, "/", tokenCookie.Path)
 		})
 
 		t.Run("bad request", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -510,7 +514,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -524,9 +528,9 @@ func TestPostSigninHandler(t *testing.T) {
 		})
 
 		t.Run("invalid credentials", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -537,7 +541,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -551,16 +555,16 @@ func TestPostSigninHandler(t *testing.T) {
 		})
 
 		t.Run("invalid request body", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader("username=user1&password=password&foo=%zz"))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -569,7 +573,7 @@ func TestPostSigninHandler(t *testing.T) {
 		})
 
 		t.Run("render failed", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
 			values := url.Values{}
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
@@ -577,7 +581,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostSigninHandler(client)
+			h := NewPostSigninHandler(db)
 			h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
 
 			h.ServeHTTP(rec, req)
@@ -591,11 +595,11 @@ func TestPostSigninHandler(t *testing.T) {
 
 func TestPostSignoutHandler(t *testing.T) {
 	t.Run("authorized", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
-		_, err := client.User.Create().SetName("user1").SetPassword("password").Save(t.Context())
+		_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 		require.NoError(t, err)
-		_, err = client.Session.Create().SetUserID(1).SetToken("token").SetExpiresAt(time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)).Save(t.Context())
+		_, err = db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token', 32503680000)")
 		require.NoError(t, err)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
@@ -604,13 +608,14 @@ func TestPostSignoutHandler(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		h := NewPostSignoutHandler(client)
+		h := NewPostSignoutHandler(db)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusSeeOther, rec.Code)
 
-		count, err := client.Session.Query().Count(t.Context())
-		require.NoError(t, err)
+		row := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sessions")
+		var count int
+		require.NoError(t, row.Scan(&count))
 		assert.Equal(t, 0, count)
 
 		cookies := extractCookies(t, rec.Result().Header)
@@ -622,12 +627,12 @@ func TestPostSignoutHandler(t *testing.T) {
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signout", nil)
 		rec := httptest.NewRecorder()
 
-		h := NewPostSignoutHandler(client)
+		h := NewPostSignoutHandler(db)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusSeeOther, rec.Code)

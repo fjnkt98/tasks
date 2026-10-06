@@ -1,13 +1,12 @@
-package server
+package main
 
 import (
+	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"slices"
 	"time"
-
-	"github.com/fjnkt98/tasks/ent"
-	"github.com/fjnkt98/tasks/ent/session"
 )
 
 type Middleware func(http.Handler) http.Handler
@@ -59,7 +58,7 @@ func NewRecoveryMiddleware() Middleware {
 	}
 }
 
-func NewSessionMiddleware(client *ent.Client) Middleware {
+func NewSessionMiddleware(db *sql.DB) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookieName)
@@ -68,9 +67,12 @@ func NewSessionMiddleware(client *ent.Client) Middleware {
 				return
 			}
 
-			s, err := client.Session.Query().Where(session.Token(cookie.Value)).Only(r.Context())
-			if err != nil {
-				if ent.IsNotFound(err) {
+			q := "SELECT user_id, expires_at FROM sessions WHERE token = ? LIMIT 1"
+			row := db.QueryRowContext(r.Context(), q, cookie.Value)
+			var userID int
+			var expiresAt int64
+			if err := row.Scan(&userID, &expiresAt); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
 					http.SetCookie(w, NewAuthCookie("", -1))
 
 					next.ServeHTTP(w, r)
@@ -82,15 +84,16 @@ func NewSessionMiddleware(client *ent.Client) Middleware {
 				return
 			}
 
-			if s.ExpiresAt.Before(time.Now()) {
+			if expiresAt <= time.Now().Unix() {
 				http.SetCookie(w, NewAuthCookie("", -1))
 
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			user, err := client.User.Get(r.Context(), s.UserID)
-			if err != nil {
+			q = "SELECT id FROM users WHERE id = ? LIMIT 1"
+			row = db.QueryRowContext(r.Context(), q, userID)
+			if err := row.Scan(&userID); err != nil {
 				slog.ErrorContext(r.Context(), "get user", slog.Any("error", err))
 				Handle500(w, r)
 				return
@@ -98,7 +101,7 @@ func NewSessionMiddleware(client *ent.Client) Middleware {
 
 			http.SetCookie(w, NewAuthCookie(cookie.Value, 86400))
 
-			ctx := SetUserIDIntoContext(r.Context(), user.ID)
+			ctx := SetUserIDIntoContext(r.Context(), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

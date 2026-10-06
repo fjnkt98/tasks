@@ -1,6 +1,7 @@
-package server
+package main
 
 import (
+	"database/sql"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -9,16 +10,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fjnkt98/tasks/ent"
-	enttask "github.com/fjnkt98/tasks/ent/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestListTasksHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		client := NewTestDB(t)
-		h := NewListTasksHandler(client)
+		db := NewTestDB(t)
+		h := NewListTasksHandler(db)
 
 		t.Run("default values will be used if parameter is empty", func(t *testing.T) {
 			values := url.Values{}
@@ -83,23 +82,23 @@ func TestListTasksHandler(t *testing.T) {
 	})
 
 	t.Run("GetTasks", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
-		_, err := client.User.CreateBulk(
-			client.User.Create().SetName("user1").SetPassword("user1"),
-			client.User.Create().SetName("user2").SetPassword("user2"),
-		).Save(t.Context())
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (name, digest) VALUES
+			('user1', ''),
+			('user2', '')`,
+		)
 		require.NoError(t, err)
 
-		_, err = client.Task.CreateBulk(
-			client.Task.Create().SetTitle("test1").SetStatus(enttask.StatusCreated).SetUserID(1),
-			client.Task.Create().SetTitle("test2").SetStatus(enttask.StatusDone).SetUserID(1),
-			client.Task.Create().SetTitle("test3").SetStatus(enttask.StatusDone).SetUserID(1),
-			client.Task.Create().SetTitle("test4").SetStatus(enttask.StatusCreated).SetUserID(1),
-		).Save(t.Context())
+		_, err = db.ExecContext(t.Context(), `INSERT INTO tasks (user_id, title, status) VALUES
+			(1, 'test1', 'created'),
+			(1, 'test2', 'done'),
+			(1, 'test3', 'done'),
+			(1, 'test4', 'created')`,
+		)
 		require.NoError(t, err)
 
-		h := NewListTasksHandler(client)
+		h := NewListTasksHandler(db)
 
 		t.Run("get all", func(t *testing.T) {
 			tasks, err := h.GetTasks(t.Context(), 1, ListTasksParams{Page: 1, Limit: 10, Status: ""})
@@ -110,13 +109,13 @@ func TestListTasksHandler(t *testing.T) {
 			wants := []struct {
 				ID     int
 				Title  string
-				Status enttask.Status
+				Status string
 				UserID int
 			}{
-				{ID: 4, Title: "test4", Status: enttask.StatusCreated, UserID: 1},
-				{ID: 1, Title: "test1", Status: enttask.StatusCreated, UserID: 1},
-				{ID: 3, Title: "test3", Status: enttask.StatusDone, UserID: 1},
-				{ID: 2, Title: "test2", Status: enttask.StatusDone, UserID: 1},
+				{ID: 4, Title: "test4", Status: "created", UserID: 1},
+				{ID: 1, Title: "test1", Status: "created", UserID: 1},
+				{ID: 3, Title: "test3", Status: "done", UserID: 1},
+				{ID: 2, Title: "test2", Status: "done", UserID: 1},
 			}
 			for i := range 4 {
 				assert.Equal(t, wants[i].ID, tasks[i].ID)
@@ -134,11 +133,11 @@ func TestListTasksHandler(t *testing.T) {
 			wants := []struct {
 				ID     int
 				Title  string
-				Status enttask.Status
+				Status string
 				UserID int
 			}{
-				{ID: 4, Title: "test4", Status: enttask.StatusCreated, UserID: 1},
-				{ID: 1, Title: "test1", Status: enttask.StatusCreated, UserID: 1},
+				{ID: 4, Title: "test4", Status: "created", UserID: 1},
+				{ID: 1, Title: "test1", Status: "created", UserID: 1},
 			}
 			for i := range 2 {
 				assert.Equal(t, wants[i].ID, tasks[i].ID)
@@ -156,11 +155,11 @@ func TestListTasksHandler(t *testing.T) {
 			wants := []struct {
 				ID     int
 				Title  string
-				Status enttask.Status
+				Status string
 				UserID int
 			}{
-				{ID: 3, Title: "test3", Status: enttask.StatusDone, UserID: 1},
-				{ID: 2, Title: "test2", Status: enttask.StatusDone, UserID: 1},
+				{ID: 3, Title: "test3", Status: "done", UserID: 1},
+				{ID: 2, Title: "test2", Status: "done", UserID: 1},
 			}
 			for i := range 2 {
 				assert.Equal(t, wants[i].ID, tasks[i].ID)
@@ -186,12 +185,12 @@ func TestListTasksHandler(t *testing.T) {
 	})
 
 	t.Run("ResponseHTTP", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
-				Tasks: []*ent.Task{
-					{ID: 1, Title: "test title", Status: enttask.StatusCreated},
+				Tasks: []Task{
+					{ID: 1, Title: "test title", Status: "created"},
 				},
 				LastIndex: 0,
 				NextPage:  2,
@@ -200,7 +199,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 
 			require.NoError(t, h.ResponseHTTP(rec, data))
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -214,7 +213,7 @@ func TestListTasksHandler(t *testing.T) {
 
 		t.Run("no data", func(t *testing.T) {
 			data := TaskData{
-				Tasks:     []*ent.Task{},
+				Tasks:     []Task{},
 				LastIndex: -1,
 				NextPage:  2,
 				Limit:     10,
@@ -222,7 +221,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 
 			require.NoError(t, h.ResponseHTTP(rec, data))
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -236,12 +235,12 @@ func TestListTasksHandler(t *testing.T) {
 	})
 
 	t.Run("ResponseHTMX", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
 		t.Run("normal", func(t *testing.T) {
 			data := TaskData{
-				Tasks: []*ent.Task{
-					{ID: 1, Title: "test title", Status: enttask.StatusCreated},
+				Tasks: []Task{
+					{ID: 1, Title: "test title", Status: "created"},
 				},
 				LastIndex: 0,
 				NextPage:  2,
@@ -250,7 +249,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 
 			require.NoError(t, h.ResponseHTMX(rec, data))
 
@@ -265,7 +264,7 @@ func TestListTasksHandler(t *testing.T) {
 
 		t.Run("no data", func(t *testing.T) {
 			data := TaskData{
-				Tasks:     []*ent.Task{},
+				Tasks:     []Task{},
 				LastIndex: 0,
 				NextPage:  2,
 				Limit:     10,
@@ -273,7 +272,7 @@ func TestListTasksHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 
 			require.NoError(t, h.ResponseHTMX(rec, data))
 
@@ -286,20 +285,20 @@ func TestListTasksHandler(t *testing.T) {
 	})
 
 	t.Run("ServeHTTP", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
-		_, err := client.User.CreateBulk(
-			client.User.Create().SetName("user1").SetPassword("user1"),
-			client.User.Create().SetName("user2").SetPassword("user2"),
-		).Save(t.Context())
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (name, digest) VALUES
+			('user1', ''),
+			('user2', '')`,
+		)
 		require.NoError(t, err)
 
-		_, err = client.Task.CreateBulk(
-			client.Task.Create().SetTitle("test1").SetStatus(enttask.StatusCreated).SetUserID(1),
-			client.Task.Create().SetTitle("test2").SetStatus(enttask.StatusDone).SetUserID(1),
-			client.Task.Create().SetTitle("test3").SetStatus(enttask.StatusDone).SetUserID(1),
-			client.Task.Create().SetTitle("test4").SetStatus(enttask.StatusCreated).SetUserID(1),
-		).Save(t.Context())
+		_, err = db.ExecContext(t.Context(), `INSERT INTO tasks (user_id, title, status) VALUES
+			(1, 'test1', 'created'),
+			(1, 'test2', 'done'),
+			(1, 'test3', 'done'),
+			(1, 'test4', 'created')`,
+		)
 		require.NoError(t, err)
 
 		t.Run("get without params", func(t *testing.T) {
@@ -307,7 +306,7 @@ func TestListTasksHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -331,7 +330,7 @@ func TestListTasksHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/tasks?%s", values.Encode()), nil)
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -352,7 +351,7 @@ func TestListTasksHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -365,7 +364,7 @@ func TestListTasksHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 			h.templateHTTP = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
 
 			h.ServeHTTP(rec, req)
@@ -382,7 +381,7 @@ func TestListTasksHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewListTasksHandler(client)
+			h := NewListTasksHandler(db)
 			h.templateHTMX = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
 
 			h.ServeHTTP(rec, req)
@@ -394,11 +393,11 @@ func TestListTasksHandler(t *testing.T) {
 
 func TestGetTaskHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
-		_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+		_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 		require.NoError(t, err)
-		_, err = client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context())
+		_, err = db.ExecContext(t.Context(), "INSERT INTO tasks (user_id, title, status) VALUES (1, 'test', 'created')")
 		require.NoError(t, err)
 
 		t.Run("normal", func(t *testing.T) {
@@ -409,7 +408,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskHandler(client)
+			h := NewGetTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -430,7 +429,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskHandler(client)
+			h := NewGetTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -444,7 +443,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskHandler(client)
+			h := NewGetTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -458,7 +457,7 @@ func TestGetTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskHandler(client)
+			h := NewGetTaskHandler(db)
 			h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
 
 			h.ServeHTTP(rec, req)
@@ -470,11 +469,11 @@ func TestGetTaskHandler(t *testing.T) {
 
 func TestGetTaskEditHandler(t *testing.T) {
 	t.Run("ServeHTTP", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
-		_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+		_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 		require.NoError(t, err)
-		_, err = client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context())
+		_, err = db.ExecContext(t.Context(), "INSERT INTO tasks (user_id, title, status) VALUES (1, 'test', 'created')")
 		require.NoError(t, err)
 
 		t.Run("normal", func(t *testing.T) {
@@ -485,7 +484,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskEditHandler(client)
+			h := NewGetTaskEditHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -504,7 +503,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskEditHandler(client)
+			h := NewGetTaskEditHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -518,7 +517,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskEditHandler(client)
+			h := NewGetTaskEditHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -532,7 +531,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewGetTaskEditHandler(client)
+			h := NewGetTaskEditHandler(db)
 			h.t = template.Must(template.New("task_edit").Parse("<p>{{ .MissingField }}</p>"))
 
 			h.ServeHTTP(rec, req)
@@ -544,7 +543,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 
 func TestPostTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
 		t.Run("title", func(t *testing.T) {
 			values := url.Values{}
@@ -556,7 +555,7 @@ func TestPostTaskHandler(t *testing.T) {
 			req.Header.Set("HX-Request", "true")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostTaskHandler(client)
+			h := NewPostTaskHandler(db)
 			params, err := h.GetParams(req)
 			require.NoError(t, err)
 
@@ -572,7 +571,7 @@ func TestPostTaskHandler(t *testing.T) {
 			req.Header.Set("HX-Request", "true")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostTaskHandler(client)
+			h := NewPostTaskHandler(db)
 			_, err := h.GetParams(req)
 			assert.ErrorIs(t, err, ErrBadRequest)
 		})
@@ -587,7 +586,7 @@ func TestPostTaskHandler(t *testing.T) {
 			req.Header.Set("HX-Request", "true")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPostTaskHandler(client)
+			h := NewPostTaskHandler(db)
 			_, err := h.GetParams(req)
 			assert.ErrorIs(t, err, ErrBadRequest)
 		})
@@ -595,9 +594,9 @@ func TestPostTaskHandler(t *testing.T) {
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+			_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 			require.NoError(t, err)
 
 			values := url.Values{}
@@ -610,7 +609,7 @@ func TestPostTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostTaskHandler(client)
+			h := NewPostTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusCreated, rec.Code)
@@ -620,19 +619,27 @@ func TestPostTaskHandler(t *testing.T) {
 			assert.NotContains(t, body, "<body")
 			assert.NotContains(t, body, "<footer")
 
-			tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
+			rows, err := db.QueryContext(t.Context(), "SELECT title, status FROM tasks WHERE user_id = 1")
 			require.NoError(t, err)
+			defer rows.Close() // nolint:errcheck
+
+			tasks := make([]Task, 0)
+			for rows.Next() {
+				var task Task
+				require.NoError(t, rows.Scan(&task.Title, &task.Status))
+				tasks = append(tasks, task)
+			}
+			require.NoError(t, rows.Err())
 
 			require.Len(t, tasks, 1)
-
 			assert.Equal(t, "test", tasks[0].Title)
-			assert.Equal(t, enttask.StatusCreated, tasks[0].Status)
+			assert.Equal(t, "created", tasks[0].Status)
 		})
 
 		t.Run("invalid request body", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+			_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 			require.NoError(t, err)
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
@@ -642,21 +649,23 @@ func TestPostTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostTaskHandler(client)
+			h := NewPostTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
+			row := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM tasks WHERE user_id = 1")
+			var count int
+			require.NoError(t, row.Scan(&count))
 			require.NoError(t, err)
 
-			require.Len(t, tasks, 0)
+			assert.Equal(t, 0, count)
 		})
 
 		t.Run("render failed", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+			_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 			require.NoError(t, err)
 
 			values := url.Values{}
@@ -669,7 +678,7 @@ func TestPostTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPostTaskHandler(client)
+			h := NewPostTaskHandler(db)
 			h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
 
 			h.ServeHTTP(rec, req)
@@ -681,7 +690,7 @@ func TestPostTaskHandler(t *testing.T) {
 
 func TestPutTaskHandler(t *testing.T) {
 	t.Run("GetParams", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
 		t.Run("normal", func(t *testing.T) {
 			values := url.Values{}
@@ -694,7 +703,7 @@ func TestPutTaskHandler(t *testing.T) {
 			req.Header.Set("HX-Request", "true")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			params := h.GetParams(req)
 
 			assert.Equal(t, "test", params.Title)
@@ -710,7 +719,7 @@ func TestPutTaskHandler(t *testing.T) {
 			req.Header.Set("HX-Request", "true")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			params := h.GetParams(req)
 
 			assert.Equal(t, "", params.Title)
@@ -728,7 +737,7 @@ func TestPutTaskHandler(t *testing.T) {
 			req.Header.Set("HX-Request", "true")
 			require.NoError(t, req.ParseForm())
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			params := h.GetParams(req)
 
 			assert.Equal(t, "", params.Title)
@@ -736,113 +745,111 @@ func TestPutTaskHandler(t *testing.T) {
 		})
 	})
 
-	var fixture = func(client *ent.Client, t *testing.T) {
+	var fixture = func(db *sql.DB, t *testing.T) {
 		t.Helper()
-		_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+
+		_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 		require.NoError(t, err)
-		_, err = client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context())
+		_, err = db.ExecContext(t.Context(), "INSERT INTO tasks (user_id, title, status) VALUES (1, 'test', 'created')")
 		require.NoError(t, err)
 	}
 
 	t.Run("UpdateTask", func(t *testing.T) {
 		t.Run("update title and status", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			params := UpdateTaskParams{
 				Title:  "new test",
 				Status: "done",
 			}
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			require.NoError(t, err)
 
 			assert.Equal(t, "new test", updated.Title)
-			assert.Equal(t, enttask.StatusDone, updated.Status)
+			assert.Equal(t, "done", updated.Status)
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, updated.ID, task.ID)
 			assert.Equal(t, updated.Title, task.Title)
 			assert.Equal(t, updated.Status, task.Status)
 			assert.Equal(t, updated.UserID, task.UserID)
-			assert.WithinDuration(t, updated.CreatedAt, task.CreatedAt, 0)
-			assert.WithinDuration(t, updated.UpdatedAt, task.UpdatedAt, 0)
 		})
 
 		t.Run("update non-existing task", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			_, err := h.UpdateTask(t.Context(), 2, 1, UpdateTaskParams{})
-			require.True(t, ent.IsNotFound(err), "unexpected error: %v", err)
+			assert.ErrorIs(t, err, sql.ErrNoRows)
 		})
 
 		t.Run("update title only", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			params := UpdateTaskParams{
 				Title: "new test",
 			}
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			require.NoError(t, err)
 
 			assert.Equal(t, "new test", updated.Title)
-			assert.Equal(t, enttask.StatusCreated, updated.Status)
+			assert.Equal(t, "created", updated.Status)
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, updated.ID, task.ID)
 			assert.Equal(t, updated.Title, task.Title)
 			assert.Equal(t, updated.Status, task.Status)
 			assert.Equal(t, updated.UserID, task.UserID)
-			assert.WithinDuration(t, updated.CreatedAt, task.CreatedAt, 0)
-			assert.WithinDuration(t, updated.UpdatedAt, task.UpdatedAt, 0)
 		})
 
 		t.Run("update status only", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			params := UpdateTaskParams{
 				Status: "done",
 			}
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			updated, err := h.UpdateTask(t.Context(), 1, 1, params)
 			require.NoError(t, err)
 
 			assert.Equal(t, "test", updated.Title)
-			assert.Equal(t, enttask.StatusDone, updated.Status)
+			assert.Equal(t, "done", updated.Status)
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, updated.ID, task.ID)
 			assert.Equal(t, updated.Title, task.Title)
 			assert.Equal(t, updated.Status, task.Status)
 			assert.Equal(t, updated.UserID, task.UserID)
-			assert.WithinDuration(t, updated.CreatedAt, task.CreatedAt, 0)
-			assert.WithinDuration(t, updated.UpdatedAt, task.UpdatedAt, 0)
 		})
 	})
 
 	t.Run("ServeHTTP", func(t *testing.T) {
 		t.Run("update title and status", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("title", "new test")
@@ -856,7 +863,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -870,18 +877,19 @@ func TestPutTaskHandler(t *testing.T) {
 
 			assert.Contains(t, body, `id="task-1"`)
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, "new test", task.Title)
-			assert.Equal(t, enttask.StatusDone, task.Status)
+			assert.Equal(t, "done", task.Status)
 			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("update title only", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("title", "new test")
@@ -894,7 +902,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -908,18 +916,19 @@ func TestPutTaskHandler(t *testing.T) {
 
 			assert.Contains(t, body, `id="task-1"`)
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, "new test", task.Title)
-			assert.Equal(t, enttask.StatusCreated, task.Status)
+			assert.Equal(t, "created", task.Status)
 			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("update status only", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -932,7 +941,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -946,18 +955,19 @@ func TestPutTaskHandler(t *testing.T) {
 
 			assert.Contains(t, body, `id="task-1"`)
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, "test", task.Title)
-			assert.Equal(t, enttask.StatusDone, task.Status)
+			assert.Equal(t, "done", task.Status)
 			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("update non-existing task", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -970,25 +980,26 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusNotFound, rec.Code)
 
 			assert.Equal(t, "not found\n", rec.Body.String())
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, "test", task.Title)
-			assert.Equal(t, enttask.StatusCreated, task.Status)
+			assert.Equal(t, "created", task.Status)
 			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("invalid path value", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("status", "done")
@@ -1001,25 +1012,26 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusNotFound, rec.Code)
 
 			assert.Equal(t, "not found\n", rec.Body.String())
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, "test", task.Title)
-			assert.Equal(t, enttask.StatusCreated, task.Status)
+			assert.Equal(t, "created", task.Status)
 			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("invalid request body", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
 			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader("title=foo&bar=%zz"))
@@ -1029,23 +1041,24 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
-			require.NoError(t, err)
+			row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+			var task Task
+			require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
 			assert.Equal(t, "test", task.Title)
-			assert.Equal(t, enttask.StatusCreated, task.Status)
+			assert.Equal(t, "created", task.Status)
 			assert.Equal(t, 1, task.UserID)
 		})
 
 		t.Run("render failed", func(t *testing.T) {
-			client := NewTestDB(t)
+			db := NewTestDB(t)
 
-			fixture(client, t)
+			fixture(db, t)
 
 			values := url.Values{}
 			values.Set("title", "new test")
@@ -1059,7 +1072,7 @@ func TestPutTaskHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			h := NewPutTaskHandler(client)
+			h := NewPutTaskHandler(db)
 			h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
 
 			h.ServeHTTP(rec, req)
@@ -1070,18 +1083,19 @@ func TestPutTaskHandler(t *testing.T) {
 }
 
 func TestDeleteTaskHandler(t *testing.T) {
-	var fixture = func(client *ent.Client, t *testing.T) {
+	var fixture = func(db *sql.DB, t *testing.T) {
 		t.Helper()
-		_, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context())
+
+		_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', '')")
 		require.NoError(t, err)
-		_, err = client.Task.Create().SetTitle("test").SetStatus(enttask.StatusCreated).SetUserID(1).Save(t.Context())
+		_, err = db.ExecContext(t.Context(), "INSERT INTO tasks (user_id, title, status) VALUES (1, 'test', 'created')")
 		require.NoError(t, err)
 	}
 
 	t.Run("delete successfully", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
-		fixture(client, t)
+		fixture(db, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/1", nil)
@@ -1089,21 +1103,22 @@ func TestDeleteTaskHandler(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		h := NewDeleteTaskHandler(client)
+		h := NewDeleteTaskHandler(db)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		tasks, err := client.Task.Query().Limit(100).All(t.Context())
-		require.NoError(t, err)
+		row := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM tasks")
+		var count int
+		require.NoError(t, row.Scan(&count))
 
-		assert.Len(t, tasks, 0)
+		assert.Equal(t, 0, count)
 	})
 
 	t.Run("delete non-existing task", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
-		fixture(client, t)
+		fixture(db, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/2", nil)
@@ -1111,24 +1126,23 @@ func TestDeleteTaskHandler(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		h := NewDeleteTaskHandler(client)
+		h := NewDeleteTaskHandler(db)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
-		tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
-		require.NoError(t, err)
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
-		require.Len(t, tasks, 1)
-
-		assert.Equal(t, "test", tasks[0].Title)
-		assert.Equal(t, enttask.StatusCreated, tasks[0].Status)
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
 	})
 
 	t.Run("invalid path value", func(t *testing.T) {
-		client := NewTestDB(t)
+		db := NewTestDB(t)
 
-		fixture(client, t)
+		fixture(db, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/foo", nil)
@@ -1136,17 +1150,16 @@ func TestDeleteTaskHandler(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 
-		h := NewDeleteTaskHandler(client)
+		h := NewDeleteTaskHandler(db)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 
-		tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
-		require.NoError(t, err)
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
 
-		require.Len(t, tasks, 1)
-
-		assert.Equal(t, "test", tasks[0].Title)
-		assert.Equal(t, enttask.StatusCreated, tasks[0].Status)
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
 	})
 }

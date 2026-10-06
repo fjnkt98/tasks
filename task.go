@@ -1,8 +1,9 @@
-package server
+package main
 
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"html/template"
@@ -12,23 +13,18 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
-
-	entsql "entgo.io/ent/dialect/sql"
-
-	"github.com/fjnkt98/tasks/ent"
-	"github.com/fjnkt98/tasks/ent/task"
 )
 
 // ---------- List Tasks ----------
 type ListTasksHandler struct {
-	client       *ent.Client
+	db           *sql.DB
 	templateHTTP *template.Template
 	templateHTMX *template.Template
 }
 
-func NewListTasksHandler(client *ent.Client) *ListTasksHandler {
+func NewListTasksHandler(db *sql.DB) *ListTasksHandler {
 	return &ListTasksHandler{
-		client:       client,
+		db:           db,
 		templateHTTP: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/tasks.html", "templates/partials/tasks.html")),
 		templateHTMX: template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
@@ -40,9 +36,16 @@ type ListTasksParams struct {
 	Status string
 }
 
+type Task struct {
+	ID     int
+	UserID int
+	Title  string
+	Status string
+}
+
 type TaskData struct {
 	LayoutData
-	Tasks     []*ent.Task
+	Tasks     []Task
 	LastIndex int
 	NextPage  int
 	Limit     int
@@ -93,25 +96,38 @@ func (h *ListTasksHandler) GetParams(values url.Values) ListTasksParams {
 	}
 }
 
-func (h *ListTasksHandler) GetTasks(ctx context.Context, userID int, params ListTasksParams) ([]*ent.Task, error) {
-	q := h.client.Task.Query().
-		Where(task.UserID(userID)).
-		Limit(params.Limit).
-		Offset(params.Limit*(params.Page-1)).
-		Order(
-			task.ByStatus(entsql.OrderAsc()),
-			task.ByID(entsql.OrderDesc()),
-		)
-	if params.Status != "" {
-		status := task.Status(params.Status)
-		if err := task.StatusValidator(status); err == nil {
-			q = q.Where(task.StatusEQ(status))
-		}
+func (h *ListTasksHandler) GetTasks(ctx context.Context, userID int, params ListTasksParams) ([]Task, error) {
+	var rows *sql.Rows
+	var err error
+
+	limit := params.Limit
+	offset := params.Limit * (params.Page - 1)
+
+	if status := params.Status; status == "" {
+		q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
+		rows, err = h.db.QueryContext(ctx, q, userID, limit, offset)
+	} else {
+		q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? AND status = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
+		rows, err = h.db.QueryContext(ctx, q, userID, status, limit, offset)
 	}
 
-	tasks, err := q.All(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list tasks: %w", err)
+		return nil, fmt.Errorf("select tasks: %w", err)
+	}
+	defer rows.Close() // nolint:errcheck
+
+	tasks := make([]Task, 0)
+	for rows.Next() {
+		var task Task
+		if err := rows.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
+			return nil, fmt.Errorf("scan row: %w", err)
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
 	}
 
 	return tasks, nil
@@ -190,14 +206,14 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Get Task ----------
 type GetTaskHandler struct {
-	client *ent.Client
-	t      *template.Template
+	db *sql.DB
+	t  *template.Template
 }
 
-func NewGetTaskHandler(client *ent.Client) *GetTaskHandler {
+func NewGetTaskHandler(db *sql.DB) *GetTaskHandler {
 	return &GetTaskHandler{
-		client: client,
-		t:      template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
+		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -226,9 +242,11 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	t, err := h.client.Task.Query().Where(task.UserID(userID)).Where(task.ID(id)).Only(r.Context())
-	if err != nil {
-		if ent.IsNotFound(err) {
+	q := "SELECT id, user_id, title, status FROM tasks WHERE id = ? AND user_id = ?"
+	row := h.db.QueryRowContext(r.Context(), q, id, userID)
+	var task Task
+	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			Handle404(w, r)
 			return
 		}
@@ -242,7 +260,7 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
 		},
-		Tasks:     []*ent.Task{t},
+		Tasks:     []Task{task},
 		LastIndex: -1,
 	}
 
@@ -255,20 +273,20 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Get Task Edit ----------
 type GetTaskEditHandler struct {
-	client *ent.Client
-	t      *template.Template
+	db *sql.DB
+	t  *template.Template
 }
 
-func NewGetTaskEditHandler(client *ent.Client) *GetTaskEditHandler {
+func NewGetTaskEditHandler(db *sql.DB) *GetTaskEditHandler {
 	return &GetTaskEditHandler{
-		client: client,
-		t:      template.Must(template.ParseFS(templates, "templates/partials/task_edit.html")),
+		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/partials/task_edit.html")),
 	}
 }
 
-func (h *GetTaskEditHandler) ResponseHTMX(w http.ResponseWriter, t *ent.Task) error {
+func (h *GetTaskEditHandler) ResponseHTMX(w http.ResponseWriter, task Task) error {
 	var buf bytes.Buffer
-	if err := h.t.ExecuteTemplate(&buf, "task_edit", &t); err != nil {
+	if err := h.t.ExecuteTemplate(&buf, "task_edit", &task); err != nil {
 		return fmt.Errorf("render template: %w", err)
 	}
 
@@ -291,9 +309,11 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	t, err := h.client.Task.Query().Where(task.UserID(userID)).Where(task.ID(id)).Only(r.Context())
-	if err != nil {
-		if ent.IsNotFound(err) {
+	q := "SELECT id, user_id, title, status FROM tasks WHERE id = ? AND user_id = ?"
+	row := h.db.QueryRowContext(r.Context(), q, id, userID)
+	var task Task
+	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			Handle404(w, r)
 			return
 		}
@@ -303,7 +323,7 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.ResponseHTMX(w, t); err != nil {
+	if err := h.ResponseHTMX(w, task); err != nil {
 		slog.ErrorContext(r.Context(), "response for htmx", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -312,14 +332,14 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Post Task ----------
 type PostTaskHandler struct {
-	client *ent.Client
-	t      *template.Template
+	db *sql.DB
+	t  *template.Template
 }
 
-func NewPostTaskHandler(client *ent.Client) *PostTaskHandler {
+func NewPostTaskHandler(db *sql.DB) *PostTaskHandler {
 	return &PostTaskHandler{
-		client: client,
-		t:      template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
+		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -373,15 +393,17 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	t, err := h.client.Task.Create().SetTitle(params.Title).SetStatus(task.StatusCreated).SetUserID(userID).Save(r.Context())
-	if err != nil {
+	q := "INSERT INTO tasks (user_id, title) VALUES (?, ?) RETURNING id, user_id, title, status"
+	row := h.db.QueryRowContext(r.Context(), q, userID, params.Title)
+	var task Task
+	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
 
 	data := TaskData{
-		Tasks:     []*ent.Task{t},
+		Tasks:     []Task{task},
 		LastIndex: -1,
 	}
 
@@ -394,14 +416,14 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Put Task ----------
 type PutTaskHandler struct {
-	client *ent.Client
-	t      *template.Template
+	db *sql.DB
+	t  *template.Template
 }
 
-func NewPutTaskHandler(client *ent.Client) *PutTaskHandler {
+func NewPutTaskHandler(db *sql.DB) *PutTaskHandler {
 	return &PutTaskHandler{
-		client: client,
-		t:      template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
+		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -417,35 +439,37 @@ func (h *PutTaskHandler) GetParams(r *http.Request) UpdateTaskParams {
 	}
 }
 
-func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int, userID int, params UpdateTaskParams) (*ent.Task, error) {
-	tx, err := h.client.Tx(ctx)
+func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int, userID int, params UpdateTaskParams) (*Task, error) {
+	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	t, err := tx.Task.Query().Where(task.UserID(userID)).Where(task.ID(id)).Only(ctx)
-	if err != nil {
-		if ent.IsNotFound(err) {
+	q := "SELECT id, user_id, title, status FROM tasks WHERE id = ? AND user_id = ?"
+	row := tx.QueryRowContext(ctx, q, id, userID)
+	var task Task
+	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("get task by id: %w", err)
 	}
 
-	update := t.Update()
-
-	if params.Title != "" {
-		update = update.SetTitle(params.Title)
+	if params.Title == "" && params.Status == "" {
+		return &task, nil
+	} else if params.Title == "" {
+		q = "UPDATE tasks SET status = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
+		row = tx.QueryRowContext(ctx, q, params.Status, id, userID)
+	} else if params.Status == "" {
+		q = "UPDATE tasks SET title = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
+		row = tx.QueryRowContext(ctx, q, params.Title, id, userID)
+	} else {
+		q = "UPDATE tasks SET title = ?, status = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
+		row = tx.QueryRowContext(ctx, q, params.Title, params.Status, id, userID)
 	}
-	if params.Status != "" {
-		status := task.Status(params.Status)
-		if err := task.StatusValidator(status); err == nil {
-			update = update.SetStatus(status)
-		}
-	}
 
-	t, err = update.Save(ctx)
-	if err != nil {
+	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		return nil, fmt.Errorf("update task: %w", err)
 	}
 
@@ -453,7 +477,7 @@ func (h *PutTaskHandler) UpdateTask(ctx context.Context, id int, userID int, par
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	return t, nil
+	return &task, nil
 }
 
 func (h *PutTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) error {
@@ -494,7 +518,7 @@ func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	params := h.GetParams(r)
 	t, err := h.UpdateTask(r.Context(), id, userID, params)
 	if err != nil {
-		if ent.IsNotFound(err) {
+		if errors.Is(err, sql.ErrNoRows) {
 			Handle404(w, r)
 			return
 		}
@@ -504,7 +528,7 @@ func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := TaskData{
-		Tasks:     []*ent.Task{t},
+		Tasks:     []Task{*t},
 		LastIndex: -1,
 	}
 
@@ -517,12 +541,12 @@ func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Delete Task ----------
 type DeleteTaskHandler struct {
-	client *ent.Client
+	db *sql.DB
 }
 
-func NewDeleteTaskHandler(client *ent.Client) *DeleteTaskHandler {
+func NewDeleteTaskHandler(db *sql.DB) *DeleteTaskHandler {
 	return &DeleteTaskHandler{
-		client: client,
+		db: db,
 	}
 }
 
@@ -535,7 +559,8 @@ func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userID := GetUserIDFromContext(r.Context())
 
-	if _, err := h.client.Task.Delete().Where(task.UserID(userID)).Where(task.ID(id)).Exec(r.Context()); err != nil {
+	q := "DELETE FROM tasks WHERE id = ? AND user_id = ?"
+	if _, err := h.db.ExecContext(r.Context(), q, id, userID); err != nil {
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
 		Handle500(w, r)
 		return

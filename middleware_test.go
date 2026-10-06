@@ -1,4 +1,4 @@
-package server
+package main
 
 import (
 	"bytes"
@@ -139,18 +139,18 @@ func TestLoggingMiddleware(t *testing.T) {
 }
 
 func TestSessionMiddleware(t *testing.T) {
-	client := NewTestDB(t)
+	db := NewTestDB(t)
 
-	_, err := client.User.CreateBulk(
-		client.User.Create().SetName("foo").SetPassword("foo"),
-		client.User.Create().SetName("bar").SetPassword("bar"),
-		client.User.Create().SetName("baz").SetPassword("baz"),
-	).Save(t.Context())
+	_, err := db.ExecContext(t.Context(), `INSERT INTO users (name, digest) VALUES
+		('foo', ''),
+		('bar', ''),
+		('baz', '')`,
+	)
 	require.NoError(t, err)
-	_, err = client.Session.CreateBulk(
-		client.Session.Create().SetUserID(1).SetToken("token1").SetExpiresAt(time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)),
-		client.Session.Create().SetUserID(2).SetToken("token2").SetExpiresAt(time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC)),
-	).Save(t.Context())
+	_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
+		(1, 'token1', 32503680000),
+		(2, 'token2', 0)`,
+	)
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
@@ -159,7 +159,7 @@ func TestSessionMiddleware(t *testing.T) {
 		fmt.Fprintln(w, "test") // nolint:errcheck
 	})
 
-	h := NewSessionMiddleware(client)(mux)
+	h := NewSessionMiddleware(db)(mux)
 
 	t.Run("unauthorized", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)

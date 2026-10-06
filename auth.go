@@ -1,9 +1,10 @@
-package server
+package main
 
 import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -14,9 +15,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fjnkt98/tasks/ent"
-	"github.com/fjnkt98/tasks/ent/session"
-	"github.com/fjnkt98/tasks/ent/user"
 	"github.com/fjnkt98/tasks/settings"
 	"github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
@@ -102,14 +100,14 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type PostSignupHandler struct {
-	client *ent.Client
-	t      *template.Template
+	db *sql.DB
+	t  *template.Template
 }
 
-func NewPostSignupHandler(client *ent.Client) *PostSignupHandler {
+func NewPostSignupHandler(db *sql.DB) *PostSignupHandler {
 	return &PostSignupHandler{
-		client: client,
-		t:      template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup.html")),
+		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup.html")),
 	}
 }
 
@@ -153,21 +151,26 @@ func (h *PostSignupHandler) GetParams(r *http.Request) (SignupParams, error) {
 	}, nil
 }
 
-func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) error {
-	digest, err := bcrypt.GenerateFromPassword([]byte(params.Password), bcrypt.DefaultCost)
+func CreateUser(ctx context.Context, db *sql.DB, username string, password string) error {
+	digest, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest: %w", err)
 	}
 
-	if _, err := h.client.User.Create().SetName(params.Username).SetPassword(string(digest)).Save(ctx); err != nil {
+	q := "INSERT INTO users (name, digest) VALUES (?, ?)"
+	if _, err := db.ExecContext(ctx, q, username, string(digest)); err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return ErrDuplicatedUsername
 		}
-		return fmt.Errorf("create user: %w", err)
+		return fmt.Errorf("insert user: %w", err)
 	}
 
 	return nil
+}
+
+func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) error {
+	return CreateUser(ctx, h.db, params.Username, params.Password)
 }
 
 func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -318,14 +321,14 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type PostSigninHandler struct {
-	client *ent.Client
-	t      *template.Template
+	db *sql.DB
+	t  *template.Template
 }
 
-func NewPostSigninHandler(client *ent.Client) *PostSigninHandler {
+func NewPostSigninHandler(db *sql.DB) *PostSigninHandler {
 	return &PostSigninHandler{
-		client: client,
-		t:      template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signin.html")),
+		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signin.html")),
 	}
 }
 
@@ -361,15 +364,18 @@ func (h *PostSigninHandler) GetParams(r *http.Request) (SigninParams, error) {
 }
 
 func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (string, error) {
-	u, err := h.client.User.Query().Where(user.Name(params.Username)).Only(ctx)
-	if err != nil {
-		if ent.IsNotFound(err) {
+	q := "SELECT id, digest FROM users WHERE name = ? LIMIT 1"
+	row := h.db.QueryRowContext(ctx, q, params.Username)
+	var userID int
+	var digest string
+	if err := row.Scan(&userID, &digest); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", ErrInvalidCredentials
 		}
 		return "", fmt.Errorf("get user by name: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(params.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(digest), []byte(params.Password)); err != nil {
 		return "", ErrInvalidCredentials
 	}
 
@@ -378,9 +384,9 @@ func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (st
 		return "", fmt.Errorf("generate session token: %w", err)
 	}
 
-	_, err = h.client.Session.Create().SetUserID(u.ID).SetToken(token).SetExpiresAt(time.Now().Add(24 * time.Hour)).Save(ctx)
-	if err != nil {
-		return "", fmt.Errorf("create session: %w", err)
+	q = "INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)"
+	if _, err := h.db.ExecContext(ctx, q, userID, token, time.Now().Add(24*time.Hour).Unix()); err != nil {
+		return "", fmt.Errorf("insert session: %w", err)
 	}
 
 	return token, nil
@@ -465,12 +471,12 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ---------- Signout ----------
 type PostSignoutHandler struct {
-	client *ent.Client
+	db *sql.DB
 }
 
-func NewPostSignoutHandler(client *ent.Client) *PostSignoutHandler {
+func NewPostSignoutHandler(db *sql.DB) *PostSignoutHandler {
 	return &PostSignoutHandler{
-		client: client,
+		db: db,
 	}
 }
 
@@ -481,7 +487,8 @@ func (h *PostSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.client.Session.Delete().Where(session.Token(cookie.Value)).Exec(r.Context()); err != nil {
+	q := "DELETE FROM sessions WHERE token = ?"
+	if _, err := h.db.ExecContext(r.Context(), q, cookie.Value); err != nil {
 		slog.ErrorContext(r.Context(), "delete session by token", slog.Any("error", err))
 		Handle500(w, r)
 		return

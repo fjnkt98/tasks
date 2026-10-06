@@ -1,35 +1,13 @@
-package server
+package main
 
 import (
 	"html/template"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fjnkt98/tasks/ent"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	m.Run()
-}
-
-func NewTestDB(t *testing.T) *ent.Client {
-	t.Helper()
-
-	client, err := ent.SetupClient(t.Context(), "file::memory:")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		client.Close() // nolint:errcheck
-	})
-
-	return client
-}
 
 func TestIsHTMX(t *testing.T) {
 	t.Run("normal request", func(t *testing.T) {

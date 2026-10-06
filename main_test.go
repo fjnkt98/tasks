@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json/v2"
+	"io"
 	"log/slog"
 	"testing"
 	"testing/slogtest"
@@ -10,6 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	m.Run()
+}
 
 func TestTraceHandler(t *testing.T) {
 	var buf bytes.Buffer
@@ -35,6 +41,11 @@ func TestTraceHandler(t *testing.T) {
 }
 
 func TestSetup(t *testing.T) {
+	original := slog.Default()
+	t.Cleanup(func() {
+		slog.SetDefault(original)
+	})
+
 	shutdown, err := setup(t.Context(), "localhost:4137", "test")
 	require.NoError(t, err)
 	defer shutdown() // nolint:errcheck

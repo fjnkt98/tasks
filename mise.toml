@@ -5,6 +5,7 @@ golangci-lint = "2.14.0"
 node = "24"
 pinact = "4.1.0"
 sqlite = "3.53.4"
+sqlite3def = "3.11.26"
 terraform = "1.16.4"
 tflint = "latest"
 
@@ -22,6 +23,9 @@ OTEL_COLLECTOR_URL = { required = true }
 GOOGLE_CLOUD_PROJECT_NAME = { required = true }
 
 USE_SECURE_COOKIE = "false"
+
+[tasks."db:migrate"]
+run = ["sqlite3def --file=schema.sql app.db --apply --enable-drop"]
 
 [tasks."format:go"]
 run = ["go fmt"]
