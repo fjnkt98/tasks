@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -318,7 +319,7 @@ type CreateTaskParams struct {
 }
 
 func (h *PostTaskHandler) GetParams(r *http.Request) (CreateTaskParams, error) {
-	title := strings.TrimSpace(r.FormValue("title"))
+	title := strings.TrimSpace(r.PostForm.Get("title"))
 	if utf8.RuneCountInString(title) == 0 {
 		return CreateTaskParams{}, fmt.Errorf("title required: %w", ErrBadRequest)
 	}
@@ -345,6 +346,16 @@ func (h *PostTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) err
 }
 
 func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		var ErrMaxBytesExceeded *http.MaxBytesError
+		if errors.As(err, &ErrMaxBytesExceeded) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		Handle400(w, r)
+		return
+	}
+
 	params, err := h.GetParams(r)
 	if err != nil {
 		Handle400(w, r)
@@ -392,8 +403,8 @@ type UpdateTaskParams struct {
 
 func (h *PutTaskHandler) GetParams(r *http.Request) UpdateTaskParams {
 	return UpdateTaskParams{
-		Title:  strings.TrimSpace(r.FormValue("title")),
-		Status: r.FormValue("status"),
+		Title:  strings.TrimSpace(r.PostForm.Get("title")),
+		Status: r.PostForm.Get("status"),
 	}
 }
 
@@ -453,6 +464,16 @@ func (h *PutTaskHandler) ResponseHTMX(w http.ResponseWriter, data TaskData) erro
 }
 
 func (h *PutTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		var ErrMaxBytesExceeded *http.MaxBytesError
+		if errors.As(err, &ErrMaxBytesExceeded) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		Handle400(w, r)
+		return
+	}
+
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		Handle404(w, r)

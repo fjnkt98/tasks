@@ -120,17 +120,17 @@ type SignupParams struct {
 func (h *PostSignupHandler) GetParams(r *http.Request) (SignupParams, error) {
 	errs := make([]string, 0)
 
-	username := strings.TrimSpace(r.FormValue("username"))
+	username := strings.TrimSpace(r.PostForm.Get("username"))
 	if utf8.RuneCountInString(username) == 0 {
 		errs = append(errs, "username is required")
 	}
 
-	password := strings.TrimSpace(r.FormValue("password"))
+	password := strings.TrimSpace(r.PostForm.Get("password"))
 	if utf8.RuneCountInString(password) == 0 {
 		errs = append(errs, "password is required")
 	}
 
-	confirmPassword := strings.TrimSpace(r.FormValue("confirm-password"))
+	confirmPassword := strings.TrimSpace(r.PostForm.Get("confirm-password"))
 	if utf8.RuneCountInString(confirmPassword) == 0 {
 		errs = append(errs, "confirm-password is required")
 	}
@@ -182,6 +182,16 @@ func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) err
 }
 
 func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		var ErrMaxBytesExceeded *http.MaxBytesError
+		if errors.As(err, &ErrMaxBytesExceeded) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		Handle400(w, r)
+		return
+	}
+
 	params, err := h.GetParams(r)
 	if err != nil {
 		data := SignupData{
@@ -338,12 +348,12 @@ type SigninParams struct {
 func (h *PostSigninHandler) GetParams(r *http.Request) (SigninParams, error) {
 	errs := make([]string, 0)
 
-	username := strings.TrimSpace(r.FormValue("username"))
+	username := strings.TrimSpace(r.PostForm.Get("username"))
 	if utf8.RuneCountInString(username) == 0 {
 		errs = append(errs, "username is required")
 	}
 
-	password := strings.TrimSpace(r.FormValue("password"))
+	password := strings.TrimSpace(r.PostForm.Get("password"))
 	if utf8.RuneCountInString(password) == 0 {
 		errs = append(errs, "password is required")
 	}
@@ -395,6 +405,16 @@ func (h *PostSigninHandler) Signin(ctx context.Context, params SigninParams) (st
 }
 
 func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		var ErrMaxBytesExceeded *http.MaxBytesError
+		if errors.As(err, &ErrMaxBytesExceeded) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		Handle400(w, r)
+		return
+	}
+
 	params, err := h.GetParams(r)
 	if err != nil {
 

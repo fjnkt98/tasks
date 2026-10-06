@@ -131,3 +131,9 @@ func NewLoginRequiredMiddleware() Middleware {
 		})
 	}
 }
+
+func NewByteLimitMiddleware() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.MaxBytesHandler(next, 1<<20)
+	}
+}

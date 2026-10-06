@@ -111,8 +111,11 @@ func TestPostSignupHandler(t *testing.T) {
 			values.Set("password", "bar")
 			values.Set("confirm-password", "bar")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?username=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
@@ -129,8 +132,11 @@ func TestPostSignupHandler(t *testing.T) {
 			values.Set("username", "foo")
 			values.Set("confirm-password", "bar")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?password=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
@@ -147,8 +153,11 @@ func TestPostSignupHandler(t *testing.T) {
 			values.Set("username", "foo")
 			values.Set("password", "bar")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?confirm-password=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
@@ -168,6 +177,9 @@ func TestPostSignupHandler(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostSignupHandler(client)
 			_, err := h.GetParams(req)
@@ -240,6 +252,26 @@ func TestPostSignupHandler(t *testing.T) {
 			}
 			if !strings.Contains(body, "username is required; password is required; confirm-password is required") {
 				t.Error("body should contain error message, but not found")
+			}
+		})
+
+		t.Run("invalid request body", func(t *testing.T) {
+			client := NewTestDB(t)
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader("username=user1&password=password&confirm-password=password&foo=%zz"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			rec := httptest.NewRecorder()
+
+			h := NewPostSignupHandler(client)
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("expected status bad request, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 		})
 
@@ -385,8 +417,11 @@ func TestPostSigninHandler(t *testing.T) {
 			values := url.Values{}
 			values.Set("password", "bar")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?username=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostSigninHandler(client)
 			_, err := h.GetParams(req)
@@ -402,8 +437,11 @@ func TestPostSigninHandler(t *testing.T) {
 			values := url.Values{}
 			values.Set("username", "foo")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?password=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostSigninHandler(client)
 			_, err := h.GetParams(req)
@@ -587,6 +625,28 @@ func TestPostSigninHandler(t *testing.T) {
 
 			if msg := ErrInvalidCredentials.Error(); !strings.Contains(body, msg) {
 				t.Errorf("body should contain error message '%s', but not found", msg)
+			}
+		})
+
+		t.Run("invalid request body", func(t *testing.T) {
+			client := NewTestDB(t)
+
+			fixture(client, t)
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader("username=user1&password=password&foo=%zz"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			rec := httptest.NewRecorder()
+
+			h := NewPostSigninHandler(client)
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("expected status bad request, but got %d", rec.Code)
+			}
+
+			if contentType := rec.Result().Header.Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+				t.Errorf("Content-Type header should be 'text/html; charset=utf-8', but got '%s'", contentType)
 			}
 		})
 

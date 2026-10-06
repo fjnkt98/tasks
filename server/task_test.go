@@ -698,6 +698,9 @@ func TestPostTaskHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostTaskHandler(client)
 			params, err := h.GetParams(req)
@@ -712,12 +715,14 @@ func TestPostTaskHandler(t *testing.T) {
 
 		t.Run("empty title", func(t *testing.T) {
 			values := url.Values{}
-			values.Set("title", "")
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks?title=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostTaskHandler(client)
 			_, err := h.GetParams(req)
@@ -731,9 +736,12 @@ func TestPostTaskHandler(t *testing.T) {
 			values.Set("title", " ")
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks?title=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPostTaskHandler(client)
 			_, err := h.GetParams(req)
@@ -744,7 +752,7 @@ func TestPostTaskHandler(t *testing.T) {
 	})
 
 	t.Run("ServeHTTP", func(t *testing.T) {
-		t.Run("normal", func(t *testing.T) {
+		t.Run("success", func(t *testing.T) {
 			client := NewTestDB(t)
 
 			if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
@@ -796,6 +804,37 @@ func TestPostTaskHandler(t *testing.T) {
 			}
 		})
 
+		t.Run("invalid request body", func(t *testing.T) {
+			client := NewTestDB(t)
+
+			if _, err := client.User.Create().SetName("user1").SetPassword("user1").Save(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader("title=test&foo=%zz"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("HX-Request", "true")
+
+			rec := httptest.NewRecorder()
+
+			h := NewPostTaskHandler(client)
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("expected status bad request, but got %d", rec.Code)
+			}
+
+			tasks, err := client.Task.Query().Where(enttask.UserID(1)).Limit(100).All(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(tasks) != 0 {
+				t.Fatalf("length should be 0, but got %d", len(tasks))
+			}
+		})
+
 		t.Run("render failed", func(t *testing.T) {
 			client := NewTestDB(t)
 
@@ -838,6 +877,9 @@ func TestPutTaskHandler(t *testing.T) {
 			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
@@ -852,13 +894,14 @@ func TestPutTaskHandler(t *testing.T) {
 
 		t.Run("empty", func(t *testing.T) {
 			values := url.Values{}
-			values.Set("title", "")
-			values.Set("status", "")
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1?title=foo&status=bar", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
@@ -877,9 +920,12 @@ func TestPutTaskHandler(t *testing.T) {
 			values.Set("status", "")
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1?title=foo", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
+			if err := req.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
 
 			h := NewPutTaskHandler(client)
 			params := h.GetParams(req)
@@ -1264,6 +1310,42 @@ func TestPutTaskHandler(t *testing.T) {
 
 			if body := rec.Body.String(); body != "not found\n" {
 				t.Errorf("body should be 'not found', but got '%s'", body)
+			}
+
+			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if task.Title != "test" {
+				t.Errorf("title should be 'test', but got %s", task.Title)
+			}
+			if task.Status != enttask.StatusCreated {
+				t.Errorf("status should be 'created', but got %s", task.Status)
+			}
+			if task.UserID != 1 {
+				t.Errorf("user id should be 1, but got %d", task.UserID)
+			}
+		})
+
+		t.Run("invalid request body", func(t *testing.T) {
+			client := NewTestDB(t)
+
+			fixture(client, t)
+
+			ctx := SetUserIDIntoContext(t.Context(), 1)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader("title=foo&bar=%zz"))
+			req.SetPathValue("id", "1")
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("HX-Request", "true")
+
+			rec := httptest.NewRecorder()
+
+			h := NewPutTaskHandler(client)
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("expected status bad request, but got %d", rec.Code)
 			}
 
 			task, err := client.Task.Query().Where(enttask.ID(1), enttask.UserID(1)).Only(t.Context())

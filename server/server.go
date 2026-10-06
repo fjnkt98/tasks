@@ -37,6 +37,7 @@ func newHandler(client *ent.Client) http.Handler {
 
 	{
 		m := NewChainedMiddleware(
+			NewByteLimitMiddleware(),
 			NewSessionMiddleware(client),
 			NewRecoveryMiddleware(),
 		)
@@ -44,6 +45,7 @@ func newHandler(client *ent.Client) http.Handler {
 	}
 	{
 		m := NewChainedMiddleware(
+			NewByteLimitMiddleware(),
 			NewSessionMiddleware(client),
 			NewCORSMiddleware(settings.CorsAllowOrigin),
 			NewRecoveryMiddleware(),
@@ -56,6 +58,7 @@ func newHandler(client *ent.Client) http.Handler {
 	}
 	{
 		m := NewChainedMiddleware(
+			NewByteLimitMiddleware(),
 			NewSessionMiddleware(client),
 			NewLoginRequiredMiddleware(),
 			NewCORSMiddleware(settings.CorsAllowOrigin),
