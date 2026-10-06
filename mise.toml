@@ -27,10 +27,10 @@ USE_SECURE_COOKIE = "false"
 [tasks."db:migrate"]
 run = ["sqlite3def --file=schema.sql app.db --apply --enable-drop"]
 
-[tasks."format:go"]
+[tasks."fmt:go"]
 run = ["go fmt"]
 
-[tasks."format:terraform"]
+[tasks."fmt:terraform"]
 dir = "infrastructure/terraform"
 run = ["terraform fmt"]
 
