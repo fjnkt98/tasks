@@ -88,10 +88,6 @@ resource "google_cloud_run_v2_service" "app" {
       }
 
       env {
-        name  = "CORS_ALLOW_ORIGIN"
-        value = "https://tasks.fjnkt98.com"
-      }
-      env {
         name  = "DATABASE_URL"
         value = "file:/app/app.db"
       }

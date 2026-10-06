@@ -16,8 +16,6 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestNewHandler(t *testing.T) {
-	t.Setenv("CORS_ALLOW_ORIGIN", "http://localhost:8000")
-
 	client := NewTestDB(t)
 	h := newHandler(client)
 
@@ -29,10 +27,6 @@ func TestNewHandler(t *testing.T) {
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-
-		if allowOrigin := rec.Header().Get("Access-Control-Allow-Origin"); allowOrigin != "" {
-			t.Errorf("Access-Control-Allow-Origin header should be empty, but got %s", allowOrigin)
 		}
 	})
 }

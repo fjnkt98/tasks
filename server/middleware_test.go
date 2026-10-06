@@ -7,9 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -144,105 +142,6 @@ func TestLoggingMiddleware(t *testing.T) {
 	if data != want {
 		t.Errorf("expected %+v, but got %+v", want, data)
 	}
-}
-
-func TestCORSMiddleware(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "test") // nolint:errcheck
-	})
-
-	h := NewCORSMiddleware("192.0.2.1:1234")(mux)
-
-	t.Run("get", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("body should be 'test', but got '%s'", body)
-		}
-
-		for _, c := range []struct {
-			Key  string
-			Want string
-		}{
-			{Key: "Access-Control-Allow-Origin", Want: "192.0.2.1:1234"},
-			{Key: "Access-Control-Allow-Methods", Want: "GET, POST, PUT, DELETE, OPTIONS"},
-			{Key: "Access-Control-Allow-Headers", Want: "Content-Type, Authorization"},
-			{Key: "Access-Control-Allow-Credentials", Want: "true"},
-			{Key: "Access-Control-Max-Age", Want: "86400"},
-		} {
-			got := rec.Header().Get(c.Key)
-			if got != c.Want {
-				t.Errorf("expected %s, but got %s", c.Want, got)
-			}
-		}
-	})
-
-	t.Run("post", func(t *testing.T) {
-		values := url.Values{}
-		values.Set("foo", "bar")
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/test", strings.NewReader(values.Encode()))
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status ok, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "test\n" {
-			t.Errorf("body should be 'test', but got '%s'", body)
-		}
-
-		for _, c := range []struct {
-			Key  string
-			Want string
-		}{
-			{Key: "Access-Control-Allow-Origin", Want: "192.0.2.1:1234"},
-			{Key: "Access-Control-Allow-Methods", Want: "GET, POST, PUT, DELETE, OPTIONS"},
-			{Key: "Access-Control-Allow-Headers", Want: "Content-Type, Authorization"},
-			{Key: "Access-Control-Allow-Credentials", Want: "true"},
-			{Key: "Access-Control-Max-Age", Want: "86400"},
-		} {
-			got := rec.Header().Get(c.Key)
-			if got != c.Want {
-				t.Errorf("expected %s, but got %s", c.Want, got)
-			}
-		}
-	})
-
-	t.Run("preflight", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/test", nil)
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusNoContent {
-			t.Errorf("expected status no content, but got %d", rec.Code)
-		}
-		if body := rec.Body.String(); body != "" {
-			t.Errorf("body should be empty, but got '%s'", body)
-		}
-
-		for _, c := range []struct {
-			Key  string
-			Want string
-		}{
-			{Key: "Access-Control-Allow-Origin", Want: "192.0.2.1:1234"},
-			{Key: "Access-Control-Allow-Methods", Want: "GET, POST, PUT, DELETE, OPTIONS"},
-			{Key: "Access-Control-Allow-Headers", Want: "Content-Type, Authorization"},
-			{Key: "Access-Control-Allow-Credentials", Want: "true"},
-			{Key: "Access-Control-Max-Age", Want: "86400"},
-		} {
-			got := rec.Header().Get(c.Key)
-			if got != c.Want {
-				t.Errorf("expected %s, but got %s", c.Want, got)
-			}
-		}
-	})
 }
 
 func TestSessionMiddleware(t *testing.T) {

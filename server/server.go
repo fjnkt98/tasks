@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/fjnkt98/tasks/ent"
-	"github.com/fjnkt98/tasks/settings"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -48,7 +47,6 @@ func newHandler(client *ent.Client) http.Handler {
 			NewCrossOriginProtectionMiddleware(),
 			NewByteLimitMiddleware(),
 			NewSessionMiddleware(client),
-			NewCORSMiddleware(settings.CorsAllowOrigin),
 			NewRecoveryMiddleware(),
 		)
 		mux.Handle("GET /signup", m(NewGetSignupHandler()))
@@ -63,7 +61,6 @@ func newHandler(client *ent.Client) http.Handler {
 			NewByteLimitMiddleware(),
 			NewSessionMiddleware(client),
 			NewLoginRequiredMiddleware(),
-			NewCORSMiddleware(settings.CorsAllowOrigin),
 			NewRecoveryMiddleware(),
 		)
 		mux.Handle("POST /signout", m(NewPostSignoutHandler(client)))

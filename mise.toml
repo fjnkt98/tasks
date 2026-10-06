@@ -21,7 +21,6 @@ DBMATE_STRICT = "1"
 OTEL_COLLECTOR_URL = { required = true }
 GOOGLE_CLOUD_PROJECT_NAME = { required = true }
 
-CORS_ALLOW_ORIGIN = { required = true }
 USE_SECURE_COOKIE = "false"
 
 [tasks."format:go"]
