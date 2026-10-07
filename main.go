@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/fjnkt98/tasks/settings"
 
@@ -143,8 +144,11 @@ func run(ctx context.Context) (err error) {
 	case err = <-errs:
 		return fmt.Errorf("server error: %w", err)
 	case <-ctx.Done():
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
 		if err := s.Shutdown(ctx); err != nil {
-			return fmt.Errorf("shutdown server: %w", err)
+			return errors.Join(fmt.Errorf("shutdown server: %w", err), s.Close())
 		}
 	}
 	slog.InfoContext(ctx, "shutting down server", slog.Int("port", port))
