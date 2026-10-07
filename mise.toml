@@ -11,17 +11,10 @@ tflint = "latest"
 
 [env]
 CGO_ENABLED = 1
-PORT = { default = 8000 }
-
 DATABASE_URL = { required = true, redact = true }
-DBMATE_DRIVER = "sqlite3"
-DBMATE_MIGRATIONS_DIR = "repository/migrations"
-DBMATE_SCHEMA_FILE = "repository/schema.sql"
-DBMATE_STRICT = "1"
-
-OTEL_COLLECTOR_URL = { required = true }
 GOOGLE_CLOUD_PROJECT_NAME = { required = true }
-
+OTEL_COLLECTOR_URL = { required = true }
+PORT = { default = 8000 }
 USE_SECURE_COOKIE = "false"
 
 [tasks."db:migrate"]
