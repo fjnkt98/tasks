@@ -199,6 +199,11 @@ func TestSessionMiddleware(t *testing.T) {
 		assert.Equal(t, -1, tokenCookie.MaxAge)
 		assert.Equal(t, "", tokenCookie.Value)
 		assert.Equal(t, "/", tokenCookie.Path)
+
+		row := db.QueryRowContext(t.Context(), "SELECT EXISTS (SELECT 1 FROM sessions WHERE token = 'token2')")
+		var exists bool
+		require.NoError(t, row.Scan(&exists))
+		assert.False(t, exists)
 	})
 
 	t.Run("session not found", func(t *testing.T) {

@@ -163,6 +163,10 @@ func run(ctx context.Context) (err error) {
 		err = errors.Join(err, db.Close())
 	}()
 
+	if _, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at <= ?", time.Now().Unix()); err != nil {
+		return fmt.Errorf("delete expired session: %w", err)
+	}
+
 	s, err := NewServer(port, db)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
