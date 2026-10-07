@@ -176,7 +176,7 @@ func TestPostSignupHandler(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			db := NewTestDB(t)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(test.Body.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?username=foo&password=bar&confirm-password=bar", strings.NewReader(test.Body.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
@@ -301,7 +301,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 func TestGetSignupSuccessHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup/success", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupSuccessHandler()
@@ -312,7 +312,7 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup/success", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupSuccessHandler()
@@ -327,7 +327,7 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 
 func TestGetSigninHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSigninHandler()
@@ -338,7 +338,7 @@ func TestGetSigninHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup?username=foo&password=bar&confirm-password=bar", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSigninHandler()

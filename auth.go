@@ -156,15 +156,6 @@ func NewPostSignupHandler(db *sql.DB) *PostSignupHandler {
 	}
 }
 
-type SignupParams struct {
-	Username string
-	Password string
-}
-
-func (h *PostSignupHandler) Signup(ctx context.Context, params SignupParams) error {
-	return CreateUser(ctx, h.db, params.Username, params.Password)
-}
-
 func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		var ErrMaxBytesExceeded *http.MaxBytesError

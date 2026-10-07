@@ -31,7 +31,6 @@ type TaskData struct {
 
 type ListTasksHandler struct {
 	db           *sql.DB
-	maxPage      int
 	templateHTTP *template.Template
 	templateHTMX *template.Template
 }
@@ -126,13 +125,13 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		data.LastIndex = -1
 	}
 
-	var t = h.templateHTTP
-	if IsHTMX(r) {
-		t = h.templateHTMX
-	}
-
 	var buf bytes.Buffer
-	if err := t.Execute(&buf, &data); err != nil {
+	if IsHTMX(r) {
+		err = h.templateHTMX.ExecuteTemplate(&buf, "tasks", &data)
+	} else {
+		err = h.templateHTTP.Execute(&buf, &data)
+	}
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return

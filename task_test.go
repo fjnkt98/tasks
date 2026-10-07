@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -36,18 +37,18 @@ func TestListTasksHandler(t *testing.T) {
 		Name   string
 		UserID int
 		Query  string
-		Wants  []string
+		Wants  []int
 	}{
-		{Name: "no params", UserID: 1, Wants: []string{`id="task-4"`, `id="task-3"`, `id="task-2"`, `id="task-1"`}},
+		{Name: "no params", UserID: 1, Wants: []int{4, 3, 2, 1}},
 		{Name: "page", UserID: 1, Query: "?page=2"},
-		{Name: "limit", UserID: 1, Query: "?limit=1", Wants: []string{`id="task-4"`}},
-		{Name: "page and limit", UserID: 1, Query: "?page=2&limit=1", Wants: []string{`id="task-1"`}},
-		{Name: "invalid page and limit", UserID: 1, Query: "?page=foo&limit=bar", Wants: []string{`id="task-4"`, `id="task-3"`, `id="task-2"`, `id="task-1"`}},
+		{Name: "limit", UserID: 1, Query: "?limit=1", Wants: []int{4}},
+		{Name: "page and limit", UserID: 1, Query: "?page=2&limit=1", Wants: []int{1}},
+		{Name: "invalid page and limit", UserID: 1, Query: "?page=foo&limit=bar", Wants: []int{4, 3, 2, 1}},
 		{Name: "too large page and limit", UserID: 1, Query: "?page=123456789&limit=123456789"},
-		{Name: "negative page and limit", UserID: 1, Query: "?page=-1&limit=-1", Wants: []string{`id="task-4"`}},
-		{Name: "created", UserID: 1, Query: "?status=created", Wants: []string{`id="task-4"`, `id="task-1"`}},
-		{Name: "done", UserID: 1, Query: "?status=done", Wants: []string{`id="task-3"`, `id="task-2"`}},
-		{Name: "other user", UserID: 2, Wants: []string{`id="task-5"`}},
+		{Name: "negative page and limit", UserID: 1, Query: "?page=-1&limit=-1", Wants: []int{4}},
+		{Name: "created", UserID: 1, Query: "?status=created", Wants: []int{4, 1}},
+		{Name: "done", UserID: 1, Query: "?status=done", Wants: []int{3, 2}},
+		{Name: "other user", UserID: 2, Wants: []int{5}},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			ctx := SetUserIDIntoContext(t.Context(), test.UserID)
@@ -64,25 +65,41 @@ func TestListTasksHandler(t *testing.T) {
 			assert.Contains(t, body, "<head>")
 			assert.Contains(t, body, "<body")
 			assert.Contains(t, body, "<footer")
-			for _, want := range test.Wants {
-				assert.Contains(t, body, want)
+			for i := range 5 {
+				want := fmt.Sprintf(`id="task-%d"`, i+1)
+				if slices.Contains(test.Wants, i+1) {
+					assert.Contains(t, body, want)
+				} else {
+					assert.NotContains(t, body, want)
+				}
+			}
+		})
+
+		t.Run(fmt.Sprintf("%s htmx", test.Name), func(t *testing.T) {
+			ctx := SetUserIDIntoContext(t.Context(), test.UserID)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/tasks%s", test.Query), nil)
+			req.Header.Set("HX-Request", "true")
+
+			rec := httptest.NewRecorder()
+
+			h := NewListTasksHandler(db)
+			h.ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+
+			body := rec.Body.String()
+			assert.NotContains(t, rec.Body.String(), "<head>")
+			for i := range 5 {
+				want := fmt.Sprintf(`id="task-%d"`, i+1)
+				if slices.Contains(test.Wants, i+1) {
+					assert.Contains(t, body, want)
+				} else {
+					assert.NotContains(t, body, want)
+				}
 			}
 		})
 	}
-
-	t.Run("htmx", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
-		req.Header.Set("HX-Request", "true")
-
-		rec := httptest.NewRecorder()
-
-		h := NewListTasksHandler(db)
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.NotContains(t, rec.Body.String(), "<head>")
-	})
 
 	for _, test := range []struct {
 		Name      string
@@ -377,7 +394,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 			fixture(db, t)
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2", strings.NewReader(test.Body.Encode()))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2/title", strings.NewReader(test.Body.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
@@ -408,7 +425,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values.Set("title", "new test")
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2/title", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "2")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -438,7 +455,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values.Set("title", "new test")
 
 		ctx := SetUserIDIntoContext(t.Context(), 2)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2/title", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -468,7 +485,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values.Set("title", "new test")
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo/title", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "foo")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -495,7 +512,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		fixture(db, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader("title=foo&bar=%zz"))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo/title", strings.NewReader("title=foo&bar=%zz"))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -547,7 +564,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values.Set("title", "new test")
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/title", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -591,16 +608,16 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		Name string
 		Body url.Values
 	}{
-		{Name: "empty", Body: url.Values{"title": []string{""}}},
-		{Name: "space", Body: url.Values{"title": []string{"   "}}},
-		{Name: "invalid", Body: url.Values{"title": []string{"invalid"}}},
+		{Name: "empty", Body: url.Values{"status": []string{""}}},
+		{Name: "space", Body: url.Values{"status": []string{"   "}}},
+		{Name: "invalid", Body: url.Values{"status": []string{"invalid"}}},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			db := NewTestDB(t)
 			fixture(db, t)
 
 			ctx := SetUserIDIntoContext(t.Context(), 1)
-			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(test.Body.Encode()))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader(test.Body.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
@@ -631,7 +648,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		values.Set("status", "done")
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2/status", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "2")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -661,7 +678,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		values.Set("status", "done")
 
 		ctx := SetUserIDIntoContext(t.Context(), 2)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -691,7 +708,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		values.Set("status", "done")
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo/status", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "foo")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -718,7 +735,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		fixture(db, t)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo", strings.NewReader("status=done&bar=%zz"))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader("status=done&bar=%zz"))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -748,7 +765,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		values.Set("status", "done")
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
