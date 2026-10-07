@@ -40,15 +40,15 @@ resource "google_service_account" "app" {
   account_id = "tasks-app"
 }
 
-resource "google_project_iam_member" "app_storage_admin" {
-  project = "tasks-510111"
-  role    = "roles/storage.admin"
-  member  = "serviceAccount:${google_service_account.app.email}"
+resource "google_storage_bucket_iam_member" "app_storage" {
+  bucket = google_storage_bucket.db.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.app.email}"
 }
 
-resource "google_project_iam_member" "app_cloudtrace_admin" {
+resource "google_project_iam_member" "app_cloudtrace" {
   project = "tasks-510111"
-  role    = "roles/cloudtrace.admin"
+  role    = "roles/cloudtrace.agent"
   member  = "serviceAccount:${google_service_account.app.email}"
 }
 
