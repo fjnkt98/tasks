@@ -6,7 +6,6 @@ ARG TARGETARCH
 WORKDIR /app
 
 COPY auth.go /app/auth.go
-COPY common.go /app/common.go
 COPY database.go /app/database.go
 COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
