@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json/v2"
 	"fmt"
 	"log/slog"
@@ -139,19 +140,21 @@ func TestLoggingMiddleware(t *testing.T) {
 }
 
 func TestSessionMiddleware(t *testing.T) {
-	db := NewTestDB(t)
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
 
-	_, err := db.ExecContext(t.Context(), `INSERT INTO users (name, digest) VALUES
-		('foo', ''),
-		('bar', ''),
-		('baz', '')`,
-	)
-	require.NoError(t, err)
-	_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
-		(1, 'token1', 32503680000),
-		(2, 'token2', 0)`,
-	)
-	require.NoError(t, err)
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (name, digest) VALUES
+			('foo', ''),
+			('bar', ''),
+			('baz', '')`,
+		)
+		require.NoError(t, err)
+		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
+			(1, 'token1', 32503680000),
+			(2, 'token2', 0)`,
+		)
+		require.NoError(t, err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -159,12 +162,14 @@ func TestSessionMiddleware(t *testing.T) {
 		fmt.Fprintln(w, "test") // nolint:errcheck
 	})
 
-	h := NewSessionMiddleware(db)(mux)
-
 	t.Run("unauthorized", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
 
+		h := NewSessionMiddleware(db)(mux)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -174,11 +179,15 @@ func TestSessionMiddleware(t *testing.T) {
 	})
 
 	t.Run("expired", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		req.AddCookie(NewAuthCookie("token2", 86400))
 
 		rec := httptest.NewRecorder()
 
+		h := NewSessionMiddleware(db)(mux)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -193,11 +202,15 @@ func TestSessionMiddleware(t *testing.T) {
 	})
 
 	t.Run("session not found", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		req.AddCookie(NewAuthCookie("token3", 86400))
 
 		rec := httptest.NewRecorder()
 
+		h := NewSessionMiddleware(db)(mux)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -212,22 +225,33 @@ func TestSessionMiddleware(t *testing.T) {
 	})
 
 	t.Run("authorized", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
-		req.AddCookie(NewAuthCookie("token1", 86400))
+		synctest.Test(t, func(t *testing.T) {
+			db := NewTestDB(t)
+			fixture(t, db)
 
-		rec := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
+			req.AddCookie(NewAuthCookie("token1", 86400))
 
-		h.ServeHTTP(rec, req)
+			rec := httptest.NewRecorder()
 
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "test\n", rec.Body.String())
+			h := NewSessionMiddleware(db)(mux)
+			h.ServeHTTP(rec, req)
 
-		cookies := extractCookies(t, rec.Result().Header)
-		tokenCookie, ok := cookies[AuthCookieName]
-		require.True(t, ok, "session_token cookie should be set")
-		assert.Equal(t, 86400, tokenCookie.MaxAge)
-		assert.Equal(t, "token1", tokenCookie.Value)
-		assert.Equal(t, "/", tokenCookie.Path)
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Equal(t, "test\n", rec.Body.String())
+
+			cookies := extractCookies(t, rec.Result().Header)
+			tokenCookie, ok := cookies[AuthCookieName]
+			require.True(t, ok, "session_token cookie should be set")
+			assert.Equal(t, 86400, tokenCookie.MaxAge)
+			assert.Equal(t, "token1", tokenCookie.Value)
+			assert.Equal(t, "/", tokenCookie.Path)
+
+			row := db.QueryRowContext(t.Context(), "SELECT expires_at FROM sessions WHERE token = 'token1'")
+			var expiresAt int64
+			require.NoError(t, row.Scan(&expiresAt))
+			assert.Equal(t, int64(946771200), expiresAt)
+		})
 	})
 }
 
