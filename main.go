@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -55,9 +56,11 @@ func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) 
 	var shutdowns []func(context.Context) error
 
 	shutdown := func() error {
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
 		var err error
-		for _, fn := range shutdowns {
+		for _, fn := range slices.Backward(shutdowns) {
 			err = errors.Join(err, fn(ctx))
 		}
 		shutdowns = nil
@@ -72,6 +75,7 @@ func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) 
 	if err != nil {
 		return shutdown, fmt.Errorf("create grpc connection to otel collector: %w", err)
 	}
+	shutdowns = append(shutdowns, func(context.Context) error { return conn.Close() })
 
 	// resource
 	res, err := resource.New(
