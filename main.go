@@ -29,26 +29,61 @@ var serviceName = semconv.ServiceNameKey.String("tasks")
 
 type traceHandler struct {
 	slog.Handler
-	gcpProjectName string
+	operations []operation
+}
+
+type operation struct {
+	attrs []slog.Attr
+	group string
 }
 
 func (h *traceHandler) Handle(ctx context.Context, record slog.Record) error {
-	path := fmt.Sprintf("projects/%s/traces/", h.gcpProjectName)
+	handler := h.Handler
+
+	path := fmt.Sprintf("projects/%s/traces/", settings.GoogleCloudProjectName)
 	if s := trace.SpanContextFromContext(ctx); s.IsValid() {
-		record.AddAttrs(
+		handler = handler.WithAttrs([]slog.Attr{
 			slog.String("logging.googleapis.com/trace", path+s.TraceID().String()),
 			slog.String("logging.googleapis.com/spanId", s.SpanID().String()),
 			slog.Bool("logging.googleapis.com/trace_sampled", s.TraceFlags().IsSampled()),
-		)
+		})
 	}
-	return h.Handler.Handle(ctx, record)
+
+	for _, op := range h.operations {
+		if op.group != "" {
+			handler = handler.WithGroup(op.group)
+		} else {
+			handler = handler.WithAttrs(slices.Clone(op.attrs))
+		}
+	}
+	return handler.Handle(ctx, record)
 }
 
-func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) (func() error, error) {
+func (h *traceHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &traceHandler{
+		Handler: h.Handler,
+		operations: append(slices.Clone(h.operations), operation{
+			attrs: slices.Clone(attrs),
+		}),
+	}
+}
+
+func (h *traceHandler) WithGroup(name string) slog.Handler {
+	if name == "" {
+		return h
+	}
+	return &traceHandler{
+		Handler: h.Handler,
+		operations: append(slices.Clone(h.operations), operation{
+			group: name,
+		}),
+	}
+}
+
+func setup(ctx context.Context) (func() error, error) {
 	// logger
 	logger := slog.New(&traceHandler{
-		Handler:        slog.NewJSONHandler(os.Stdout, nil),
-		gcpProjectName: gcpProjectName,
+		Handler: slog.NewJSONHandler(os.Stdout, nil),
 	})
 	slog.SetDefault(logger)
 
@@ -69,7 +104,7 @@ func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) 
 
 	// grpc
 	conn, err := grpc.NewClient(
-		otelCollectorURL,
+		settings.OtelCollectorURL,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
@@ -110,7 +145,7 @@ func setup(ctx context.Context, otelCollectorURL string, gcpProjectName string) 
 }
 
 func run(ctx context.Context) (err error) {
-	shutdown, err := setup(ctx, settings.OtelCollectorURL, settings.GoogleCloudProjectName)
+	shutdown, err := setup(ctx)
 	defer func() {
 		err = errors.Join(err, shutdown())
 	}()
