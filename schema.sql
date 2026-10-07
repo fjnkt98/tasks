@@ -8,6 +8,7 @@ CREATE TABLE sessions (
 ) STRICT;
 
 CREATE UNIQUE INDEX sessions_token_unique ON sessions (token);
+CREATE INDEX sessions_expires_at ON sessions (expires_at);
 
 CREATE TABLE tasks (
     id INTEGER PRIMARY KEY,
@@ -18,6 +19,8 @@ CREATE TABLE tasks (
     updated_at INTEGER NOT NULL DEFAULT(UNIXEPOCH()),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) STRICT;
+
+CREATE INDEX tasks_user_id_status_id ON tasks (user_id, status, id DESC);
 
 CREATE TABLE users (
     id INTEGER PRIMARY KEY,

@@ -27,6 +27,9 @@ USE_SECURE_COOKIE = "false"
 [tasks."db:migrate"]
 run = ["sqlite3def --file=schema.sql app.db --apply --enable-drop"]
 
+[tasks."db:check"]
+run = ["sqlite3def --file=schema.sql app.db --check --enable-drop"]
+
 [tasks."fmt:go"]
 run = ["go fmt"]
 
