@@ -25,6 +25,8 @@ resource "google_storage_bucket" "db" {
 # Artifact Registry
 resource "google_project_service" "artifact_registry" {
   service = "artifactregistry.googleapis.com"
+
+  disable_on_destroy = false
 }
 
 resource "google_artifact_registry_repository" "main" {
@@ -55,6 +57,8 @@ resource "google_project_iam_member" "app_cloudtrace" {
 # Cloud Run
 resource "google_project_service" "cloud_run" {
   service = "run.googleapis.com"
+
+  disable_on_destroy = false
 }
 
 resource "google_cloud_run_v2_service" "app" {

@@ -11,11 +11,11 @@ tflint = "latest"
 
 [env]
 CGO_ENABLED = 1
-DATABASE_URL = { required = true, redact = true }
-GOOGLE_CLOUD_PROJECT_NAME = { required = true }
-OTEL_COLLECTOR_URL = { required = true }
+DATABASE_URL = { default = "file:app.db", redact = true }
+GOOGLE_CLOUD_PROJECT_NAME = { default = "tasks" }
+OTEL_COLLECTOR_URL = { default = "localhost:4317" }
 PORT = { default = 8000 }
-USE_SECURE_COOKIE = "false"
+USE_SECURE_COOKIE = { default = "false" }
 
 [tasks."db:migrate"]
 run = ["sqlite3def --file=schema.sql app.db --apply --enable-drop"]

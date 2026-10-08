@@ -9,23 +9,65 @@ jobs:
     permissions:
       contents: read
     env:
-      DATABASE_URL: "file:app.db"
-      GOOGLE_CLOUD_PROJECT_NAME: "tasks"
-      OTEL_COLLECTOR_URL: "localhost:4317"
-      PORT: "8000"
-      USE_SECURE_COOKIE: "false"
-
       GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
       - name: setup mise
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
           version: 2026.8.0
           install: true
           cache: true
+
       - name: lint
-        run: mise tasks run 'lint:*'
+        run: mise run 'lint:*'
+
       - name: test
-        run: mise tasks run test
+        run: mise run test
+
+  publish:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.0
+          install: true
+          cache: true
+
+      - name: build
+        run: |
+          mise run image:build:app "$GITHUB_SHA"
+          mise run image:build:otelcol "$GITHUB_SHA"
+
+      - name: authenticate
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: tasks-510111
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.IMAGE_PUBLISHER_SERVICE_ACCOUNT }}
+
+      - name: setup gcloud
+        uses: 'google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db' # v3.0.1
+        with:
+          version: '>= 587.0.0'
+          project_id: tasks-510111
+
+      - name: configure docker auth
+        run: gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
+
+      - name: push images
+        run: |
+          mise run image:push:app "$GITHUB_SHA"
+          mise run image:push:otelcol "$GITHUB_SHA"
