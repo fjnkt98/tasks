@@ -11,21 +11,17 @@ tflint = "latest"
 
 [env]
 CGO_ENABLED = 1
+DATABASE_URL = { default = "file:app.db", redact = true }
+GOOGLE_CLOUD_PROJECT_NAME = { default = "tasks" }
+OTEL_COLLECTOR_URL = { default = "localhost:4317" }
 PORT = { default = 8000 }
-
-DATABASE_URL = { required = true, redact = true }
-DBMATE_DRIVER = "sqlite3"
-DBMATE_MIGRATIONS_DIR = "repository/migrations"
-DBMATE_SCHEMA_FILE = "repository/schema.sql"
-DBMATE_STRICT = "1"
-
-OTEL_COLLECTOR_URL = { required = true }
-GOOGLE_CLOUD_PROJECT_NAME = { required = true }
-
-USE_SECURE_COOKIE = "false"
+USE_SECURE_COOKIE = { default = "false" }
 
 [tasks."db:migrate"]
 run = ["sqlite3def --file=schema.sql app.db --apply --enable-drop"]
+
+[tasks."db:check"]
+run = ["sqlite3def --file=schema.sql app.db --check --enable-drop"]
 
 [tasks."fmt:go"]
 run = ["go fmt"]

@@ -25,6 +25,8 @@ resource "google_storage_bucket" "db" {
 # Artifact Registry
 resource "google_project_service" "artifact_registry" {
   service = "artifactregistry.googleapis.com"
+
+  disable_on_destroy = false
 }
 
 resource "google_artifact_registry_repository" "main" {
@@ -40,21 +42,23 @@ resource "google_service_account" "app" {
   account_id = "tasks-app"
 }
 
-resource "google_project_iam_member" "app_storage_admin" {
-  project = "tasks-510111"
-  role    = "roles/storage.admin"
-  member  = "serviceAccount:${google_service_account.app.email}"
+resource "google_storage_bucket_iam_member" "app_storage" {
+  bucket = google_storage_bucket.db.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.app.email}"
 }
 
-resource "google_project_iam_member" "app_cloudtrace_admin" {
+resource "google_project_iam_member" "app_cloudtrace" {
   project = "tasks-510111"
-  role    = "roles/cloudtrace.admin"
+  role    = "roles/cloudtrace.agent"
   member  = "serviceAccount:${google_service_account.app.email}"
 }
 
 # Cloud Run
 resource "google_project_service" "cloud_run" {
   service = "run.googleapis.com"
+
+  disable_on_destroy = false
 }
 
 resource "google_cloud_run_v2_service" "app" {

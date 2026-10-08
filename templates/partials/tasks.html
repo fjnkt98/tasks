@@ -29,7 +29,7 @@
     id="task-{{ $task.ID }}-status"
     type="checkbox"
     class="checkbox"
-    hx-put="/tasks/{{ $task.ID }}"
+    hx-put="/tasks/{{ $task.ID }}/status"
     hx-swap="none"
     hx-vals="js:{status: this.checked ? 'done' : 'created'}"
     {{ if eq $task.Status "done" }}checked{{ end }}

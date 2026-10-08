@@ -5,7 +5,7 @@ WORKDIR /app
 RUN go install go.opentelemetry.io/collector/cmd/builder@v0.162.0
 
 COPY infrastructure/otelcol/manifest.yaml /app/manifest.yaml
-RUN CGO_ENABLE=0 builder --config=manifest.yaml
+RUN CGO_ENABLED=0 builder --config=manifest.yaml
 
 FROM gcr.io/distroless/static-debian13
 

@@ -18,7 +18,6 @@ func TestGetIndex(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
@@ -34,7 +33,6 @@ func TestGetIndex(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
@@ -51,7 +49,6 @@ func TestGetIndex(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }

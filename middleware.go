@@ -84,7 +84,11 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
-			if expiresAt <= time.Now().Unix() {
+			now := time.Now().Unix()
+			if expiresAt <= now {
+				if _, err := db.ExecContext(r.Context(), "DELETE FROM sessions WHERE token = ? AND expires_at <= ?", cookie.Value, now); err != nil {
+					slog.ErrorContext(r.Context(), "delete expired session", slog.Any("error", err))
+				}
 				http.SetCookie(w, NewAuthCookie("", -1))
 
 				next.ServeHTTP(w, r)
@@ -99,6 +103,11 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
+			if _, err := db.ExecContext(r.Context(), "UPDATE sessions SET expires_at = ? WHERE token = ?", time.Now().Add(24*time.Hour).Unix(), cookie.Value); err != nil {
+				slog.ErrorContext(r.Context(), "extend session", slog.Any("error", err))
+				Handle500(w, r)
+				return
+			}
 			http.SetCookie(w, NewAuthCookie(cookie.Value, 86400))
 
 			ctx := SetUserIDIntoContext(r.Context(), userID)
