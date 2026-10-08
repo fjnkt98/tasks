@@ -379,17 +379,28 @@ func TestIntegrationSignupAndSignin(t *testing.T) {
 
 	res, err := client.PostForm(server.URL+"/signup", url.Values{
 		"username":         []string{"test"},
-		"password":         []string{"test"},
-		"confirm-password": []string{"test"},
+		"password":         []string{" contains whitespace "},
+		"confirm-password": []string{" contains whitespace "},
 	})
 	require.NoError(t, err)
 	discard(t, res.Body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/signup/success", res.Request.URL.Path)
 
+	// fail
 	res, err = client.PostForm(server.URL+"/signin", url.Values{
 		"username": []string{"test"},
-		"password": []string{"test"},
+		"password": []string{"contains whitespace"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+	assert.Equal(t, "/signin", res.Request.URL.Path)
+
+	// success
+	res, err = client.PostForm(server.URL+"/signin", url.Values{
+		"username": []string{"test"},
+		"password": []string{" contains whitespace "},
 	})
 	require.NoError(t, err)
 	discard(t, res.Body)
@@ -402,4 +413,17 @@ func TestIntegrationSignupAndSignin(t *testing.T) {
 	i := slices.IndexFunc(cookies, func(cookie *http.Cookie) bool { return cookie.Name == AuthCookieName })
 	require.NotEqual(t, -1, i)
 	assert.NotEmpty(t, cookies[i].Value)
+}
+
+func TestIntegrationContentTooLong(t *testing.T) {
+	_, server, client := integrationTestFixture(t)
+
+	res, err := client.PostForm(server.URL+"/signup", url.Values{
+		"username":         []string{strings.Repeat("a", 1<<20)},
+		"password":         []string{"test"},
+		"confirm-password": []string{"test"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
 }
