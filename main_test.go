@@ -261,7 +261,7 @@ func TestServe(t *testing.T) {
 					requestDone <- result{err: err}
 					return
 				}
-				defer res.Body.Close()
+				defer res.Body.Close() // nolint:errcheck
 
 				body, err := io.ReadAll(res.Body)
 				requestDone <- result{
