@@ -50,6 +50,10 @@ resource "google_artifact_registry_repository" "main" {
   location      = "asia-northeast1"
   repository_id = "tasks"
   format        = "DOCKER"
+
+  docker_config {
+    immutable_tags = true
+  }
 }
 
 # Service Account
