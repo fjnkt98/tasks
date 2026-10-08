@@ -7,12 +7,27 @@ terraform {
       version = "8.5.0"
     }
   }
+
+  backend "gcs" {
+    bucket = "tasks-terraform-state"
+    prefix = "tasks/production"
+  }
 }
 
 provider "google" {
   project = "tasks-510111"
   region  = "asia-northeast1"
   zone    = "asia-northeast1-a"
+}
+
+# State
+resource "google_storage_bucket" "terraform-state" {
+  name     = "tasks-terraform-state"
+  location = "asia-northeast1"
+
+  versioning {
+    enabled = true
+  }
 }
 
 # Storage
