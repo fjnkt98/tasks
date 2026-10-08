@@ -7,12 +7,27 @@ terraform {
       version = "8.5.0"
     }
   }
+
+  backend "gcs" {
+    bucket = "tasks-terraform-state"
+    prefix = "tasks/production"
+  }
 }
 
 provider "google" {
   project = "tasks-510111"
   region  = "asia-northeast1"
   zone    = "asia-northeast1-a"
+}
+
+# State
+resource "google_storage_bucket" "terraform-state" {
+  name     = "tasks-terraform-state"
+  location = "asia-northeast1"
+
+  versioning {
+    enabled = true
+  }
 }
 
 # Storage
@@ -35,6 +50,10 @@ resource "google_artifact_registry_repository" "main" {
   location      = "asia-northeast1"
   repository_id = "tasks"
   format        = "DOCKER"
+
+  docker_config {
+    immutable_tags = true
+  }
 }
 
 # Service Account
@@ -84,7 +103,7 @@ resource "google_cloud_run_v2_service" "app" {
     }
 
     containers {
-      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:latest"
+      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:31cf752be482ae85112a4e5f855456171eb4ae6b"
       name  = "app"
 
       ports {
@@ -117,7 +136,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
     containers {
-      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:latest"
+      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:31cf752be482ae85112a4e5f855456171eb4ae6b"
       name  = "otelcol"
 
       resources {
