@@ -13,7 +13,6 @@ COPY index.go /app/index.go
 COPY main.go /app/main.go
 COPY middleware.go /app/middleware.go
 COPY server.go /app/server.go
-COPY settings /app/settings
 COPY static /app/static
 COPY task.go /app/task.go
 COPY templates /app/templates

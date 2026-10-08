@@ -2,14 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"sync"
 	"testing"
 	"testing/slogtest"
+	"time"
 
-	"github.com/fjnkt98/tasks/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -101,7 +106,7 @@ func TestTraceHandlerWithTrace(t *testing.T) {
 			test.Want["level"] = "INFO"
 			test.Want["msg"] = "test"
 			test.Want["logging.googleapis.com/trace"] = fmt.Sprintf(
-				"projects/%s/traces/%s", settings.GoogleCloudProjectName, spanContext.TraceID(),
+				"projects/%s/traces/%s", os.Getenv("GOOGLE_CLOUD_PROJECT_NAME"), spanContext.TraceID(),
 			)
 			test.Want["logging.googleapis.com/spanId"] = spanContext.SpanID().String()
 			test.Want["logging.googleapis.com/trace_sampled"] = true
@@ -154,7 +159,7 @@ func TestTraceHandlerContextPerRecord(t *testing.T) {
 		var got map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &got))
 		if spanContext.IsValid() {
-			assert.Equal(t, fmt.Sprintf("projects/%s/traces/%s", settings.GoogleCloudProjectName, spanContext.TraceID()), got["logging.googleapis.com/trace"])
+			assert.Equal(t, fmt.Sprintf("projects/%s/traces/%s", os.Getenv("GOOGLE_CLOUD_PROJECT_NAME"), spanContext.TraceID()), got["logging.googleapis.com/trace"])
 			assert.Equal(t, spanContext.SpanID().String(), got["logging.googleapis.com/spanId"])
 			assert.Equal(t, spanContext.IsSampled(), got["logging.googleapis.com/trace_sampled"])
 		} else {
@@ -172,7 +177,119 @@ func TestSetup(t *testing.T) {
 		slog.SetDefault(original)
 	})
 
-	shutdown, err := setup(t.Context())
+	file := NewTestDBFile(t)
+
+	t.Setenv("DATABASE_URL", fmt.Sprintf("file:%s", file))
+	t.Setenv("PORT", "8000")
+
+	_, shutdown, err := setup(t.Context())
 	require.NoError(t, err)
 	defer shutdown() // nolint:errcheck
+}
+
+func TestServe(t *testing.T) {
+	for _, test := range []struct {
+		Name    string
+		Force   bool
+		Timeout time.Duration
+	}{
+		{Name: "graceful shutdown", Force: false, Timeout: 1 * time.Second},
+		{Name: "force shutdown", Force: true, Timeout: 50 * time.Millisecond},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			started := make(chan struct{})
+			release := make(chan struct{})
+			disconnected := make(chan struct{})
+
+			unblock := sync.OnceFunc(func() { close(release) })
+
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			require.NoError(t, listener.Close())
+
+			server := &http.Server{
+				Addr: listener.Addr().String(),
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					close(started)
+
+					select {
+					case <-release:
+						_, _ = io.WriteString(w, "ok")
+					case <-r.Context().Done():
+						close(disconnected)
+					}
+				}),
+			}
+
+			if !test.Force {
+				server.RegisterOnShutdown(unblock)
+			}
+
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(func() {
+				cancel()
+				unblock()
+				assert.NoError(t, server.Close())
+			})
+
+			serveDone := make(chan error, 1)
+			go func() {
+				serveDone <- serve(ctx, server, test.Timeout)
+			}()
+
+			require.Eventually(t, func() bool {
+				conn, err := net.DialTimeout("tcp", server.Addr, 100*time.Millisecond)
+				if err != nil {
+					return false
+				}
+				assert.NoError(t, conn.Close())
+				return true
+			}, 3*time.Second, 10*time.Millisecond)
+
+			type result struct {
+				status int
+				body   string
+				err    error
+			}
+
+			requestDone := make(chan result, 1)
+			client := &http.Client{}
+			t.Cleanup(client.CloseIdleConnections)
+			go func() {
+				res, err := client.Get("http://" + server.Addr)
+				if err != nil {
+					requestDone <- result{err: err}
+					return
+				}
+				defer res.Body.Close()
+
+				body, err := io.ReadAll(res.Body)
+				requestDone <- result{
+					status: res.StatusCode,
+					body:   string(body),
+					err:    err,
+				}
+			}()
+
+			<-started
+			cancel()
+
+			err = <-serveDone
+
+			if test.Force {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+
+				<-disconnected
+				got := <-requestDone
+				require.Error(t, got.err)
+			} else {
+				require.NoError(t, err)
+
+				got := <-requestDone
+				require.NoError(t, got.err)
+				assert.Equal(t, http.StatusOK, got.status)
+				assert.Equal(t, "ok", got.body)
+			}
+		})
+	}
 }

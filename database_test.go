@@ -18,7 +18,7 @@ import (
 //go:embed schema.sql
 var schema []byte
 
-func NewTestDB(t *testing.T) *sql.DB {
+func NewTestDBFile(t *testing.T) string {
 	t.Helper()
 
 	file := filepath.Join(t.TempDir(), "test.db")
@@ -28,6 +28,14 @@ func NewTestDB(t *testing.T) *sql.DB {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("sqlite3def failed: %v\n%s", err, out)
 	}
+
+	return file
+}
+
+func NewTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	file := NewTestDBFile(t)
 
 	dsn, err := enforceForeignKeys(fmt.Sprintf("file:%s", file))
 	require.NoError(t, err)

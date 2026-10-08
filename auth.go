@@ -11,10 +11,10 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/fjnkt98/tasks/settings"
 	"github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -58,7 +58,7 @@ func NewAuthCookie(value string, maxAge int) *http.Cookie {
 		Value:    value,
 		MaxAge:   maxAge,
 		Path:     "/",
-		Secure:   settings.UseSecureCookie,
+		Secure:   os.Getenv("USE_SECURE_COOKIE") == "true",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	}

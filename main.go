@@ -9,10 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strconv"
 	"syscall"
 	"time"
-
-	"github.com/fjnkt98/tasks/settings"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -40,7 +39,7 @@ type operation struct {
 func (h *traceHandler) Handle(ctx context.Context, record slog.Record) error {
 	handler := h.Handler
 
-	path := fmt.Sprintf("projects/%s/traces/", settings.GoogleCloudProjectName)
+	path := fmt.Sprintf("projects/%s/traces/", os.Getenv("GOOGLE_CLOUD_PROJECT_NAME"))
 	if s := trace.SpanContextFromContext(ctx); s.IsValid() {
 		handler = handler.WithAttrs([]slog.Attr{
 			slog.String("logging.googleapis.com/trace", path+s.TraceID().String()),
@@ -80,7 +79,7 @@ func (h *traceHandler) WithGroup(name string) slog.Handler {
 	}
 }
 
-func setup(ctx context.Context) (func() error, error) {
+func setup(ctx context.Context) (*http.Server, func() error, error) {
 	// logger
 	logger := slog.New(&traceHandler{
 		Handler: slog.NewJSONHandler(os.Stdout, nil),
@@ -104,11 +103,11 @@ func setup(ctx context.Context) (func() error, error) {
 
 	// grpc
 	conn, err := grpc.NewClient(
-		settings.OtelCollectorURL,
+		os.Getenv("OTEL_COLLECTOR_URL"),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		return shutdown, fmt.Errorf("create grpc connection to otel collector: %w", err)
+		return nil, shutdown, fmt.Errorf("create grpc connection to otel collector: %w", err)
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return conn.Close() })
 
@@ -118,7 +117,7 @@ func setup(ctx context.Context) (func() error, error) {
 		resource.WithAttributes(serviceName),
 	)
 	if err != nil {
-		return shutdown, fmt.Errorf("create resource: %w", err)
+		return nil, shutdown, fmt.Errorf("create resource: %w", err)
 	}
 
 	// propagator
@@ -131,7 +130,7 @@ func setup(ctx context.Context) (func() error, error) {
 	// tracer provider
 	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 	if err != nil {
-		return shutdown, fmt.Errorf("create trace exporter: %w", err)
+		return nil, shutdown, fmt.Errorf("create trace exporter: %w", err)
 	}
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
@@ -141,11 +140,58 @@ func setup(ctx context.Context) (func() error, error) {
 	shutdowns = append(shutdowns, tracerProvider.Shutdown)
 	otel.SetTracerProvider(tracerProvider)
 
-	return shutdown, nil
+	// db
+	port, err := strconv.Atoi(os.Getenv("PORT"))
+	if err != nil {
+		return nil, shutdown, fmt.Errorf("parse PORT: %w", err)
+	}
+
+	db, err := NewDB(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		return nil, shutdown, fmt.Errorf("open database: %w", err)
+	}
+	shutdowns = append(shutdowns, func(context.Context) error { return db.Close() })
+
+	if _, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at <= ?", time.Now().Unix()); err != nil {
+		return nil, shutdown, fmt.Errorf("delete expired session: %w", err)
+	}
+
+	// server
+	server, err := NewServer(port, db)
+	if err != nil {
+		return nil, shutdown, fmt.Errorf("create server: %w", err)
+	}
+
+	return server, shutdown, nil
+}
+
+func serve(ctx context.Context, server *http.Server, timeout time.Duration) error {
+	errs := make(chan error, 1)
+	go func() {
+		slog.InfoContext(ctx, "start server", slog.String("addr", server.Addr))
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			errs <- err
+		}
+	}()
+
+	select {
+	case err := <-errs:
+		return fmt.Errorf("server error: %w", err)
+	case <-ctx.Done():
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		if err := server.Shutdown(ctx); err != nil {
+			return errors.Join(fmt.Errorf("shutdown server: %w", err), server.Close())
+		}
+	}
+	slog.InfoContext(ctx, "shutting down server", slog.String("addr", server.Addr))
+
+	return nil
 }
 
 func run(ctx context.Context) (err error) {
-	shutdown, err := setup(ctx)
+	server, shutdown, err := setup(ctx)
 	defer func() {
 		err = errors.Join(err, shutdown())
 	}()
@@ -153,50 +199,10 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	port := settings.Port
-
-	db, err := NewDB(ctx, settings.DatabaseURL)
-	if err != nil {
-		return fmt.Errorf("open database: %w", err)
-	}
-	defer func() {
-		err = errors.Join(err, db.Close())
-	}()
-
-	if _, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at <= ?", time.Now().Unix()); err != nil {
-		return fmt.Errorf("delete expired session: %w", err)
-	}
-
-	s, err := NewServer(port, db)
-	if err != nil {
-		return fmt.Errorf("create server: %w", err)
-	}
-
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	errs := make(chan error, 1)
-	go func() {
-		slog.InfoContext(ctx, "start server", slog.Int("port", port))
-		if err := s.ListenAndServe(); err != http.ErrServerClosed {
-			errs <- err
-		}
-	}()
-
-	select {
-	case err = <-errs:
-		return fmt.Errorf("server error: %w", err)
-	case <-ctx.Done():
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := s.Shutdown(ctx); err != nil {
-			return errors.Join(fmt.Errorf("shutdown server: %w", err), s.Close())
-		}
-	}
-	slog.InfoContext(ctx, "shutting down server", slog.Int("port", port))
-
-	return nil
+	return serve(ctx, server, 5*time.Second)
 }
 
 func main() {
