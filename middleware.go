@@ -95,13 +95,40 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
-			q = "SELECT id FROM users WHERE id = ? LIMIT 1"
+			var user User
+			q = "SELECT id, name FROM users WHERE id = ? LIMIT 1"
 			row = db.QueryRowContext(r.Context(), q, userID)
-			if err := row.Scan(&userID); err != nil {
+			if err := row.Scan(&user.ID, &user.Name); err != nil {
 				slog.ErrorContext(r.Context(), "get user", slog.Any("error", err))
 				Handle500(w, r)
 				return
 			}
+
+			roles := make([]string, 0)
+			q = "SELECT role FROM user_role_relations WHERE user_id = ? ORDER BY role ASC"
+			rows, err := db.QueryContext(r.Context(), q, user.ID)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "get user's roles", slog.Any("error", err))
+				Handle500(w, r)
+				return
+			}
+			defer rows.Close() // nolint:errcheck
+			for rows.Next() {
+				var role string
+				if err := rows.Scan(&role); err != nil {
+					slog.ErrorContext(r.Context(), "scan role", slog.Any("error", err))
+					Handle500(w, r)
+					return
+				}
+
+				roles = append(roles, role)
+			}
+			if err := rows.Err(); err != nil {
+				slog.ErrorContext(r.Context(), "get users'role", slog.Any("error", err))
+				Handle500(w, r)
+				return
+			}
+			user.Roles = roles
 
 			if _, err := db.ExecContext(r.Context(), "UPDATE sessions SET expires_at = ? WHERE token = ?", time.Now().Add(24*time.Hour).Unix(), cookie.Value); err != nil {
 				slog.ErrorContext(r.Context(), "extend session", slog.Any("error", err))
@@ -110,7 +137,7 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 			}
 			http.SetCookie(w, NewAuthCookie(cookie.Value, 86400))
 
-			ctx := SetUserIDIntoContext(r.Context(), userID)
+			ctx := SetUserIntoContext(r.Context(), user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

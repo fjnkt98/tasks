@@ -28,26 +28,32 @@ const (
 	contextKeyUser contextKey = iota
 )
 
+type User struct {
+	ID    int
+	Name  string
+	Roles []string
+}
+
 func NewSessionToken() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
-func SetUserIDIntoContext(ctx context.Context, userID int) context.Context {
-	return context.WithValue(ctx, contextKeyUser, userID)
+func SetUserIntoContext(ctx context.Context, user User) context.Context {
+	return context.WithValue(ctx, contextKeyUser, user)
 }
 
-func GetUserIDFromContext(ctx context.Context) int {
-	value, ok := ctx.Value(contextKeyUser).(int)
+func GetUserFromContext(ctx context.Context) User {
+	value, ok := ctx.Value(contextKeyUser).(User)
 	if !ok {
-		return 0
+		return User{}
 	}
 	return value
 }
 
 func IsAuthorized(ctx context.Context) bool {
-	return GetUserIDFromContext(ctx) != 0
+	return GetUserFromContext(ctx).ID != 0
 }
 
 const AuthCookieName = "session_token"

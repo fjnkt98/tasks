@@ -20,22 +20,22 @@ func TestNewSessionToken(t *testing.T) {
 	assert.Equal(t, 64, len(token))
 }
 
-func TestSetUserIDIntoContext(t *testing.T) {
-	ctx := SetUserIDIntoContext(t.Context(), 1)
+func TestSetUserIntoContext(t *testing.T) {
+	ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 
-	assert.Equal(t, int(1), ctx.Value(contextKeyUser))
+	assert.Equal(t, User{ID: 1}, ctx.Value(contextKeyUser))
 }
 
-func TestGetUserIDFromContext(t *testing.T) {
+func TestGetUserFromContext(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
-		v := GetUserIDFromContext(t.Context())
-		assert.Equal(t, int(0), v)
+		v := GetUserFromContext(t.Context())
+		assert.Equal(t, User{}, v)
 	})
 
 	t.Run("found", func(t *testing.T) {
-		ctx := context.WithValue(t.Context(), contextKeyUser, int(1))
-		v := GetUserIDFromContext(ctx)
-		assert.Equal(t, int(1), v)
+		ctx := context.WithValue(t.Context(), contextKeyUser, User{ID: 1, Name: "test"})
+		v := GetUserFromContext(ctx)
+		assert.Equal(t, User{ID: 1, Name: "test"}, v)
 	})
 }
 
@@ -480,7 +480,7 @@ func TestPostSignoutHandler(t *testing.T) {
 		_, err = db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token', 32503680000)")
 		require.NoError(t, err)
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/signout", nil)
 		req.AddCookie(NewAuthCookie("token", 86400))
 

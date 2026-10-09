@@ -44,7 +44,7 @@ func NewListTasksHandler(db *sql.DB) *ListTasksHandler {
 }
 
 func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	var err error
 	values := r.URL.Query()
@@ -80,10 +80,10 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	if status == "" {
 		q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
-		rows, err = h.db.QueryContext(r.Context(), q, userID, limit, offset)
+		rows, err = h.db.QueryContext(r.Context(), q, user.ID, limit, offset)
 	} else {
 		q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? AND status = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
-		rows, err = h.db.QueryContext(r.Context(), q, userID, status, limit, offset)
+		rows, err = h.db.QueryContext(r.Context(), q, user.ID, status, limit, offset)
 	}
 
 	if err != nil {
@@ -165,10 +165,10 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	q := "SELECT id, user_id, title, status FROM tasks WHERE id = ? AND user_id = ?"
-	row := h.db.QueryRowContext(r.Context(), q, id, userID)
+	row := h.db.QueryRowContext(r.Context(), q, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -224,10 +224,10 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	q := "SELECT id, user_id, title, status FROM tasks WHERE id = ? AND user_id = ?"
-	row := h.db.QueryRowContext(r.Context(), q, id, userID)
+	row := h.db.QueryRowContext(r.Context(), q, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -285,10 +285,10 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	q := "INSERT INTO tasks (user_id, title) VALUES (?, ?) RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, userID, title)
+	row := h.db.QueryRowContext(r.Context(), q, user.ID, title)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
@@ -352,10 +352,10 @@ func (h *PutTaskTitleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	q := "UPDATE tasks SET title = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, title, id, userID)
+	row := h.db.QueryRowContext(r.Context(), q, title, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -422,10 +422,10 @@ func (h *PutTaskStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	q := "UPDATE tasks SET status = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, status, id, userID)
+	row := h.db.QueryRowContext(r.Context(), q, status, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -458,10 +458,10 @@ func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	q := "DELETE FROM tasks WHERE id = ? AND user_id = ?"
-	if _, err := h.db.ExecContext(r.Context(), q, id, userID); err != nil {
+	if _, err := h.db.ExecContext(r.Context(), q, id, user.ID); err != nil {
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
 		Handle500(w, r)
 		return

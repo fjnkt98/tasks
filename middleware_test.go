@@ -143,15 +143,29 @@ func TestSessionMiddleware(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
 		t.Helper()
 
-		_, err := db.ExecContext(t.Context(), `INSERT INTO users (name, digest) VALUES
-			('foo', ''),
-			('bar', ''),
-			('baz', '')`,
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (id, name, digest) VALUES
+			(1, 'foo', ''),
+			(2, 'bar', ''),
+			(3, 'baz', '')`,
 		)
 		require.NoError(t, err)
+
 		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
 			(1, 'token1', 32503680000),
-			(2, 'token2', 0)`,
+			(2, 'token2', 0),
+			(3, 'token3', 32503680000)`,
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO roles (name) VALUES
+			('role1'),
+			('role2')`,
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO user_role_relations (user_id, role) VALUES
+			(3, 'role1'),
+			(3, 'role2')`,
 		)
 		require.NoError(t, err)
 	}
@@ -211,7 +225,7 @@ func TestSessionMiddleware(t *testing.T) {
 		fixture(t, db)
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
-		req.AddCookie(NewAuthCookie("token3", 86400))
+		req.AddCookie(NewAuthCookie("token0", 86400))
 
 		rec := httptest.NewRecorder()
 
@@ -258,6 +272,39 @@ func TestSessionMiddleware(t *testing.T) {
 			assert.Equal(t, int64(946771200), expiresAt)
 		})
 	})
+
+	t.Run("context", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		for _, test := range []struct {
+			Name  string
+			Token string
+			Want  User
+		}{
+			{Name: "no roles", Token: "token1", Want: User{ID: 1, Name: "foo", Roles: []string{}}},
+			{Name: "has roles", Token: "token3", Want: User{ID: 3, Name: "baz", Roles: []string{"role1", "role2"}}},
+		} {
+			t.Run(test.Name, func(t *testing.T) {
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
+				req.AddCookie(NewAuthCookie(test.Token, 86400))
+
+				rec := httptest.NewRecorder()
+
+				mux := http.NewServeMux()
+				mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+
+					user := GetUserFromContext(r.Context())
+					assert.Equal(t, test.Want, user)
+				})
+				h := NewSessionMiddleware(db)(mux)
+
+				h.ServeHTTP(rec, req)
+				assert.Equal(t, http.StatusOK, rec.Code)
+			})
+		}
+	})
 }
 
 func TestLoginRequiredMiddleware(t *testing.T) {
@@ -270,7 +317,7 @@ func TestLoginRequiredMiddleware(t *testing.T) {
 	h := NewLoginRequiredMiddleware()(mux)
 
 	t.Run("authorized", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "test"})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
 

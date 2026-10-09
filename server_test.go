@@ -86,7 +86,7 @@ func TestHandle400(t *testing.T) {
 	})
 
 	t.Run("authorized", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
@@ -151,7 +151,7 @@ func TestHandle404(t *testing.T) {
 	})
 
 	t.Run("authorized", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
@@ -216,7 +216,7 @@ func TestHandle500(t *testing.T) {
 	})
 
 	t.Run("authorized", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
