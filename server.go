@@ -52,18 +52,18 @@ func NewHandler(db *sql.DB) http.Handler {
 
 	mux.Handle("GET /", m(NewIndexHandler()))
 
-	mux.Handle("GET /signup", m(NewGetSignupHandler()))
-	mux.Handle("POST /signup", m(NewPostSignupHandler(db)))
-	mux.Handle("GET /signup/success", m(NewGetSignupSuccessHandler()))
-	mux.Handle("GET /signin", m((NewGetSigninHandler())))
-	mux.Handle("POST /signin", m((NewPostSigninHandler(db))))
+	mux.Handle("GET /account/signup", m(NewGetSignupHandler()))
+	mux.Handle("POST /account/signup", m(NewPostSignupHandler(db)))
+	mux.Handle("GET /account/signup/success", m(NewGetSignupSuccessHandler()))
+	mux.Handle("GET /account/signin", m((NewGetSigninHandler())))
+	mux.Handle("POST /account/signin", m((NewPostSigninHandler(db))))
 
 	{
 		m := NewChainedMiddleware(
 			m,
 			NewLoginRequiredMiddleware(),
 		)
-		mux.Handle("POST /signout", m(NewPostSignoutHandler(db)))
+		mux.Handle("POST /account/signout", m(NewPostSignoutHandler(db)))
 
 		mux.Handle("GET /tasks", m(NewListTasksHandler(db)))
 		mux.Handle("GET /tasks/{id}", m(NewGetTaskHandler(db)))

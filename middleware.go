@@ -123,7 +123,7 @@ func NewLoginRequiredMiddleware() Middleware {
 				next.ServeHTTP(w, r)
 				return
 			}
-			http.Redirect(w, r, "/signin", http.StatusSeeOther)
+			http.Redirect(w, r, "/account/signin", http.StatusSeeOther)
 		})
 	}
 }

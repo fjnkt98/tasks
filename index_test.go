@@ -21,7 +21,7 @@ func TestGetIndex(t *testing.T) {
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		assert.Contains(t, body, `href="/signin"`)
+		assert.Contains(t, body, `href="/account/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestGetIndex(t *testing.T) {
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 		body := rec.Body.String()
-		assert.Contains(t, body, `"/signout"`)
+		assert.Contains(t, body, `"/account/signout"`)
 	})
 
 	t.Run("render failed", func(t *testing.T) {

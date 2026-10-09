@@ -42,7 +42,7 @@ func TestCrossOriginProtection(t *testing.T) {
 	client := NewTestDB(t)
 	h := NewHandler(client)
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/signout", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/account/signout", nil)
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
 
 	rec := httptest.NewRecorder()
@@ -82,7 +82,7 @@ func TestHandle400(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "Bad Request")
-		assert.Contains(t, body, `href="/signin"`)
+		assert.Contains(t, body, `href="/account/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -100,7 +100,7 @@ func TestHandle400(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "Bad Request")
-		assert.Contains(t, body, `"/signout"`)
+		assert.Contains(t, body, `"/account/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -147,7 +147,7 @@ func TestHandle404(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "Not Found")
-		assert.Contains(t, body, `href="/signin"`)
+		assert.Contains(t, body, `href="/account/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -165,7 +165,7 @@ func TestHandle404(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "Not Found")
-		assert.Contains(t, body, `"/signout"`)
+		assert.Contains(t, body, `"/account/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -212,7 +212,7 @@ func TestHandle500(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "An Error Occurred!")
-		assert.Contains(t, body, `href="/signin"`)
+		assert.Contains(t, body, `href="/account/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
@@ -230,7 +230,7 @@ func TestHandle500(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "An Error Occurred!")
-		assert.Contains(t, body, `"/signout"`)
+		assert.Contains(t, body, `"/account/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -316,7 +316,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 			require.NoError(t, err)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/signin", res.Request.URL.Path)
+			assert.Equal(t, "/account/signin", res.Request.URL.Path)
 		})
 	}
 
@@ -326,14 +326,14 @@ func TestUnauthorizedRedirection(t *testing.T) {
 		Body url.Values
 	}{
 		{Name: "post tasks", Path: "/tasks", Body: url.Values{"title": []string{"test"}}},
-		{Name: "signout", Path: "/signout"},
+		{Name: "signout", Path: "/account/signout"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			res, err = client.PostForm(server.URL+test.Path, test.Body)
 			require.NoError(t, err)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/signin", res.Request.URL.Path)
+			assert.Equal(t, "/account/signin", res.Request.URL.Path)
 		})
 	}
 
@@ -352,7 +352,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 			require.NoError(t, err)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/signin", res.Request.URL.Path)
+			assert.Equal(t, "/account/signin", res.Request.URL.Path)
 		})
 	}
 
@@ -369,7 +369,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 			require.NoError(t, err)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/signin", res.Request.URL.Path)
+			assert.Equal(t, "/account/signin", res.Request.URL.Path)
 		})
 	}
 }
@@ -377,7 +377,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 func TestIntegrationSignupAndSignin(t *testing.T) {
 	_, server, client := integrationTestFixture(t)
 
-	res, err := client.PostForm(server.URL+"/signup", url.Values{
+	res, err := client.PostForm(server.URL+"/account/signup", url.Values{
 		"username":         []string{"test"},
 		"password":         []string{" contains whitespace "},
 		"confirm-password": []string{" contains whitespace "},
@@ -385,20 +385,20 @@ func TestIntegrationSignupAndSignin(t *testing.T) {
 	require.NoError(t, err)
 	discard(t, res.Body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Equal(t, "/signup/success", res.Request.URL.Path)
+	assert.Equal(t, "/account/signup/success", res.Request.URL.Path)
 
 	// fail
-	res, err = client.PostForm(server.URL+"/signin", url.Values{
+	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{"contains whitespace"},
 	})
 	require.NoError(t, err)
 	discard(t, res.Body)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
-	assert.Equal(t, "/signin", res.Request.URL.Path)
+	assert.Equal(t, "/account/signin", res.Request.URL.Path)
 
 	// success
-	res, err = client.PostForm(server.URL+"/signin", url.Values{
+	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{" contains whitespace "},
 	})
@@ -418,7 +418,7 @@ func TestIntegrationSignupAndSignin(t *testing.T) {
 func TestIntegrationContentTooLong(t *testing.T) {
 	_, server, client := integrationTestFixture(t)
 
-	res, err := client.PostForm(server.URL+"/signup", url.Values{
+	res, err := client.PostForm(server.URL+"/account/signup", url.Values{
 		"username":         []string{strings.Repeat("a", 1<<20)},
 		"password":         []string{"test"},
 		"confirm-password": []string{"test"},

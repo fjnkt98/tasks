@@ -136,7 +136,7 @@ func TestLogin(t *testing.T) {
 
 func TestGetSignupHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupHandler()
@@ -147,7 +147,7 @@ func TestGetSignupHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupHandler()
@@ -176,7 +176,7 @@ func TestPostSignupHandler(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			db := NewTestDB(t)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?username=foo&password=bar&confirm-password=bar", strings.NewReader(test.Body.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup?username=foo&password=bar&confirm-password=bar", strings.NewReader(test.Body.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
@@ -202,7 +202,7 @@ func TestPostSignupHandler(t *testing.T) {
 	t.Run("invalid request body", func(t *testing.T) {
 		db := NewTestDB(t)
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader("username=user1&password=password&confirm-password=password&foo=%zz"))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader("username=user1&password=password&confirm-password=password&foo=%zz"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -230,7 +230,7 @@ func TestPostSignupHandler(t *testing.T) {
 		values.Set("password", "password")
 		values.Set("confirm-password", "password")
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -255,7 +255,7 @@ func TestPostSignupHandler(t *testing.T) {
 		db := NewTestDB(t)
 
 		values := url.Values{}
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -282,7 +282,7 @@ func TestPostSignupHandler(t *testing.T) {
 		values.Set("password", "password")
 		values.Set("confirm-password", "password")
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -301,7 +301,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 func TestGetSignupSuccessHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup/success", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup/success", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupSuccessHandler()
@@ -312,7 +312,7 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup/success", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup/success", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupSuccessHandler()
@@ -327,7 +327,7 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 
 func TestGetSigninHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signin", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSigninHandler()
@@ -338,7 +338,7 @@ func TestGetSigninHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signin", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSigninHandler()
@@ -375,7 +375,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 			fixture(db, t)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?username=user1&password=password", strings.NewReader(test.Body.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin?username=user1&password=password", strings.NewReader(test.Body.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
@@ -405,7 +405,7 @@ func TestPostSigninHandler(t *testing.T) {
 
 		fixture(db, t)
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader("username=user1&password=password&foo=%zz"))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin", strings.NewReader("username=user1&password=password&foo=%zz"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -421,7 +421,7 @@ func TestPostSigninHandler(t *testing.T) {
 		db := NewTestDB(t)
 
 		values := url.Values{}
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -445,7 +445,7 @@ func TestPostSigninHandler(t *testing.T) {
 			values.Set("username", "user1")
 			values.Set("password", "password")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
@@ -481,7 +481,7 @@ func TestPostSignoutHandler(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signout", nil)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/signout", nil)
 		req.AddCookie(NewAuthCookie("token", 86400))
 
 		rec := httptest.NewRecorder()
@@ -507,7 +507,7 @@ func TestPostSignoutHandler(t *testing.T) {
 	t.Run("unauthorized", func(t *testing.T) {
 		db := NewTestDB(t)
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signout", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signout", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewPostSignoutHandler(db)

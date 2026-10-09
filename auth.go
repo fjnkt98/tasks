@@ -254,7 +254,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/signup/success", http.StatusSeeOther)
+	http.Redirect(w, r, "/account/signup/success", http.StatusSeeOther)
 }
 
 type GetSignupSuccessHandler struct {
