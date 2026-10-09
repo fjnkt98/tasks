@@ -31,3 +31,15 @@ CREATE TABLE users (
 ) STRICT;
 
 CREATE UNIQUE INDEX users_name_unique ON users (name);
+
+CREATE TABLE roles (
+    name TEXT PRIMARY KEY
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE user_role_relations (
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    PRIMARY KEY (user_id, role),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (role) REFERENCES roles (role) ON DELETE CASCADE
+) STRICT;
