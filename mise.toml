@@ -77,3 +77,11 @@ arg "version" default="latest"
 run = [
     "docker push asia-northeast1-docker.pkg.dev/tasks-510111/tasks/otelcol:${usage_version?}"
 ]
+
+[tasks.serve]
+run = ["go run ."]
+sources = [
+    "*.go",
+    "templates/**/*.html",
+    "static/**/*",
+]
