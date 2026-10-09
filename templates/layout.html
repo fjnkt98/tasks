@@ -25,9 +25,23 @@
       </div>
       <div class="flex-none">
         {{ if .Authorized }}
-        <form method="post" action="/account/signout">
-          <button type="submit" class="btn btn-ghost">Sign out</button>
-        </form>
+        <details class="dropdown px-4">
+          <summary class="btn btn-ghost">Account</summary>
+          <ul
+            class="dropdown-content bg-base-100 rounded-box z-1 shadow-lg p-2"
+          >
+            <li>
+              <a href="/account/me" class="btn btn-ghost link"
+                >{{ .UserName }}</a
+              >
+            </li>
+            <li>
+              <form method="post" action="/account/signout">
+                <button type="submit" class="btn btn-ghost">Sign out</button>
+              </form>
+            </li>
+          </ul>
+        </details>
         {{ else }}
         <a class="btn btn-ghost" href="/account/signin">Sign in</a>
         {{ end }}

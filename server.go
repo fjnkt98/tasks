@@ -25,6 +25,7 @@ func IsHTMX(r *http.Request) bool {
 
 type LayoutData struct {
 	Authorized bool
+	UserName   string
 }
 
 func NewServer(port int, db *sql.DB) (*http.Server, error) {
@@ -87,6 +88,7 @@ func Handle400(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer
@@ -115,6 +117,7 @@ func Handle404(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer
@@ -143,6 +146,7 @@ func Handle500(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer

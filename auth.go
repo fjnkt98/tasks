@@ -130,6 +130,7 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
 		},
 		ErrorMessage: "",
 	}
@@ -203,6 +204,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}{
 			LayoutData: LayoutData{
 				Authorized: IsAuthorized(r.Context()),
+				UserName:   GetUserFromContext(r.Context()).Name,
 			},
 			ErrorMessage: strings.Join(errs, "; "),
 		}
@@ -233,6 +235,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}{
 				LayoutData: LayoutData{
 					Authorized: IsAuthorized(r.Context()),
+					UserName:   GetUserFromContext(r.Context()).Name,
 				},
 				ErrorMessage: err.Error(),
 			}
@@ -276,6 +279,7 @@ func NewGetSignupSuccessHandler() *GetSignupSuccessHandler {
 func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer
@@ -311,6 +315,7 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
 		},
 		ErrorMessage: "",
 	}
@@ -376,6 +381,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}{
 			LayoutData: LayoutData{
 				Authorized: IsAuthorized(r.Context()),
+				UserName:   GetUserFromContext(r.Context()).Name,
 			},
 			ErrorMessage: strings.Join(errs, "; "),
 		}
@@ -407,6 +413,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}{
 				LayoutData: LayoutData{
 					Authorized: IsAuthorized(r.Context()),
+					UserName:   GetUserFromContext(r.Context()).Name,
 				},
 				ErrorMessage: err.Error(),
 			}

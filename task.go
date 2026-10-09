@@ -114,6 +114,7 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := TaskData{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
 		},
 		Tasks:     tasks,
 		LastIndex: len(tasks) - 1,
@@ -184,6 +185,7 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := TaskData{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
 		},
 		Tasks:     []Task{task},
 		LastIndex: -1,

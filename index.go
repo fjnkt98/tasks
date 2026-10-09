@@ -20,6 +20,7 @@ func NewIndexHandler() *IndexHandler {
 func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer
