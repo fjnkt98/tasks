@@ -10,6 +10,8 @@ terraform = "1.16.4"
 tflint = "latest"
 
 [env]
+ADMIN_PASSWORD = { required = true, redact = true }
+ADMIN_USERNAME = { required = true, redact = true }
 CGO_ENABLED = 1
 DATABASE_URL = { default = "file:app.db", redact = true }
 GOOGLE_CLOUD_PROJECT_NAME = { default = "tasks" }

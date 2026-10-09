@@ -64,7 +64,7 @@ func NewAuthCookie(value string, maxAge int) *http.Cookie {
 	}
 }
 
-func CreateUser(ctx context.Context, db *sql.DB, username string, password string) error {
+func CreateUser(ctx context.Context, db DBTX, username string, password string) error {
 	digest, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest: %w", err)
