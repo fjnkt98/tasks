@@ -73,6 +73,17 @@ func NewHandler(db *sql.DB) http.Handler {
 		mux.Handle("PUT /tasks/{id}/title", m(NewPutTaskTitleHandler(db)))
 		mux.Handle("PUT /tasks/{id}/status", m(NewPutTaskStatusHandler(db)))
 		mux.Handle("DELETE /tasks/{id}", m(NewDeleteTaskHandler(db)))
+
+		mux.Handle("GET /account/me", m(NewGetMeHandler(db)))
+	}
+
+	{
+		m := NewChainedMiddleware(
+			m,
+			NewAdminRequiredMiddleware(),
+		)
+
+		mux.Handle("GET /users/{id}", m(NewGetUserHandler(db)))
 	}
 
 	return otelhttp.NewHandler(mux, "http-request")

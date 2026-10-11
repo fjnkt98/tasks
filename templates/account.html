@@ -1,0 +1,43 @@
+{{ define "content" }}
+<div class="container mx-auto py-4 px-8">
+  <div class="breadcrumbs text-sm">
+    <ul>
+      <li><a class="link" href="/">Top</a></li>
+      <li>Account</li>
+    </ul>
+  </div>
+
+  <div class="flex flex-col max-w-md mx-auto">
+    <h1 class="text-2xl font-bold text-primary my-2">
+      {{ .UserName }} {{ if .IsAdmin }}(admin){{ end }}
+    </h1>
+
+    <div class="stats shadow my-4">
+      <div class="stat place-items-center">
+        <div class="stat-title">Tasks</div>
+        <div class="stat-value">{{ .TaskCount }}</div>
+      </div>
+
+      <div class="stat place-items-center">
+        <div class="stat-title">Done</div>
+        <div class="stat-value text-secondary">{{ .DoneCount }}</div>
+      </div>
+    </div>
+    {{ if not .IsAdmin }}
+    <ul class="menu rounded-box shadow w-full">
+      <li>
+        <h2 class="menu-title">Menu</h2>
+        <ul>
+          <li><a href="#" class="link link-hover">Change password</a></li>
+          <li>
+            <a href="#" class="link link-hover link-error"
+              >Delete an account
+            </a>
+          </li>
+        </ul>
+      </li>
+    </ul>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
