@@ -250,7 +250,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errs = append(errs, "confirm-password is required")
 	}
 
-	if password != "" && confirmPassword != "" && password != confirmPassword {
+	if password != confirmPassword {
 		errs = append(errs, "password not match")
 	}
 

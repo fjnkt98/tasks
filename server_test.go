@@ -313,6 +313,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 		{Name: "get task edit", Path: "/tasks/1/edit"},
 		{Name: "account me", Path: "/account/me"},
 		{Name: "password change", Path: "/account/password_change"},
+		{Name: "delete account", Path: "/account/delete"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			res, err = client.Get(server.URL + test.Path)
@@ -332,6 +333,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 		{Name: "post tasks", Path: "/tasks", Body: url.Values{"title": []string{"test"}}},
 		{Name: "signout", Path: "/account/signout"},
 		{Name: "password change", Path: "/account/password_change"},
+		{Name: "delete account", Path: "/account/delete"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			res, err = client.PostForm(server.URL+test.Path, test.Body)
@@ -484,4 +486,39 @@ func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 	i = slices.IndexFunc(cookies, func(cookie *http.Cookie) bool { return cookie.Name == AuthCookieName })
 	require.NotEqual(t, -1, i)
 	assert.NotEmpty(t, cookies[i].Value)
+}
+
+func TestIntegrationDeleteAccount(t *testing.T) {
+	_, server, client := integrationTestFixture(t)
+
+	// signup
+	res, err := client.PostForm(server.URL+"/account/signup", url.Values{
+		"username":         []string{"test"},
+		"password":         []string{"password"},
+		"confirm-password": []string{"password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/account/signup/success", res.Request.URL.Path)
+
+	// signin
+	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
+		"username": []string{"test"},
+		"password": []string{"password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/tasks", res.Request.URL.Path)
+
+	// delete account
+	res, err = client.PostForm(server.URL+"/account/delete", url.Values{
+		"password":     []string{"password"},
+		"confirmation": []string{"delete account"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/account/delete/success", res.Request.URL.Path)
 }

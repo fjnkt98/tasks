@@ -59,6 +59,7 @@ func NewHandler(db *sql.DB) http.Handler {
 	mux.Handle("GET /account/signin", m((NewGetSigninHandler())))
 	mux.Handle("POST /account/signin", m((NewPostSigninHandler(db))))
 	mux.Handle("GET /account/password_change/success", m(NewGetPasswordChangeSuccessHandler()))
+	mux.Handle("GET /account/delete/success", m(NewGetAccountDeleteSuccessHandler()))
 
 	{
 		m := NewChainedMiddleware(
@@ -78,6 +79,8 @@ func NewHandler(db *sql.DB) http.Handler {
 		mux.Handle("GET /account/me", m(NewGetMeHandler(db)))
 		mux.Handle("GET /account/password_change", m(NewGetPasswordChangeHandler()))
 		mux.Handle("POST /account/password_change", m(NewPostPasswordChangeHandler(db)))
+		mux.Handle("GET /account/delete", m(NewGetAccountDeleteHandler()))
+		mux.Handle("POST /account/delete", m(NewPostAccountDeleteHandler(db)))
 	}
 
 	{
