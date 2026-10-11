@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,6 +151,69 @@ func TestLogin(t *testing.T) {
 	})
 }
 
+func TestChangePassword(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
+
+		_, err := db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token', 32503680000)")
+		require.NoError(t, err)
+	}
+
+	t.Run("user not found", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		err := ChangePassword(t.Context(), db, 2, "password", "newpassword")
+		assert.ErrorIs(t, err, ErrInvalidCredentials)
+	})
+
+	t.Run("password not match", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		err := ChangePassword(t.Context(), db, 1, "invalid", "newpassword")
+		assert.ErrorIs(t, err, ErrInvalidCredentials)
+	})
+
+	t.Run("password too long", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		err := ChangePassword(t.Context(), db, 1, "password", strings.Repeat("p", 73))
+		require.Error(t, err)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+		time.Sleep(2 * time.Second)
+
+		q := "SELECT digest, updated_at FROM users WHERE name = 'user1'"
+
+		var digestBefore string
+		var updatedAtBefore int64
+		row := db.QueryRowContext(t.Context(), q)
+		require.NoError(t, row.Scan(&digestBefore, &updatedAtBefore))
+
+		err := ChangePassword(t.Context(), db, 1, "password", "newpassword")
+		require.NoError(t, err)
+
+		var digestAfter string
+		var updatedAtAfter int64
+		row = db.QueryRowContext(t.Context(), q)
+		require.NoError(t, row.Scan(&digestAfter, &updatedAtAfter))
+
+		assert.NotEqual(t, digestBefore, digestAfter)
+		assert.NotEqual(t, updatedAtBefore, updatedAtAfter)
+
+		var count int
+		row = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sessions")
+		require.NoError(t, row.Scan(&count))
+		assert.Equal(t, 0, count)
+	})
+}
+
 func TestGetSignupHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
@@ -201,7 +265,6 @@ func TestPostSignupHandler(t *testing.T) {
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
-
 			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
@@ -530,5 +593,180 @@ func TestPostSignoutHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusSeeOther, rec.Code)
+	})
+}
+
+func TestGetPasswordChangeHandler(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/password_change", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetPasswordChangeHandler()
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetPasswordChangeHandler()
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+}
+
+func TestPostPasswordChangeHandler(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
+		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
+	}
+
+	for _, test := range []struct {
+		Name       string
+		Body       url.Values
+		ErrMessage string
+	}{
+		{Name: "current password empty", Body: url.Values{"new-password": []string{"foo"}, "confirm-new-password": []string{"foo"}}, ErrMessage: "current password is required"},
+		{Name: "new password empty", Body: url.Values{"current-password": []string{"foo"}, "confirm-new-password": []string{"foo"}}, ErrMessage: "new password is required"},
+		{Name: "confirm-password empty", Body: url.Values{"current-password": []string{"foo"}, "new-password": []string{"foo"}}, ErrMessage: "confirm new password is required"},
+		{Name: "all empty", Body: url.Values{}, ErrMessage: "current password is required; new password is required; confirm new password is required"},
+		{Name: "password not match confirm-password", Body: url.Values{"current-password": []string{"foo"}, "new-password": []string{"bar"}, "confirm-new-password": []string{"baz"}}, ErrMessage: "password not match"},
+		{Name: "current password too long", Body: url.Values{"current-password": []string{strings.Repeat("s", 73)}, "new-password": []string{"bar"}, "confirm-new-password": []string{"baz"}}, ErrMessage: "password too long"},
+		{Name: "new password too long", Body: url.Values{"current-password": []string{"foo"}, "new-password": []string{strings.Repeat("s", 73)}, "confirm-new-password": []string{strings.Repeat("s", 73)}}, ErrMessage: "password too long"},
+	} {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change?current-password=foo&new-password=bar&confirm-new-password=bar", strings.NewReader(test.Body.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+
+		body := rec.Body.String()
+		assert.Contains(t, body, `<div role="alert"`)
+		assert.Contains(t, body, test.ErrMessage)
+	}
+
+	t.Run("invalid request body", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change", strings.NewReader("current-password=foo&new-password=bar&confirm-new-password=bar&foo=%zz"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		values := url.Values{}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+
+	t.Run("password not match", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		values := url.Values{
+			"current-password":     []string{"foo"},
+			"new-password":         []string{"new-password"},
+			"confirm-new-password": []string{"new-password"},
+		}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+
+		body := rec.Body.String()
+		assert.Contains(t, body, `<div role="alert"`)
+		assert.Contains(t, body, "invalid credentials")
+	})
+
+	t.Run("success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		values := url.Values{
+			"current-password":     []string{"password"},
+			"new-password":         []string{"new-password"},
+			"confirm-new-password": []string{"new-password"},
+		}
+
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "user1"})
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusSeeOther, rec.Code)
+		assert.Equal(t, "/account/password_change/success", rec.Result().Header.Get("Location"))
+	})
+}
+
+func TestGetPasswordChangeSuccessHandler(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/password_change_success", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetPasswordChangeSuccessHandler()
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetPasswordChangeSuccessHandler()
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }

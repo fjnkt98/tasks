@@ -302,7 +302,8 @@ func TestUnauthorizedRedirection(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/", res.Request.URL.Path)
 
-	// login required page
+	// login required pages
+	// GET
 	for _, test := range []struct {
 		Name string
 		Path string
@@ -310,6 +311,8 @@ func TestUnauthorizedRedirection(t *testing.T) {
 		{Name: "get tasks", Path: "/tasks"},
 		{Name: "get task", Path: "/tasks/1"},
 		{Name: "get task edit", Path: "/tasks/1/edit"},
+		{Name: "account me", Path: "/account/me"},
+		{Name: "password change", Path: "/account/password_change"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			res, err = client.Get(server.URL + test.Path)
@@ -320,6 +323,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 		})
 	}
 
+	// POST
 	for _, test := range []struct {
 		Name string
 		Path string
@@ -327,6 +331,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 	}{
 		{Name: "post tasks", Path: "/tasks", Body: url.Values{"title": []string{"test"}}},
 		{Name: "signout", Path: "/account/signout"},
+		{Name: "password change", Path: "/account/password_change"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			res, err = client.PostForm(server.URL+test.Path, test.Body)
@@ -337,6 +342,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 		})
 	}
 
+	// PUT
 	for _, test := range []struct {
 		Name string
 		Path string
@@ -356,6 +362,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 		})
 	}
 
+	// DELETE
 	for _, test := range []struct {
 		Name string
 		Path string
@@ -426,4 +433,29 @@ func TestIntegrationContentTooLong(t *testing.T) {
 	require.NoError(t, err)
 	discard(t, res.Body)
 	assert.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
+}
+
+func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
+	db, server, client := integrationTestFixture(t)
+
+	require.NoError(t, CreateUser(t.Context(), db, "test", "password"))
+
+	res, err := client.PostForm(server.URL+"/account/signin", url.Values{
+		"username": []string{"test"},
+		"password": []string{"password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/tasks", res.Request.URL.Path)
+
+	res, err = client.PostForm(server.URL+"/account/password_change", url.Values{
+		"current-password":     []string{"password"},
+		"new-password":         []string{"new-password"},
+		"confirm-new-password": []string{"new-password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/account/password_change/success", res.Request.URL.Path)
 }
