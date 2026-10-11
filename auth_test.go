@@ -211,6 +211,9 @@ func TestChangePassword(t *testing.T) {
 		row = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sessions")
 		require.NoError(t, row.Scan(&count))
 		assert.Equal(t, 0, count)
+
+		_, err = Login(t.Context(), db, "user1", "newpassword")
+		require.NoError(t, err)
 	})
 }
 
@@ -705,7 +708,8 @@ func TestPostPasswordChangeHandler(t *testing.T) {
 			"new-password":         []string{"new-password"},
 			"confirm-new-password": []string{"new-password"},
 		}
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "user1"})
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()

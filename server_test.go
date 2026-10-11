@@ -440,6 +440,7 @@ func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 
 	require.NoError(t, CreateUser(t.Context(), db, "test", "password"))
 
+	// signin
 	res, err := client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{"password"},
@@ -449,6 +450,7 @@ func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/tasks", res.Request.URL.Path)
 
+	// password change
 	res, err = client.PostForm(server.URL+"/account/password_change", url.Values{
 		"current-password":     []string{"password"},
 		"new-password":         []string{"new-password"},
@@ -458,4 +460,28 @@ func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 	discard(t, res.Body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/account/password_change/success", res.Request.URL.Path)
+
+	// check logged out
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	cookies := client.Jar.Cookies(u)
+	i := slices.IndexFunc(cookies, func(cookie *http.Cookie) bool { return cookie.Name == AuthCookieName })
+	require.Equal(t, -1, i)
+
+	// signin again with new password
+	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
+		"username": []string{"test"},
+		"password": []string{"new-password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/tasks", res.Request.URL.Path)
+
+	u, err = url.Parse(server.URL)
+	require.NoError(t, err)
+	cookies = client.Jar.Cookies(u)
+	i = slices.IndexFunc(cookies, func(cookie *http.Cookie) bool { return cookie.Name == AuthCookieName })
+	require.NotEqual(t, -1, i)
+	assert.NotEmpty(t, cookies[i].Value)
 }

@@ -111,9 +111,17 @@ func Login(ctx context.Context, db *sql.DB, username string, password string) (s
 	}
 
 	token := NewSessionToken()
-	q = "INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)"
-	if _, err := db.ExecContext(ctx, q, userID, token, time.Now().Add(24*time.Hour).Unix()); err != nil {
+	q = "INSERT INTO sessions (user_id, token, expires_at) SELECT id, ?, ? FROM users WHERE id = ? AND digest = ?"
+	result, err := db.ExecContext(ctx, q, token, time.Now().Add(24*time.Hour).Unix(), userID, digest)
+	if err != nil {
 		return "", fmt.Errorf("insert session: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return "", fmt.Errorf("rows affected: %w", err)
+	}
+	if count == 0 {
+		return "", ErrInvalidCredentials
 	}
 
 	return token, nil
