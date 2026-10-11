@@ -9,8 +9,9 @@
   hx-swap="afterend"
   {{ end }}
 >
-  <div id="task-{{ $task.ID }}-title" class="text-lg list-col-grow">
-    {{ $task.Title }}
+  <div id="task-{{ $task.ID }}-title" class="list-col-grow flex flex-col">
+    <span class="text-lg">{{ $task.Title }}</span>
+    <span class="text-xs text-gray-400">{{ $task.ID }}</span>
   </div>
 
   <button
