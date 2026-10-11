@@ -155,6 +155,19 @@ func NewLoginRequiredMiddleware() Middleware {
 	}
 }
 
+func NewAdminRequiredMiddleware() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if IsAdmin(r.Context()) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+		})
+	}
+}
+
 func NewByteLimitMiddleware() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.MaxBytesHandler(next, 1<<20)

@@ -39,6 +39,22 @@ func TestGetUserFromContext(t *testing.T) {
 	})
 }
 
+func TestIsAdmin(t *testing.T) {
+	t.Run("unauthorized", func(t *testing.T) {
+		assert.False(t, IsAdmin(t.Context()))
+	})
+
+	t.Run("non-admin", func(t *testing.T) {
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
+		assert.False(t, IsAdmin(ctx))
+	})
+
+	t.Run("admin", func(t *testing.T) {
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Roles: []string{"admin"}})
+		assert.True(t, IsAdmin(ctx))
+	})
+}
+
 func extractCookies(t *testing.T, header http.Header) map[string]*http.Cookie {
 	t.Helper()
 

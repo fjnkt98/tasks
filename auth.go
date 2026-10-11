@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -54,6 +55,11 @@ func GetUserFromContext(ctx context.Context) User {
 
 func IsAuthorized(ctx context.Context) bool {
 	return GetUserFromContext(ctx).ID != 0
+}
+
+func IsAdmin(ctx context.Context) bool {
+	user := GetUserFromContext(ctx)
+	return slices.Contains(user.Roles, "admin")
 }
 
 const AuthCookieName = "session_token"

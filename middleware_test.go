@@ -336,3 +336,45 @@ func TestLoginRequiredMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusSeeOther, rec.Code)
 	})
 }
+
+func TestAdminRequiredMiddleware(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "test") // nolint:errcheck
+	})
+
+	h := NewAdminRequiredMiddleware()(mux)
+
+	t.Run("unauthorized", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusSeeOther, rec.Code)
+		assert.Equal(t, "/", rec.Result().Header.Get("Location"))
+	})
+
+	t.Run("non-admin", func(t *testing.T) {
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "test"})
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusSeeOther, rec.Code)
+		assert.Equal(t, "/", rec.Result().Header.Get("Location"))
+	})
+
+	t.Run("admin", func(t *testing.T) {
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "test", Roles: []string{"admin"}})
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "test\n", rec.Body.String())
+	})
+}
