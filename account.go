@@ -29,7 +29,7 @@ func DeleteAccount(ctx context.Context, db *sql.DB, userID int, password string)
 		return ErrInvalidCredentials
 	}
 
-	q = "DELETE FROM users WHERE id IN (SELECT id FROM users WHERE id = ? AND digest = ?)"
+	q = "DELETE FROM users WHERE id = ? AND digest = ?"
 	result, err := db.ExecContext(ctx, q, userID, digest)
 	if err != nil {
 		return fmt.Errorf("delete the user record: %w", err)
@@ -242,6 +242,7 @@ func (h *PostAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	http.SetCookie(w, NewAuthCookie("", -1))
 	http.Redirect(w, r, "/account/delete/success", http.StatusSeeOther)
 }
 
