@@ -107,7 +107,7 @@ func TestCreateUser(t *testing.T) {
 	})
 }
 
-func TestLogin(t *testing.T) {
+func TestSignin(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
 		t.Helper()
 		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
@@ -117,7 +117,7 @@ func TestLogin(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		_, err := Login(t.Context(), db, "user2", "password")
+		_, err := Signin(t.Context(), db, "user2", "password")
 		assert.ErrorIs(t, err, ErrInvalidCredentials)
 	})
 
@@ -125,7 +125,7 @@ func TestLogin(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		_, err := Login(t.Context(), db, "user1", "invalid")
+		_, err := Signin(t.Context(), db, "user1", "invalid")
 		assert.ErrorIs(t, err, ErrInvalidCredentials)
 	})
 
@@ -133,7 +133,7 @@ func TestLogin(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		_, err := Login(t.Context(), db, "user1", strings.Repeat("p", 73))
+		_, err := Signin(t.Context(), db, "user1", strings.Repeat("p", 73))
 		assert.ErrorIs(t, err, ErrInvalidCredentials)
 	})
 
@@ -141,7 +141,7 @@ func TestLogin(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		token, err := Login(t.Context(), db, "user1", "password")
+		token, err := Signin(t.Context(), db, "user1", "password")
 		require.NoError(t, err)
 
 		row := db.QueryRowContext(t.Context(), "SELECT token FROM sessions")
@@ -212,7 +212,7 @@ func TestChangePassword(t *testing.T) {
 		require.NoError(t, row.Scan(&count))
 		assert.Equal(t, 0, count)
 
-		_, err = Login(t.Context(), db, "user1", "newpassword")
+		_, err = Signin(t.Context(), db, "user1", "newpassword")
 		require.NoError(t, err)
 	})
 }

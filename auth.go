@@ -94,7 +94,7 @@ func CreateUser(ctx context.Context, db DBTX, username string, password string) 
 	return nil
 }
 
-func Login(ctx context.Context, db *sql.DB, username string, password string) (string, error) {
+func Signin(ctx context.Context, db *sql.DB, username string, password string) (string, error) {
 	q := "SELECT id, digest FROM users WHERE name = ? LIMIT 1"
 	row := db.QueryRowContext(ctx, q, username)
 	var userID int
@@ -461,7 +461,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := Login(r.Context(), h.db, username, password)
+	token, err := Signin(r.Context(), h.db, username, password)
 	if err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
 			data := struct {

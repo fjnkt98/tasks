@@ -302,7 +302,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/", res.Request.URL.Path)
 
-	// login required pages
+	// signin required pages
 	// GET
 	for _, test := range []struct {
 		Name string

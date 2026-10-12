@@ -64,7 +64,7 @@ func NewHandler(db *sql.DB) http.Handler {
 	{
 		m := NewChainedMiddleware(
 			m,
-			NewLoginRequiredMiddleware(),
+			NewSigninRequiredMiddleware(),
 		)
 		mux.Handle("POST /account/signout", m(NewPostSignoutHandler(db)))
 

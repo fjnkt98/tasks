@@ -19,9 +19,9 @@ func TestDeleteAccount(t *testing.T) {
 		err = CreateUser(t.Context(), db, "user2", "password")
 		require.NoError(t, err)
 
-		_, err = Login(t.Context(), db, "user1", "password")
+		_, err = Signin(t.Context(), db, "user1", "password")
 		require.NoError(t, err)
-		_, err = Login(t.Context(), db, "user2", "password")
+		_, err = Signin(t.Context(), db, "user2", "password")
 		require.NoError(t, err)
 
 		_, err = db.ExecContext(t.Context(), `INSERT INTO tasks (user_id, title, status) VALUES

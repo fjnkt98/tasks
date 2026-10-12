@@ -307,14 +307,14 @@ func TestSessionMiddleware(t *testing.T) {
 	})
 }
 
-func TestLoginRequiredMiddleware(t *testing.T) {
+func TestSigninRequiredMiddleware(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "test") // nolint:errcheck
 	})
 
-	h := NewLoginRequiredMiddleware()(mux)
+	h := NewSigninRequiredMiddleware()(mux)
 
 	t.Run("authorized", func(t *testing.T) {
 		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "test"})
