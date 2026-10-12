@@ -12,6 +12,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSaveActivity(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
+	}
+
+	db := NewTestDB(t)
+	fixture(t, db)
+
+	err := SaveActivity(t.Context(), db, 1, "test", "foo")
+	require.NoError(t, err)
+}
+
+func TestGetActivities(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
+		err = CreateUser(t.Context(), db, "user2", "password")
+		require.NoError(t, err)
+	}
+
+	db := NewTestDB(t)
+	fixture(t, db)
+
+	require.NoError(t, SaveActivity(t.Context(), db, 1, "test", "a1"))
+	require.NoError(t, SaveActivity(t.Context(), db, 1, "test", "a2"))
+	require.NoError(t, SaveActivity(t.Context(), db, 2, "test", "a3"))
+
+	activities, err := GetActivities(t.Context(), db, 1)
+	require.NoError(t, err)
+
+	type data struct {
+		UserID  int
+		Kind    string
+		Message string
+	}
+	got := make([]data, len(activities))
+	for i, a := range activities {
+		got[i].UserID = a.UserID
+		got[i].Kind = a.Kind
+		got[i].Message = a.Message
+	}
+	want := []data{
+		{UserID: 1, Kind: "test", Message: "a2"},
+		{UserID: 1, Kind: "test", Message: "a1"},
+	}
+	assert.Equal(t, want, got)
+}
+
 func TestDeleteAccount(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
 		err := CreateUser(t.Context(), db, "user1", "password")

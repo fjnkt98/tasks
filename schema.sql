@@ -43,3 +43,14 @@ CREATE TABLE user_role_relations (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (role) REFERENCES roles (name) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
+
+CREATE TABLE activities (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (UNIXEPOCH()),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) STRICT;
+
+CREATE INDEX activities_user_id_created_at_id ON activities (user_id, created_at DESC, id DESC);

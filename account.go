@@ -45,6 +45,47 @@ func DeleteAccount(ctx context.Context, db *sql.DB, userID int, password string)
 	return nil
 }
 
+type Activity struct {
+	UserID    int
+	Kind      string
+	Message   string
+	CreatedAt int64
+}
+
+func SaveActivity(ctx context.Context, db DBTX, userID int, kind string, message string) error {
+	q := "INSERT INTO activities (user_id, kind, message) VALUES (?, ?, ?)"
+	_, err := db.ExecContext(ctx, q, userID, kind, message)
+	if err != nil {
+		return fmt.Errorf("insert activity: %w", err)
+	}
+	return nil
+}
+
+func GetActivities(ctx context.Context, db *sql.DB, userID int) (activities []Activity, err error) {
+	q := "SELECT kind, message, created_at FROM activities WHERE user_id = ? ORDER BY created_at DESC, id DESC"
+	rows, err := db.QueryContext(ctx, q, userID)
+	if err != nil {
+		return nil, fmt.Errorf("select activities: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
+
+	activities = make([]Activity, 0)
+	for rows.Next() {
+		activity := Activity{UserID: userID}
+		if err := rows.Scan(&activity.Kind, &activity.Message, &activity.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan rows: %w", err)
+		}
+		activities = append(activities, activity)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+
+	return
+}
+
 type GetMeHandler struct {
 	db *sql.DB
 	t  *template.Template

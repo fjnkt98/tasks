@@ -369,6 +369,24 @@ func TestPostTaskHandler(t *testing.T) {
 		require.Len(t, tasks, 1)
 		assert.Equal(t, "test", tasks[0].Title)
 		assert.Equal(t, "created", tasks[0].Status)
+
+		rows, err = db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: `add task 1, title: "test"`},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
@@ -591,6 +609,24 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		assert.Equal(t, "new test", task.Title)
 		assert.Equal(t, "created", task.Status)
 		assert.Equal(t, 1, task.UserID)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: `edit task 1, title: "new test"`},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
@@ -757,7 +793,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		assert.Equal(t, 1, task.UserID)
 	})
 
-	t.Run("success", func(t *testing.T) {
+	t.Run("done success", func(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(db, t)
 
@@ -785,6 +821,75 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		assert.Equal(t, "test", task.Title)
 		assert.Equal(t, "done", task.Status)
 		assert.Equal(t, 1, task.UserID)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: "done task 1"},
+		}
+		assert.Equal(t, want, activities)
+	})
+
+	t.Run("undone success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		_, err := db.ExecContext(t.Context(), "UPDATE tasks SET status = 'done' WHERE id = 1")
+		require.NoError(t, err)
+
+		values := url.Values{}
+		values.Set("status", "created")
+
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskStatusHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNoContent, rec.Code)
+		assert.Equal(t, "", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: "undone task 1"},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
@@ -864,5 +969,23 @@ func TestDeleteTaskHandler(t *testing.T) {
 		require.NoError(t, row.Scan(&count))
 
 		assert.Equal(t, 0, count)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: "delete task 1"},
+		}
+		assert.Equal(t, want, activities)
 	})
 }

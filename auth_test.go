@@ -110,7 +110,9 @@ func TestCreateUser(t *testing.T) {
 func TestSignin(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
 		t.Helper()
-		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
+
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
 	}
 
 	t.Run("user not found", func(t *testing.T) {
@@ -148,15 +150,35 @@ func TestSignin(t *testing.T) {
 		var saved string
 		require.NoError(t, row.Scan(&saved))
 		assert.Equal(t, saved, token)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "account", Message: "signin"},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
 func TestChangePassword(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
 		t.Helper()
-		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
 
-		_, err := db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token', 32503680000)")
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token', 32503680000)")
 		require.NoError(t, err)
 	}
 
@@ -214,6 +236,25 @@ func TestChangePassword(t *testing.T) {
 
 		_, err = Signin(t.Context(), db, "user1", "newpassword")
 		require.NoError(t, err)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "account", Message: "signin"},
+			{UserID: 1, Kind: "account", Message: "change password"},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
@@ -434,10 +475,11 @@ func TestGetSigninHandler(t *testing.T) {
 }
 
 func TestPostSigninHandler(t *testing.T) {
-	var fixture = func(db *sql.DB, t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
 		t.Helper()
 
-		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
 	}
 
 	for _, test := range []struct {
@@ -455,7 +497,7 @@ func TestPostSigninHandler(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			db := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(t, db)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin?username=user1&password=password", strings.NewReader(test.Body.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -485,7 +527,7 @@ func TestPostSigninHandler(t *testing.T) {
 	t.Run("invalid request body", func(t *testing.T) {
 		db := NewTestDB(t)
 
-		fixture(db, t)
+		fixture(t, db)
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin", strings.NewReader("username=user1&password=password&foo=%zz"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -521,7 +563,7 @@ func TestPostSigninHandler(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			db := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(t, db)
 
 			values := url.Values{}
 			values.Set("username", "user1")
@@ -584,6 +626,24 @@ func TestPostSignoutHandler(t *testing.T) {
 		assert.Equal(t, -1, tokenCookie.MaxAge)
 		assert.Equal(t, "", tokenCookie.Value)
 		assert.Equal(t, "/", tokenCookie.Path)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "account", Message: "signout"},
+		}
+		assert.Equal(t, want, activities)
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
@@ -629,7 +689,8 @@ func TestPostPasswordChangeHandler(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
 		t.Helper()
 
-		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
 	}
 
 	for _, test := range []struct {

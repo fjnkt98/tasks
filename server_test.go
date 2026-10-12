@@ -440,7 +440,8 @@ func TestIntegrationContentTooLong(t *testing.T) {
 func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 	db, server, client := integrationTestFixture(t)
 
-	require.NoError(t, CreateUser(t.Context(), db, "test", "password"))
+	err := CreateUser(t.Context(), db, "test", "password")
+	require.NoError(t, err)
 
 	// signin
 	res, err := client.PostForm(server.URL+"/account/signin", url.Values{

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -289,11 +290,31 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	user := GetUserFromContext(r.Context())
 
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "begin transaction", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	defer tx.Rollback() // nolint:errcheck
+
 	q := "INSERT INTO tasks (user_id, title) VALUES (?, ?) RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, user.ID, title)
+	row := tx.QueryRowContext(r.Context(), q, user.ID, title)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf("add task %d, title: \"%s\"", task.ID, task.Title)); err != nil {
+		slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(r.Context(), "commit transaction", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
@@ -356,8 +377,16 @@ func (h *PutTaskTitleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	user := GetUserFromContext(r.Context())
 
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "begin transaction", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	defer tx.Rollback() // nolint:errcheck
+
 	q := "UPDATE tasks SET title = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, title, id, user.ID)
+	row := tx.QueryRowContext(r.Context(), q, title, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -366,6 +395,18 @@ func (h *PutTaskTitleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		}
 
 		slog.ErrorContext(r.Context(), "update task", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf("edit task %d, title: \"%s\"", task.ID, task.Title)); err != nil {
+		slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(r.Context(), "commit transaction", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
@@ -426,8 +467,16 @@ func (h *PutTaskStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	user := GetUserFromContext(r.Context())
 
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "begin transaction", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	defer tx.Rollback() // nolint:errcheck
+
 	q := "UPDATE tasks SET status = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, status, id, user.ID)
+	row := tx.QueryRowContext(r.Context(), q, status, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -436,6 +485,22 @@ func (h *PutTaskStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		}
 
 		slog.ErrorContext(r.Context(), "update task", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	activity := "done"
+	if status == "created" {
+		activity = "undone"
+	}
+	if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf("%s task %d", activity, task.ID)); err != nil {
+		slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(r.Context(), "commit transaction", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
@@ -462,9 +527,38 @@ func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	user := GetUserFromContext(r.Context())
 
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "begin transaction", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	defer tx.Rollback() // nolint:errcheck
+
 	q := "DELETE FROM tasks WHERE id = ? AND user_id = ?"
-	if _, err := h.db.ExecContext(r.Context(), q, id, user.ID); err != nil {
+	result, err := tx.ExecContext(r.Context(), q, id, user.ID)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		slog.ErrorContext(r.Context(), "rows affected", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if count > 0 {
+		if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf("delete task %d", id)); err != nil {
+			slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
+			Handle500(w, r)
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(r.Context(), "commit transaction", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}

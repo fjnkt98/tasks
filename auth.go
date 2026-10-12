@@ -110,9 +110,15 @@ func Signin(ctx context.Context, db *sql.DB, username string, password string) (
 		return "", ErrInvalidCredentials
 	}
 
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() // nolint:errcheck
+
 	token := NewSessionToken()
 	q = "INSERT INTO sessions (user_id, token, expires_at) SELECT id, ?, ? FROM users WHERE id = ? AND digest = ?"
-	result, err := db.ExecContext(ctx, q, token, time.Now().Add(24*time.Hour).Unix(), userID, digest)
+	result, err := tx.ExecContext(ctx, q, token, time.Now().Add(24*time.Hour).Unix(), userID, digest)
 	if err != nil {
 		return "", fmt.Errorf("insert session: %w", err)
 	}
@@ -122,6 +128,14 @@ func Signin(ctx context.Context, db *sql.DB, username string, password string) (
 	}
 	if count == 0 {
 		return "", ErrInvalidCredentials
+	}
+
+	if err := SaveActivity(ctx, tx, userID, "account", "signin"); err != nil {
+		return "", fmt.Errorf("save activity: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return token, nil
@@ -161,6 +175,43 @@ func ChangePassword(ctx context.Context, db *sql.DB, userID int, password string
 	q = "DELETE FROM sessions WHERE user_id = ?"
 	if _, err := tx.ExecContext(ctx, q, userID); err != nil {
 		return fmt.Errorf("delete sessions: %w", err)
+	}
+
+	if err := SaveActivity(ctx, tx, userID, "account", "change password"); err != nil {
+		return fmt.Errorf("save activity: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func Signout(ctx context.Context, db *sql.DB, token string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() // nolint:errcheck
+
+	q := "DELETE FROM sessions WHERE token = ? RETURNING user_id"
+	row := tx.QueryRowContext(ctx, q, token)
+	var userID int
+
+	deleted := true
+	if err := row.Scan(&userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			deleted = false
+		} else {
+			return fmt.Errorf("delete the session: %w", err)
+		}
+	}
+
+	if deleted {
+		if err := SaveActivity(ctx, tx, userID, "account", "signout"); err != nil {
+			return fmt.Errorf("save activity: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -520,8 +571,7 @@ func (h *PostSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := "DELETE FROM sessions WHERE token = ?"
-	if _, err := h.db.ExecContext(r.Context(), q, cookie.Value); err != nil {
+	if err := Signout(r.Context(), h.db, cookie.Value); err != nil {
 		slog.ErrorContext(r.Context(), "delete session by token", slog.Any("error", err))
 		Handle500(w, r)
 		return
