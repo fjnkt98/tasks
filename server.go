@@ -25,6 +25,7 @@ func IsHTMX(r *http.Request) bool {
 
 type LayoutData struct {
 	Authorized bool
+	UserName   string
 }
 
 func NewServer(port int, db *sql.DB) (*http.Server, error) {
@@ -52,18 +53,20 @@ func NewHandler(db *sql.DB) http.Handler {
 
 	mux.Handle("GET /", m(NewIndexHandler()))
 
-	mux.Handle("GET /signup", m(NewGetSignupHandler()))
-	mux.Handle("POST /signup", m(NewPostSignupHandler(db)))
-	mux.Handle("GET /signup/success", m(NewGetSignupSuccessHandler()))
-	mux.Handle("GET /signin", m((NewGetSigninHandler())))
-	mux.Handle("POST /signin", m((NewPostSigninHandler(db))))
+	mux.Handle("GET /account/signup", m(NewGetSignupHandler()))
+	mux.Handle("POST /account/signup", m(NewPostSignupHandler(db)))
+	mux.Handle("GET /account/signup/success", m(NewGetSignupSuccessHandler()))
+	mux.Handle("GET /account/signin", m((NewGetSigninHandler())))
+	mux.Handle("POST /account/signin", m((NewPostSigninHandler(db))))
+	mux.Handle("GET /account/password_change/success", m(NewGetPasswordChangeSuccessHandler()))
+	mux.Handle("GET /account/delete/success", m(NewGetAccountDeleteSuccessHandler()))
 
 	{
 		m := NewChainedMiddleware(
 			m,
-			NewLoginRequiredMiddleware(),
+			NewSigninRequiredMiddleware(),
 		)
-		mux.Handle("POST /signout", m(NewPostSignoutHandler(db)))
+		mux.Handle("POST /account/signout", m(NewPostSignoutHandler(db)))
 
 		mux.Handle("GET /tasks", m(NewListTasksHandler(db)))
 		mux.Handle("GET /tasks/{id}", m(NewGetTaskHandler(db)))
@@ -72,6 +75,21 @@ func NewHandler(db *sql.DB) http.Handler {
 		mux.Handle("PUT /tasks/{id}/title", m(NewPutTaskTitleHandler(db)))
 		mux.Handle("PUT /tasks/{id}/status", m(NewPutTaskStatusHandler(db)))
 		mux.Handle("DELETE /tasks/{id}", m(NewDeleteTaskHandler(db)))
+
+		mux.Handle("GET /account/me", m(NewGetMeHandler(db)))
+		mux.Handle("GET /account/password_change", m(NewGetPasswordChangeHandler()))
+		mux.Handle("POST /account/password_change", m(NewPostPasswordChangeHandler(db)))
+		mux.Handle("GET /account/delete", m(NewGetAccountDeleteHandler()))
+		mux.Handle("POST /account/delete", m(NewPostAccountDeleteHandler(db)))
+	}
+
+	{
+		m := NewChainedMiddleware(
+			m,
+			NewAdminRequiredMiddleware(),
+		)
+
+		mux.Handle("GET /users/{id}", m(NewGetUserHandler(db)))
 	}
 
 	return otelhttp.NewHandler(mux, "http-request")
@@ -87,6 +105,7 @@ func Handle400(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer
@@ -115,6 +134,7 @@ func Handle404(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer
@@ -143,6 +163,7 @@ func Handle500(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer

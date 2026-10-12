@@ -20,22 +20,38 @@ func TestNewSessionToken(t *testing.T) {
 	assert.Equal(t, 64, len(token))
 }
 
-func TestSetUserIDIntoContext(t *testing.T) {
-	ctx := SetUserIDIntoContext(t.Context(), 1)
+func TestSetUserIntoContext(t *testing.T) {
+	ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 
-	assert.Equal(t, int(1), ctx.Value(contextKeyUser))
+	assert.Equal(t, User{ID: 1}, ctx.Value(contextKeyUser))
 }
 
-func TestGetUserIDFromContext(t *testing.T) {
+func TestGetUserFromContext(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
-		v := GetUserIDFromContext(t.Context())
-		assert.Equal(t, int(0), v)
+		v := GetUserFromContext(t.Context())
+		assert.Equal(t, User{}, v)
 	})
 
 	t.Run("found", func(t *testing.T) {
-		ctx := context.WithValue(t.Context(), contextKeyUser, int(1))
-		v := GetUserIDFromContext(ctx)
-		assert.Equal(t, int(1), v)
+		ctx := context.WithValue(t.Context(), contextKeyUser, User{ID: 1, Name: "test"})
+		v := GetUserFromContext(ctx)
+		assert.Equal(t, User{ID: 1, Name: "test"}, v)
+	})
+}
+
+func TestIsAdmin(t *testing.T) {
+	t.Run("unauthorized", func(t *testing.T) {
+		assert.False(t, IsAdmin(t.Context()))
+	})
+
+	t.Run("non-admin", func(t *testing.T) {
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
+		assert.False(t, IsAdmin(ctx))
+	})
+
+	t.Run("admin", func(t *testing.T) {
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Roles: []string{"admin"}})
+		assert.True(t, IsAdmin(ctx))
 	})
 }
 
@@ -90,17 +106,19 @@ func TestCreateUser(t *testing.T) {
 	})
 }
 
-func TestLogin(t *testing.T) {
+func TestSignin(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
 		t.Helper()
-		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
+
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
 	}
 
 	t.Run("user not found", func(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		_, err := Login(t.Context(), db, "user2", "password")
+		_, err := Signin(t.Context(), db, "user2", "password")
 		assert.ErrorIs(t, err, ErrInvalidCredentials)
 	})
 
@@ -108,7 +126,7 @@ func TestLogin(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		_, err := Login(t.Context(), db, "user1", "invalid")
+		_, err := Signin(t.Context(), db, "user1", "invalid")
 		assert.ErrorIs(t, err, ErrInvalidCredentials)
 	})
 
@@ -116,7 +134,7 @@ func TestLogin(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		_, err := Login(t.Context(), db, "user1", strings.Repeat("p", 73))
+		_, err := Signin(t.Context(), db, "user1", strings.Repeat("p", 73))
 		assert.ErrorIs(t, err, ErrInvalidCredentials)
 	})
 
@@ -124,19 +142,126 @@ func TestLogin(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		token, err := Login(t.Context(), db, "user1", "password")
+		token, err := Signin(t.Context(), db, "user1", "password")
 		require.NoError(t, err)
 
 		row := db.QueryRowContext(t.Context(), "SELECT token FROM sessions")
 		var saved string
 		require.NoError(t, row.Scan(&saved))
 		assert.Equal(t, saved, token)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "account", Message: "signin"},
+		}
+		assert.Equal(t, want, activities)
+	})
+}
+
+func TestChangePassword(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), "UPDATE users SET updated_at = 0 WHERE id = 1")
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token', 32503680000)")
+		require.NoError(t, err)
+	}
+
+	t.Run("user not found", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		err := ChangePassword(t.Context(), db, 2, "password", "newpassword")
+		assert.ErrorIs(t, err, ErrInvalidCredentials)
+	})
+
+	t.Run("password not match", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		err := ChangePassword(t.Context(), db, 1, "invalid", "newpassword")
+		assert.ErrorIs(t, err, ErrInvalidCredentials)
+	})
+
+	t.Run("password too long", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		err := ChangePassword(t.Context(), db, 1, "password", strings.Repeat("p", 73))
+		require.Error(t, err)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		q := "SELECT digest, updated_at FROM users WHERE name = 'user1'"
+
+		var digestBefore string
+		var updatedAtBefore int64
+		row := db.QueryRowContext(t.Context(), q)
+		require.NoError(t, row.Scan(&digestBefore, &updatedAtBefore))
+
+		err := ChangePassword(t.Context(), db, 1, "password", "newpassword")
+		require.NoError(t, err)
+
+		var digestAfter string
+		var updatedAtAfter int64
+		row = db.QueryRowContext(t.Context(), q)
+		require.NoError(t, row.Scan(&digestAfter, &updatedAtAfter))
+
+		assert.NotEqual(t, digestBefore, digestAfter)
+		assert.NotEqual(t, updatedAtBefore, updatedAtAfter)
+
+		var count int
+		row = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sessions")
+		require.NoError(t, row.Scan(&count))
+		assert.Equal(t, 0, count)
+
+		_, err = Signin(t.Context(), db, "user1", "newpassword")
+		require.NoError(t, err)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "account", Message: "signin"},
+			{UserID: 1, Kind: "account", Message: "change password"},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
 func TestGetSignupHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupHandler()
@@ -147,7 +272,7 @@ func TestGetSignupHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupHandler()
@@ -176,7 +301,7 @@ func TestPostSignupHandler(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			db := NewTestDB(t)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup?username=foo&password=bar&confirm-password=bar", strings.NewReader(test.Body.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup?username=foo&password=bar&confirm-password=bar", strings.NewReader(test.Body.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
@@ -185,7 +310,6 @@ func TestPostSignupHandler(t *testing.T) {
 			h.ServeHTTP(rec, req)
 
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
-
 			assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 
 			body := rec.Body.String()
@@ -202,7 +326,7 @@ func TestPostSignupHandler(t *testing.T) {
 	t.Run("invalid request body", func(t *testing.T) {
 		db := NewTestDB(t)
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader("username=user1&password=password&confirm-password=password&foo=%zz"))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader("username=user1&password=password&confirm-password=password&foo=%zz"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -230,7 +354,7 @@ func TestPostSignupHandler(t *testing.T) {
 		values.Set("password", "password")
 		values.Set("confirm-password", "password")
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -255,7 +379,7 @@ func TestPostSignupHandler(t *testing.T) {
 		db := NewTestDB(t)
 
 		values := url.Values{}
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -282,7 +406,7 @@ func TestPostSignupHandler(t *testing.T) {
 		values.Set("password", "password")
 		values.Set("confirm-password", "password")
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signup", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -301,7 +425,7 @@ func TestPostSignupHandler(t *testing.T) {
 
 func TestGetSignupSuccessHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup/success", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup/success", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupSuccessHandler()
@@ -312,7 +436,7 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signup/success", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup/success", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSignupSuccessHandler()
@@ -327,7 +451,7 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 
 func TestGetSigninHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signin", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSigninHandler()
@@ -338,7 +462,7 @@ func TestGetSigninHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signin", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewGetSigninHandler()
@@ -352,10 +476,11 @@ func TestGetSigninHandler(t *testing.T) {
 }
 
 func TestPostSigninHandler(t *testing.T) {
-	var fixture = func(db *sql.DB, t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
 		t.Helper()
 
-		require.NoError(t, CreateUser(t.Context(), db, "user1", "password"))
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
 	}
 
 	for _, test := range []struct {
@@ -373,9 +498,9 @@ func TestPostSigninHandler(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			db := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(t, db)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin?username=user1&password=password", strings.NewReader(test.Body.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin?username=user1&password=password", strings.NewReader(test.Body.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
@@ -403,9 +528,9 @@ func TestPostSigninHandler(t *testing.T) {
 	t.Run("invalid request body", func(t *testing.T) {
 		db := NewTestDB(t)
 
-		fixture(db, t)
+		fixture(t, db)
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader("username=user1&password=password&foo=%zz"))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin", strings.NewReader("username=user1&password=password&foo=%zz"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -421,7 +546,7 @@ func TestPostSigninHandler(t *testing.T) {
 		db := NewTestDB(t)
 
 		values := url.Values{}
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		rec := httptest.NewRecorder()
@@ -439,13 +564,13 @@ func TestPostSigninHandler(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			db := NewTestDB(t)
 
-			fixture(db, t)
+			fixture(t, db)
 
 			values := url.Values{}
 			values.Set("username", "user1")
 			values.Set("password", "password")
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", strings.NewReader(values.Encode()))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin", strings.NewReader(values.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 			rec := httptest.NewRecorder()
@@ -480,8 +605,8 @@ func TestPostSignoutHandler(t *testing.T) {
 		_, err = db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token', 32503680000)")
 		require.NoError(t, err)
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
-		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signout", nil)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/signout", nil)
 		req.AddCookie(NewAuthCookie("token", 86400))
 
 		rec := httptest.NewRecorder()
@@ -502,17 +627,212 @@ func TestPostSignoutHandler(t *testing.T) {
 		assert.Equal(t, -1, tokenCookie.MaxAge)
 		assert.Equal(t, "", tokenCookie.Value)
 		assert.Equal(t, "/", tokenCookie.Path)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "account", Message: "signout"},
+		}
+		assert.Equal(t, want, activities)
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
 		db := NewTestDB(t)
 
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signout", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signout", nil)
 		rec := httptest.NewRecorder()
 
 		h := NewPostSignoutHandler(db)
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusSeeOther, rec.Code)
+	})
+}
+
+func TestGetPasswordChangeHandler(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/password_change", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetPasswordChangeHandler()
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetPasswordChangeHandler()
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+}
+
+func TestPostPasswordChangeHandler(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
+		err := CreateUser(t.Context(), db, "user1", "password")
+		require.NoError(t, err)
+	}
+
+	for _, test := range []struct {
+		Name       string
+		Body       url.Values
+		ErrMessage string
+	}{
+		{Name: "current password empty", Body: url.Values{"new-password": []string{"foo"}, "confirm-new-password": []string{"foo"}}, ErrMessage: "current password is required"},
+		{Name: "new password empty", Body: url.Values{"current-password": []string{"foo"}, "confirm-new-password": []string{"foo"}}, ErrMessage: "new password is required"},
+		{Name: "confirm-password empty", Body: url.Values{"current-password": []string{"foo"}, "new-password": []string{"foo"}}, ErrMessage: "confirm new password is required"},
+		{Name: "all empty", Body: url.Values{}, ErrMessage: "current password is required; new password is required; confirm new password is required"},
+		{Name: "password not match confirm-password", Body: url.Values{"current-password": []string{"foo"}, "new-password": []string{"bar"}, "confirm-new-password": []string{"baz"}}, ErrMessage: "password not match"},
+		{Name: "current password too long", Body: url.Values{"current-password": []string{strings.Repeat("s", 73)}, "new-password": []string{"bar"}, "confirm-new-password": []string{"baz"}}, ErrMessage: "password too long"},
+		{Name: "new password too long", Body: url.Values{"current-password": []string{"foo"}, "new-password": []string{strings.Repeat("s", 73)}, "confirm-new-password": []string{strings.Repeat("s", 73)}}, ErrMessage: "password too long"},
+	} {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change?current-password=foo&new-password=bar&confirm-new-password=bar", strings.NewReader(test.Body.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+
+		body := rec.Body.String()
+		assert.Contains(t, body, `<div role="alert"`)
+		assert.Contains(t, body, test.ErrMessage)
+	}
+
+	t.Run("invalid request body", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change", strings.NewReader("current-password=foo&new-password=bar&confirm-new-password=bar&foo=%zz"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		values := url.Values{}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+
+	t.Run("password not match", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		values := url.Values{
+			"current-password":     []string{"foo"},
+			"new-password":         []string{"new-password"},
+			"confirm-new-password": []string{"new-password"},
+		}
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "user1"})
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+
+		body := rec.Body.String()
+		assert.Contains(t, body, `<div role="alert"`)
+		assert.Contains(t, body, "invalid credentials")
+	})
+
+	t.Run("success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(t, db)
+
+		values := url.Values{
+			"current-password":     []string{"password"},
+			"new-password":         []string{"new-password"},
+			"confirm-new-password": []string{"new-password"},
+		}
+
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "user1"})
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPostPasswordChangeHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusSeeOther, rec.Code)
+		assert.Equal(t, "/account/password_change/success", rec.Result().Header.Get("Location"))
+	})
+}
+
+func TestGetPasswordChangeSuccessHandler(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/password_change_success", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetPasswordChangeSuccessHandler()
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
+	})
+
+	t.Run("render failed", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
+		rec := httptest.NewRecorder()
+
+		h := NewGetPasswordChangeSuccessHandler()
+		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
+
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }

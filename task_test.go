@@ -51,7 +51,7 @@ func TestListTasksHandler(t *testing.T) {
 		{Name: "other user", UserID: 2, Wants: []int{5}},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			ctx := SetUserIDIntoContext(t.Context(), test.UserID)
+			ctx := SetUserIntoContext(t.Context(), User{ID: test.UserID})
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/tasks%s", test.Query), nil)
 			rec := httptest.NewRecorder()
 
@@ -76,7 +76,7 @@ func TestListTasksHandler(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("%s htmx", test.Name), func(t *testing.T) {
-			ctx := SetUserIDIntoContext(t.Context(), test.UserID)
+			ctx := SetUserIntoContext(t.Context(), User{ID: test.UserID})
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/tasks%s", test.Query), nil)
 			req.Header.Set("HX-Request", "true")
 
@@ -109,7 +109,7 @@ func TestListTasksHandler(t *testing.T) {
 		{Name: "render failed htmx", HXRequest: "true"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			ctx := SetUserIDIntoContext(t.Context(), 1)
+			ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
 			req.Header.Set("HX-Request", test.HXRequest)
 
@@ -135,7 +135,7 @@ func TestGetTaskHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("not found", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/2", nil)
 		req.SetPathValue("id", "2")
 		req.Header.Set("HX-Request", "true")
@@ -149,7 +149,7 @@ func TestGetTaskHandler(t *testing.T) {
 	})
 
 	t.Run("invalid path value", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/foo", nil)
 		req.SetPathValue("id", "foo")
 		req.Header.Set("HX-Request", "true")
@@ -163,7 +163,7 @@ func TestGetTaskHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1", nil)
 		req.SetPathValue("id", "1")
 		req.Header.Set("HX-Request", "true")
@@ -179,7 +179,7 @@ func TestGetTaskHandler(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1", nil)
 		req.SetPathValue("id", "1")
 		req.Header.Set("HX-Request", "true")
@@ -208,7 +208,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("not found", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/2/edit", nil)
 		req.SetPathValue("id", "2")
 		req.Header.Set("HX-Request", "true")
@@ -222,7 +222,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 	})
 
 	t.Run("invalid path value", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/foo/edit", nil)
 		req.SetPathValue("id", "foo")
 		req.Header.Set("HX-Request", "true")
@@ -236,7 +236,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 	})
 
 	t.Run("render failed", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1/edit", nil)
 		req.SetPathValue("id", "1")
 		req.Header.Set("HX-Request", "true")
@@ -252,7 +252,7 @@ func TestGetTaskEditHandler(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1/edit", nil)
 		req.SetPathValue("id", "1")
 		req.Header.Set("HX-Request", "true")
@@ -291,7 +291,7 @@ func TestPostTaskHandler(t *testing.T) {
 			db := NewTestDB(t)
 			fixture(t, db)
 
-			ctx := SetUserIDIntoContext(t.Context(), 1)
+			ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(test.Body))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set("HX-Request", "true")
@@ -315,7 +315,7 @@ func TestPostTaskHandler(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader("title=test"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -337,7 +337,7 @@ func TestPostTaskHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("title", "test")
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -369,6 +369,24 @@ func TestPostTaskHandler(t *testing.T) {
 		require.Len(t, tasks, 1)
 		assert.Equal(t, "test", tasks[0].Title)
 		assert.Equal(t, "created", tasks[0].Status)
+
+		rows, err = db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: `add task 1, title: "test"`},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
@@ -393,7 +411,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 			db := NewTestDB(t)
 			fixture(db, t)
 
-			ctx := SetUserIDIntoContext(t.Context(), 1)
+			ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2/title", strings.NewReader(test.Body.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -424,7 +442,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("title", "new test")
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2/title", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "2")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -454,7 +472,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("title", "new test")
 
-		ctx := SetUserIDIntoContext(t.Context(), 2)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 2})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2/title", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -484,7 +502,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("title", "new test")
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo/title", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "foo")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -511,7 +529,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(db, t)
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo/title", strings.NewReader("title=foo&bar=%zz"))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -540,7 +558,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("title", "new test")
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -563,7 +581,7 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("title", "new test")
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/title", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -591,6 +609,24 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		assert.Equal(t, "new test", task.Title)
 		assert.Equal(t, "created", task.Status)
 		assert.Equal(t, 1, task.UserID)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: `edit task 1, title: "new test"`},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
@@ -616,7 +652,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 			db := NewTestDB(t)
 			fixture(db, t)
 
-			ctx := SetUserIDIntoContext(t.Context(), 1)
+			ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 			req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader(test.Body.Encode()))
 			req.SetPathValue("id", "1")
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -647,7 +683,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("status", "done")
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/2/status", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "2")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -677,7 +713,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("status", "done")
 
-		ctx := SetUserIDIntoContext(t.Context(), 2)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 2})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -707,7 +743,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		values := url.Values{}
 		values.Set("status", "done")
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/foo/status", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "foo")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -734,7 +770,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(db, t)
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader("status=done&bar=%zz"))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -757,14 +793,14 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		assert.Equal(t, 1, task.UserID)
 	})
 
-	t.Run("success", func(t *testing.T) {
+	t.Run("done success", func(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(db, t)
 
 		values := url.Values{}
 		values.Set("status", "done")
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader(values.Encode()))
 		req.SetPathValue("id", "1")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -785,6 +821,75 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		assert.Equal(t, "test", task.Title)
 		assert.Equal(t, "done", task.Status)
 		assert.Equal(t, 1, task.UserID)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: "done task 1, \"test\""},
+		}
+		assert.Equal(t, want, activities)
+	})
+
+	t.Run("undone success", func(t *testing.T) {
+		db := NewTestDB(t)
+		fixture(db, t)
+
+		_, err := db.ExecContext(t.Context(), "UPDATE tasks SET status = 'done' WHERE id = 1")
+		require.NoError(t, err)
+
+		values := url.Values{}
+		values.Set("status", "created")
+
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
+		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1/status", strings.NewReader(values.Encode()))
+		req.SetPathValue("id", "1")
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		rec := httptest.NewRecorder()
+
+		h := NewPutTaskStatusHandler(db)
+		h.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusNoContent, rec.Code)
+		assert.Equal(t, "", rec.Body.String())
+
+		row := db.QueryRowContext(t.Context(), "SELECT id, user_id, title, status FROM tasks WHERE id = 1")
+		var task Task
+		require.NoError(t, row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status))
+
+		assert.Equal(t, "test", task.Title)
+		assert.Equal(t, "created", task.Status)
+		assert.Equal(t, 1, task.UserID)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: "undone task 1, \"test\""},
+		}
+		assert.Equal(t, want, activities)
 	})
 }
 
@@ -802,7 +907,7 @@ func TestDeleteTaskHandler(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(db, t)
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/2", nil)
 		req.SetPathValue("id", "2")
 
@@ -825,7 +930,7 @@ func TestDeleteTaskHandler(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(db, t)
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/foo", nil)
 		req.SetPathValue("id", "foo")
 
@@ -848,7 +953,7 @@ func TestDeleteTaskHandler(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(db, t)
 
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/tasks/1", nil)
 		req.SetPathValue("id", "1")
 
@@ -864,5 +969,23 @@ func TestDeleteTaskHandler(t *testing.T) {
 		require.NoError(t, row.Scan(&count))
 
 		assert.Equal(t, 0, count)
+
+		rows, err := db.QueryContext(t.Context(), "SELECT user_id, kind, message FROM activities ORDER BY created_at DESC, id DESC")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+
+		activities := make([]Activity, 0)
+		for rows.Next() {
+			var activity Activity
+			err := rows.Scan(&activity.UserID, &activity.Kind, &activity.Message)
+			require.NoError(t, err)
+			activities = append(activities, activity)
+		}
+		require.NoError(t, rows.Err())
+
+		want := []Activity{
+			{UserID: 1, Kind: "task", Message: "delete task 1"},
+		}
+		assert.Equal(t, want, activities)
 	})
 }

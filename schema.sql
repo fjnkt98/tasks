@@ -23,7 +23,7 @@ CREATE TABLE tasks (
 CREATE INDEX tasks_user_id_status_id ON tasks (user_id, status, id DESC);
 
 CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     digest TEXT NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (UNIXEPOCH()),
@@ -31,3 +31,26 @@ CREATE TABLE users (
 ) STRICT;
 
 CREATE UNIQUE INDEX users_name_unique ON users (name);
+
+CREATE TABLE roles (
+    name TEXT PRIMARY KEY
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE user_role_relations (
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    PRIMARY KEY (user_id, role),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (role) REFERENCES roles (name) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE activities (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (UNIXEPOCH()),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) STRICT;
+
+CREATE INDEX activities_user_id_created_at_id ON activities (user_id, created_at DESC, id DESC);

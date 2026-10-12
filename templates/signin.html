@@ -1,5 +1,5 @@
 {{ define "content" }}
-<div class="hero bg-base-200">
+<div class="hero">
   <div class="hero-content flex-col">
     <div class="text-center">
       <h1 class="text-4xl font-bold">Sign in</h1>
@@ -11,9 +11,9 @@
     </div>
     {{ end }}
 
-    <div class="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
+    <div class="card w-full max-w-sm shrink-0 shadow-lg">
       <div class="card-body">
-        <form method="post" action="/signin">
+        <form method="post" action="/account/signin">
           <fieldset class="fieldset">
             <label class="label">User Name</label>
             <input
@@ -37,7 +37,10 @@
             <button type="submit" class="btn btn-neutral mt-4">Submit</button>
           </fieldset>
         </form>
-        <p>Don't have an account? <a class="link" href="/signup">Sign up</a></p>
+        <p>
+          Don't have an account?
+          <a class="link" href="/account/signup">Sign up</a>
+        </p>
       </div>
     </div>
   </div>

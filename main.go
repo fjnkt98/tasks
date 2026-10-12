@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,6 +21,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -152,8 +154,8 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return db.Close() })
 
-	if _, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at <= ?", time.Now().Unix()); err != nil {
-		return nil, shutdown, fmt.Errorf("delete expired session: %w", err)
+	if err := seed(ctx, db); err != nil {
+		return nil, shutdown, fmt.Errorf("database initialization: %w", err)
 	}
 
 	// server
@@ -163,6 +165,63 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 
 	return server, shutdown, nil
+}
+
+func seed(ctx context.Context, db *sql.DB) error {
+	if os.Getenv("ADMIN_USERNAME") == "" {
+		return errors.New("admin username must be set")
+	}
+	if os.Getenv("ADMIN_PASSWORD") == "" {
+		return errors.New("admin password must be set")
+	}
+
+	if _, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at <= ?", time.Now().Unix()); err != nil {
+		return fmt.Errorf("delete expired session: %w", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() // nolint:errcheck
+
+	q := "INSERT INTO roles (name) VALUES ('admin') ON CONFLICT (name) DO NOTHING;"
+	if _, err := tx.ExecContext(ctx, q); err != nil {
+		return fmt.Errorf("upsert roles: %w", err)
+	}
+
+	digest, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("ADMIN_PASSWORD")), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("generate digest for admin password: %w", err)
+	}
+
+	q = "INSERT INTO users (name, digest) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET digest = EXCLUDED.digest RETURNING id;"
+	row := tx.QueryRowContext(ctx, q, os.Getenv("ADMIN_USERNAME"), string(digest))
+	var adminID int
+	if err := row.Scan(&adminID); err != nil {
+		return fmt.Errorf("upsert admin user: %w", err)
+	}
+
+	q = "INSERT INTO user_role_relations (user_id, role) VALUES (?, 'admin') ON CONFLICT (user_id, role) DO NOTHING;"
+	if _, err := tx.ExecContext(ctx, q, adminID); err != nil {
+		return fmt.Errorf("grant admin role: %w", err)
+	}
+
+	q = "DELETE FROM users WHERE id IN (SELECT user_id FROM user_role_relations WHERE role = 'admin' AND user_id != ?)"
+	if _, err := tx.ExecContext(ctx, q, adminID); err != nil {
+		return fmt.Errorf("revoke old admin role: %w", err)
+	}
+
+	q = "DELETE FROM sessions WHERE user_id = ?"
+	if _, err := tx.ExecContext(ctx, q, adminID); err != nil {
+		return fmt.Errorf("delete admin's sessions: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
 }
 
 func serve(ctx context.Context, server *http.Server, timeout time.Duration) error {

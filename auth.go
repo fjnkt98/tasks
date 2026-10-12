@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,26 +29,37 @@ const (
 	contextKeyUser contextKey = iota
 )
 
+type User struct {
+	ID    int
+	Name  string
+	Roles []string
+}
+
 func NewSessionToken() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
-func SetUserIDIntoContext(ctx context.Context, userID int) context.Context {
-	return context.WithValue(ctx, contextKeyUser, userID)
+func SetUserIntoContext(ctx context.Context, user User) context.Context {
+	return context.WithValue(ctx, contextKeyUser, user)
 }
 
-func GetUserIDFromContext(ctx context.Context) int {
-	value, ok := ctx.Value(contextKeyUser).(int)
+func GetUserFromContext(ctx context.Context) User {
+	value, ok := ctx.Value(contextKeyUser).(User)
 	if !ok {
-		return 0
+		return User{}
 	}
 	return value
 }
 
 func IsAuthorized(ctx context.Context) bool {
-	return GetUserIDFromContext(ctx) != 0
+	return GetUserFromContext(ctx).ID != 0
+}
+
+func IsAdmin(ctx context.Context) bool {
+	user := GetUserFromContext(ctx)
+	return slices.Contains(user.Roles, "admin")
 }
 
 const AuthCookieName = "session_token"
@@ -64,7 +76,7 @@ func NewAuthCookie(value string, maxAge int) *http.Cookie {
 	}
 }
 
-func CreateUser(ctx context.Context, db *sql.DB, username string, password string) error {
+func CreateUser(ctx context.Context, db DBTX, username string, password string) error {
 	digest, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest: %w", err)
@@ -82,7 +94,7 @@ func CreateUser(ctx context.Context, db *sql.DB, username string, password strin
 	return nil
 }
 
-func Login(ctx context.Context, db *sql.DB, username string, password string) (string, error) {
+func Signin(ctx context.Context, db *sql.DB, username string, password string) (string, error) {
 	q := "SELECT id, digest FROM users WHERE name = ? LIMIT 1"
 	row := db.QueryRowContext(ctx, q, username)
 	var userID int
@@ -98,13 +110,115 @@ func Login(ctx context.Context, db *sql.DB, username string, password string) (s
 		return "", ErrInvalidCredentials
 	}
 
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() // nolint:errcheck
+
 	token := NewSessionToken()
-	q = "INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)"
-	if _, err := db.ExecContext(ctx, q, userID, token, time.Now().Add(24*time.Hour).Unix()); err != nil {
+	q = "INSERT INTO sessions (user_id, token, expires_at) SELECT id, ?, ? FROM users WHERE id = ? AND digest = ?"
+	result, err := tx.ExecContext(ctx, q, token, time.Now().Add(24*time.Hour).Unix(), userID, digest)
+	if err != nil {
 		return "", fmt.Errorf("insert session: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return "", fmt.Errorf("rows affected: %w", err)
+	}
+	if count == 0 {
+		return "", ErrInvalidCredentials
+	}
+
+	if err := SaveActivity(ctx, tx, userID, "account", "signin"); err != nil {
+		return "", fmt.Errorf("save activity: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return token, nil
+}
+
+func ChangePassword(ctx context.Context, db *sql.DB, userID int, password string, new string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() // nolint:errcheck
+
+	q := "SELECT digest FROM users WHERE id = ? LIMIT 1"
+	row := tx.QueryRowContext(ctx, q, userID)
+	var digest string
+	if err := row.Scan(&digest); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidCredentials
+		}
+		return fmt.Errorf("get user by name: %w", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(digest), []byte(password)); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	newDigest, err := bcrypt.GenerateFromPassword([]byte(new), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("generate digest for new password: %w", err)
+	}
+
+	q = "UPDATE users SET digest = ?, updated_at = UNIXEPOCH() WHERE id = ?"
+	if _, err := tx.ExecContext(ctx, q, string(newDigest), userID); err != nil {
+		return fmt.Errorf("update the user record: %w", err)
+	}
+
+	q = "DELETE FROM sessions WHERE user_id = ?"
+	if _, err := tx.ExecContext(ctx, q, userID); err != nil {
+		return fmt.Errorf("delete sessions: %w", err)
+	}
+
+	if err := SaveActivity(ctx, tx, userID, "account", "change password"); err != nil {
+		return fmt.Errorf("save activity: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func Signout(ctx context.Context, db *sql.DB, token string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() // nolint:errcheck
+
+	q := "DELETE FROM sessions WHERE token = ? RETURNING user_id"
+	row := tx.QueryRowContext(ctx, q, token)
+	var userID int
+
+	deleted := true
+	if err := row.Scan(&userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			deleted = false
+		} else {
+			return fmt.Errorf("delete the session: %w", err)
+		}
+	}
+
+	if deleted {
+		if err := SaveActivity(ctx, tx, userID, "account", "signout"); err != nil {
+			return fmt.Errorf("save activity: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
 }
 
 type GetSignupHandler struct {
@@ -124,6 +238,7 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
 		},
 		ErrorMessage: "",
 	}
@@ -186,7 +301,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errs = append(errs, "confirm-password is required")
 	}
 
-	if password != "" && confirmPassword != "" && password != confirmPassword {
+	if password != confirmPassword {
 		errs = append(errs, "password not match")
 	}
 
@@ -197,6 +312,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}{
 			LayoutData: LayoutData{
 				Authorized: IsAuthorized(r.Context()),
+				UserName:   GetUserFromContext(r.Context()).Name,
 			},
 			ErrorMessage: strings.Join(errs, "; "),
 		}
@@ -227,6 +343,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}{
 				LayoutData: LayoutData{
 					Authorized: IsAuthorized(r.Context()),
+					UserName:   GetUserFromContext(r.Context()).Name,
 				},
 				ErrorMessage: err.Error(),
 			}
@@ -254,7 +371,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/signup/success", http.StatusSeeOther)
+	http.Redirect(w, r, "/account/signup/success", http.StatusSeeOther)
 }
 
 type GetSignupSuccessHandler struct {
@@ -270,6 +387,7 @@ func NewGetSignupSuccessHandler() *GetSignupSuccessHandler {
 func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
+		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	var buf bytes.Buffer
@@ -305,6 +423,7 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
 		},
 		ErrorMessage: "",
 	}
@@ -370,6 +489,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}{
 			LayoutData: LayoutData{
 				Authorized: IsAuthorized(r.Context()),
+				UserName:   GetUserFromContext(r.Context()).Name,
 			},
 			ErrorMessage: strings.Join(errs, "; "),
 		}
@@ -392,7 +512,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := Login(r.Context(), h.db, username, password)
+	token, err := Signin(r.Context(), h.db, username, password)
 	if err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
 			data := struct {
@@ -401,6 +521,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}{
 				LayoutData: LayoutData{
 					Authorized: IsAuthorized(r.Context()),
+					UserName:   GetUserFromContext(r.Context()).Name,
 				},
 				ErrorMessage: err.Error(),
 			}
@@ -433,7 +554,6 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/tasks", http.StatusSeeOther)
 }
 
-// ---------- Signout ----------
 type PostSignoutHandler struct {
 	db *sql.DB
 }
@@ -451,8 +571,7 @@ func (h *PostSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := "DELETE FROM sessions WHERE token = ?"
-	if _, err := h.db.ExecContext(r.Context(), q, cookie.Value); err != nil {
+	if err := Signout(r.Context(), h.db, cookie.Value); err != nil {
 		slog.ErrorContext(r.Context(), "delete session by token", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -461,4 +580,200 @@ func (h *PostSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, NewAuthCookie("", -1))
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+type GetPasswordChangeHandler struct {
+	t *template.Template
+}
+
+func NewGetPasswordChangeHandler() *GetPasswordChangeHandler {
+	return &GetPasswordChangeHandler{
+		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/password_change.html")),
+	}
+}
+
+func (h *GetPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	data := struct {
+		LayoutData
+		ErrorMessage string
+	}{
+		LayoutData: LayoutData{
+			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
+		},
+		ErrorMessage: "",
+	}
+
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
+}
+
+type PostPasswordChangeHandler struct {
+	db *sql.DB
+	t  *template.Template
+}
+
+func NewPostPasswordChangeHandler(db *sql.DB) *PostPasswordChangeHandler {
+	return &PostPasswordChangeHandler{
+		db: db,
+		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/password_change.html")),
+	}
+}
+
+func (h *PostPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		var ErrMaxBytesExceeded *http.MaxBytesError
+		if errors.As(err, &ErrMaxBytesExceeded) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		Handle400(w, r)
+		return
+	}
+
+	errs := make([]string, 0)
+	currentPassword := r.PostForm.Get("current-password")
+	if currentPassword == "" {
+		errs = append(errs, "current password is required")
+	}
+	if len(currentPassword) > 72 {
+		errs = append(errs, "current password too long")
+	}
+
+	newPassword := r.PostForm.Get("new-password")
+	if newPassword == "" {
+		errs = append(errs, "new password is required")
+	}
+	if len(newPassword) > 72 {
+		errs = append(errs, "new password too long")
+	}
+
+	confirmNewPassword := r.PostForm.Get("confirm-new-password")
+	if confirmNewPassword == "" {
+		errs = append(errs, "confirm new password is required")
+	}
+
+	if newPassword != confirmNewPassword {
+		errs = append(errs, "password not match")
+	}
+
+	if len(errs) > 0 {
+		data := struct {
+			LayoutData
+			ErrorMessage string
+		}{
+			LayoutData: LayoutData{
+				Authorized: IsAuthorized(r.Context()),
+				UserName:   GetUserFromContext(r.Context()).Name,
+			},
+			ErrorMessage: strings.Join(errs, "; "),
+		}
+
+		var buf bytes.Buffer
+		if err := h.t.Execute(&buf, &data); err != nil {
+			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
+			Handle500(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		w.WriteHeader(http.StatusBadRequest)
+		if _, err := buf.WriteTo(w); err != nil {
+			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+			return
+		}
+
+		return
+	}
+
+	user := GetUserFromContext(r.Context())
+
+	if err := ChangePassword(r.Context(), h.db, user.ID, currentPassword, newPassword); err != nil {
+		if errors.Is(err, ErrInvalidCredentials) {
+			data := struct {
+				LayoutData
+				ErrorMessage string
+			}{
+				LayoutData: LayoutData{
+					Authorized: IsAuthorized(r.Context()),
+					UserName:   GetUserFromContext(r.Context()).Name,
+				},
+				ErrorMessage: err.Error(),
+			}
+
+			var buf bytes.Buffer
+			if err := h.t.Execute(&buf, &data); err != nil {
+				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
+				Handle500(w, r)
+				return
+			}
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+			w.WriteHeader(http.StatusBadRequest)
+			if _, err := buf.WriteTo(w); err != nil {
+				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+				return
+			}
+
+			return
+		}
+
+		slog.ErrorContext(r.Context(), "change password", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	http.Redirect(w, r, "/account/password_change/success", http.StatusSeeOther)
+}
+
+type GetPasswordChangeSuccessHandler struct {
+	t *template.Template
+}
+
+func NewGetPasswordChangeSuccessHandler() *GetPasswordChangeSuccessHandler {
+	return &GetPasswordChangeSuccessHandler{
+		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/password_change_success.html")),
+	}
+}
+
+func (h *GetPasswordChangeSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	data := struct {
+		LayoutData
+		ErrorMessage string
+	}{
+		LayoutData: LayoutData{
+			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
+		},
+		ErrorMessage: "",
+	}
+
+	var buf bytes.Buffer
+	if err := h.t.Execute(&buf, &data); err != nil {
+		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
+		return
+	}
 }

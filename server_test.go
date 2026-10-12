@@ -42,7 +42,7 @@ func TestCrossOriginProtection(t *testing.T) {
 	client := NewTestDB(t)
 	h := NewHandler(client)
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/signout", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/account/signout", nil)
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
 
 	rec := httptest.NewRecorder()
@@ -82,11 +82,11 @@ func TestHandle400(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "Bad Request")
-		assert.Contains(t, body, `href="/signin"`)
+		assert.Contains(t, body, `href="/account/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
@@ -100,7 +100,7 @@ func TestHandle400(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "Bad Request")
-		assert.Contains(t, body, `"/signout"`)
+		assert.Contains(t, body, `"/account/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -147,11 +147,11 @@ func TestHandle404(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "Not Found")
-		assert.Contains(t, body, `href="/signin"`)
+		assert.Contains(t, body, `href="/account/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
@@ -165,7 +165,7 @@ func TestHandle404(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "Not Found")
-		assert.Contains(t, body, `"/signout"`)
+		assert.Contains(t, body, `"/account/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -212,11 +212,11 @@ func TestHandle500(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "An Error Occurred!")
-		assert.Contains(t, body, `href="/signin"`)
+		assert.Contains(t, body, `href="/account/signin"`)
 	})
 
 	t.Run("authorized", func(t *testing.T) {
-		ctx := SetUserIDIntoContext(t.Context(), 1)
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 
@@ -230,7 +230,7 @@ func TestHandle500(t *testing.T) {
 		assert.Contains(t, body, "<body")
 		assert.Contains(t, body, "<footer")
 		assert.Contains(t, body, "An Error Occurred!")
-		assert.Contains(t, body, `"/signout"`)
+		assert.Contains(t, body, `"/account/signout"`)
 	})
 
 	t.Run("htmx request", func(t *testing.T) {
@@ -302,7 +302,8 @@ func TestUnauthorizedRedirection(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/", res.Request.URL.Path)
 
-	// login required page
+	// signin required pages
+	// GET
 	for _, test := range []struct {
 		Name string
 		Path string
@@ -310,33 +311,40 @@ func TestUnauthorizedRedirection(t *testing.T) {
 		{Name: "get tasks", Path: "/tasks"},
 		{Name: "get task", Path: "/tasks/1"},
 		{Name: "get task edit", Path: "/tasks/1/edit"},
+		{Name: "account me", Path: "/account/me"},
+		{Name: "password change", Path: "/account/password_change"},
+		{Name: "delete account", Path: "/account/delete"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			res, err = client.Get(server.URL + test.Path)
 			require.NoError(t, err)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/signin", res.Request.URL.Path)
+			assert.Equal(t, "/account/signin", res.Request.URL.Path)
 		})
 	}
 
+	// POST
 	for _, test := range []struct {
 		Name string
 		Path string
 		Body url.Values
 	}{
 		{Name: "post tasks", Path: "/tasks", Body: url.Values{"title": []string{"test"}}},
-		{Name: "signout", Path: "/signout"},
+		{Name: "signout", Path: "/account/signout"},
+		{Name: "password change", Path: "/account/password_change"},
+		{Name: "delete account", Path: "/account/delete"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			res, err = client.PostForm(server.URL+test.Path, test.Body)
 			require.NoError(t, err)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/signin", res.Request.URL.Path)
+			assert.Equal(t, "/account/signin", res.Request.URL.Path)
 		})
 	}
 
+	// PUT
 	for _, test := range []struct {
 		Name string
 		Path string
@@ -352,10 +360,11 @@ func TestUnauthorizedRedirection(t *testing.T) {
 			require.NoError(t, err)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/signin", res.Request.URL.Path)
+			assert.Equal(t, "/account/signin", res.Request.URL.Path)
 		})
 	}
 
+	// DELETE
 	for _, test := range []struct {
 		Name string
 		Path string
@@ -369,7 +378,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 			require.NoError(t, err)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/signin", res.Request.URL.Path)
+			assert.Equal(t, "/account/signin", res.Request.URL.Path)
 		})
 	}
 }
@@ -377,7 +386,7 @@ func TestUnauthorizedRedirection(t *testing.T) {
 func TestIntegrationSignupAndSignin(t *testing.T) {
 	_, server, client := integrationTestFixture(t)
 
-	res, err := client.PostForm(server.URL+"/signup", url.Values{
+	res, err := client.PostForm(server.URL+"/account/signup", url.Values{
 		"username":         []string{"test"},
 		"password":         []string{" contains whitespace "},
 		"confirm-password": []string{" contains whitespace "},
@@ -385,20 +394,20 @@ func TestIntegrationSignupAndSignin(t *testing.T) {
 	require.NoError(t, err)
 	discard(t, res.Body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Equal(t, "/signup/success", res.Request.URL.Path)
+	assert.Equal(t, "/account/signup/success", res.Request.URL.Path)
 
 	// fail
-	res, err = client.PostForm(server.URL+"/signin", url.Values{
+	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{"contains whitespace"},
 	})
 	require.NoError(t, err)
 	discard(t, res.Body)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
-	assert.Equal(t, "/signin", res.Request.URL.Path)
+	assert.Equal(t, "/account/signin", res.Request.URL.Path)
 
 	// success
-	res, err = client.PostForm(server.URL+"/signin", url.Values{
+	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{" contains whitespace "},
 	})
@@ -418,7 +427,7 @@ func TestIntegrationSignupAndSignin(t *testing.T) {
 func TestIntegrationContentTooLong(t *testing.T) {
 	_, server, client := integrationTestFixture(t)
 
-	res, err := client.PostForm(server.URL+"/signup", url.Values{
+	res, err := client.PostForm(server.URL+"/account/signup", url.Values{
 		"username":         []string{strings.Repeat("a", 1<<20)},
 		"password":         []string{"test"},
 		"confirm-password": []string{"test"},
@@ -426,4 +435,91 @@ func TestIntegrationContentTooLong(t *testing.T) {
 	require.NoError(t, err)
 	discard(t, res.Body)
 	assert.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
+}
+
+func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
+	db, server, client := integrationTestFixture(t)
+
+	err := CreateUser(t.Context(), db, "test", "password")
+	require.NoError(t, err)
+
+	// signin
+	res, err := client.PostForm(server.URL+"/account/signin", url.Values{
+		"username": []string{"test"},
+		"password": []string{"password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/tasks", res.Request.URL.Path)
+
+	// password change
+	res, err = client.PostForm(server.URL+"/account/password_change", url.Values{
+		"current-password":     []string{"password"},
+		"new-password":         []string{"new-password"},
+		"confirm-new-password": []string{"new-password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/account/password_change/success", res.Request.URL.Path)
+
+	// check logged out
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	cookies := client.Jar.Cookies(u)
+	i := slices.IndexFunc(cookies, func(cookie *http.Cookie) bool { return cookie.Name == AuthCookieName })
+	require.Equal(t, -1, i)
+
+	// signin again with new password
+	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
+		"username": []string{"test"},
+		"password": []string{"new-password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/tasks", res.Request.URL.Path)
+
+	u, err = url.Parse(server.URL)
+	require.NoError(t, err)
+	cookies = client.Jar.Cookies(u)
+	i = slices.IndexFunc(cookies, func(cookie *http.Cookie) bool { return cookie.Name == AuthCookieName })
+	require.NotEqual(t, -1, i)
+	assert.NotEmpty(t, cookies[i].Value)
+}
+
+func TestIntegrationDeleteAccount(t *testing.T) {
+	_, server, client := integrationTestFixture(t)
+
+	// signup
+	res, err := client.PostForm(server.URL+"/account/signup", url.Values{
+		"username":         []string{"test"},
+		"password":         []string{"password"},
+		"confirm-password": []string{"password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/account/signup/success", res.Request.URL.Path)
+
+	// signin
+	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
+		"username": []string{"test"},
+		"password": []string{"password"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/tasks", res.Request.URL.Path)
+
+	// delete account
+	res, err = client.PostForm(server.URL+"/account/delete", url.Values{
+		"password":     []string{"password"},
+		"confirmation": []string{"delete account"},
+	})
+	require.NoError(t, err)
+	discard(t, res.Body)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "/account/delete/success", res.Request.URL.Path)
 }

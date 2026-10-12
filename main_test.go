@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestMain(m *testing.M) {
@@ -181,6 +182,8 @@ func TestSetup(t *testing.T) {
 
 	t.Setenv("DATABASE_URL", fmt.Sprintf("file:%s", file))
 	t.Setenv("PORT", "8000")
+	t.Setenv("ADMIN_USERNAME", "admin")
+	t.Setenv("ADMIN_PASSWORD", "admin")
 
 	_, shutdown, err := setup(t.Context())
 	require.NoError(t, err)
@@ -292,4 +295,180 @@ func TestServe(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSeed(t *testing.T) {
+	type User struct {
+		name   string
+		digest string
+	}
+
+	type Relation struct {
+		userID int
+		role   string
+	}
+
+	t.Run("expired sessions will be deleted", func(t *testing.T) {
+		t.Setenv("ADMIN_USERNAME", "admin")
+		t.Setenv("ADMIN_PASSWORD", "admin")
+
+		db := NewTestDB(t)
+		_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', 'test')")
+		require.NoError(t, err)
+		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
+			(1, 'token1', 0),
+			(1, 'token2', 32503680000)`,
+		)
+		require.NoError(t, err)
+
+		err = seed(t.Context(), db)
+		require.NoError(t, err)
+
+		tokens := make([]string, 0)
+		rows, err := db.QueryContext(t.Context(), "SELECT token FROM sessions")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+		for rows.Next() {
+			var token string
+			err = rows.Scan(&token)
+			require.NoError(t, err)
+
+			tokens = append(tokens, token)
+		}
+		require.NoError(t, rows.Err())
+
+		assert.Equal(t, []string{"token2"}, tokens)
+	})
+
+	t.Run("admin user created", func(t *testing.T) {
+		t.Setenv("ADMIN_USERNAME", "admin")
+		t.Setenv("ADMIN_PASSWORD", "admin")
+
+		db := NewTestDB(t)
+		err := seed(t.Context(), db)
+		require.NoError(t, err)
+
+		row := db.QueryRowContext(t.Context(), "SELECT name, digest FROM users")
+		var user User
+		require.NoError(t, row.Scan(&user.name, &user.digest))
+		assert.Equal(t, "admin", user.name)
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
+
+		row = db.QueryRowContext(t.Context(), "SELECT name FROM roles")
+		var name string
+		require.NoError(t, row.Scan(&name))
+		assert.Equal(t, "admin", name)
+
+		row = db.QueryRowContext(t.Context(), "SELECT user_id, role FROM user_role_relations")
+		var relation Relation
+		require.NoError(t, row.Scan(&relation.userID, &relation.role))
+		assert.Equal(t, 1, relation.userID)
+		assert.Equal(t, "admin", relation.role)
+	})
+
+	t.Run("empty admin username or password will be rejected", func(t *testing.T) {
+		for _, test := range []struct {
+			Name     string
+			Username string
+			Password string
+		}{
+			{Name: "empty username", Username: "", Password: "admin"},
+			{Name: "empty password", Username: "admin", Password: ""},
+		} {
+			t.Run(test.Name, func(t *testing.T) {
+				t.Setenv("ADMIN_USERNAME", test.Username)
+				t.Setenv("ADMIN_PASSWORD", test.Password)
+
+				db := NewTestDB(t)
+				err := seed(t.Context(), db)
+				require.Error(t, err)
+			})
+		}
+	})
+
+	t.Run("existing admin's password will be updated", func(t *testing.T) {
+		db := NewTestDB(t)
+
+		t.Setenv("ADMIN_USERNAME", "admin")
+		t.Setenv("ADMIN_PASSWORD", "admin")
+		err := seed(t.Context(), db)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token1', 32503680000)")
+		require.NoError(t, err)
+
+		t.Setenv("ADMIN_USERNAME", "admin")
+		t.Setenv("ADMIN_PASSWORD", "new-admin-password")
+		err = seed(t.Context(), db)
+		require.NoError(t, err)
+
+		row := db.QueryRowContext(t.Context(), "SELECT name, digest FROM users")
+		var user User
+		require.NoError(t, row.Scan(&user.name, &user.digest))
+
+		assert.Equal(t, "admin", user.name)
+		assert.Error(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("new-admin-password")))
+
+		row = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sessions WHERE user_id = 1")
+		var count int
+		require.NoError(t, row.Scan(&count))
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("old admin user and role will be deleted", func(t *testing.T) {
+		db := NewTestDB(t)
+
+		t.Setenv("ADMIN_USERNAME", "admin")
+		t.Setenv("ADMIN_PASSWORD", "admin")
+		err := seed(t.Context(), db)
+		require.NoError(t, err)
+
+		row := db.QueryRowContext(t.Context(), "SELECT name, digest FROM users")
+		var user User
+		require.NoError(t, row.Scan(&user.name, &user.digest))
+		assert.Equal(t, "admin", user.name)
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
+
+		row = db.QueryRowContext(t.Context(), "SELECT user_id, role FROM user_role_relations")
+		var relation Relation
+		require.NoError(t, row.Scan(&relation.userID, &relation.role))
+		assert.Equal(t, 1, relation.userID)
+		assert.Equal(t, "admin", relation.role)
+
+		t.Setenv("ADMIN_USERNAME", "new-admin")
+		t.Setenv("ADMIN_PASSWORD", "new-admin")
+		err = seed(t.Context(), db)
+		require.NoError(t, err)
+
+		users := make([]User, 0)
+		rows, err := db.QueryContext(t.Context(), "SELECT name, digest FROM users")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+		for rows.Next() {
+			var user User
+			require.NoError(t, rows.Scan(&user.name, &user.digest))
+			users = append(users, user)
+		}
+		require.NoError(t, rows.Err())
+
+		require.Len(t, users, 1)
+		assert.Equal(t, "new-admin", users[0].name)
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(users[0].digest), []byte("new-admin")))
+
+		relations := make([]Relation, 0)
+		rows, err = db.QueryContext(t.Context(), "SELECT user_id, role FROM user_role_relations")
+		require.NoError(t, err)
+		defer rows.Close() // nolint:errcheck
+		for rows.Next() {
+			var relation Relation
+			require.NoError(t, rows.Scan(&relation.userID, &relation.role))
+			relations = append(relations, relation)
+		}
+		require.NoError(t, rows.Err())
+
+		require.Len(t, relations, 1)
+		assert.Equal(t, 2, relations[0].userID)
+		assert.Equal(t, "admin", relations[0].role)
+	})
 }

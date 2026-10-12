@@ -103,7 +103,7 @@ resource "google_cloud_run_v2_service" "app" {
     }
 
     containers {
-      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:31cf752be482ae85112a4e5f855456171eb4ae6b"
+      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:37c7f7b16844628b9cce0fb42748f6277ac5a267"
       name  = "app"
 
       ports {
@@ -136,7 +136,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
     containers {
-      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:31cf752be482ae85112a4e5f855456171eb4ae6b"
+      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:37c7f7b16844628b9cce0fb42748f6277ac5a267"
       name  = "otelcol"
 
       resources {

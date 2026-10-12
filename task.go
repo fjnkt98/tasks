@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -44,7 +45,7 @@ func NewListTasksHandler(db *sql.DB) *ListTasksHandler {
 }
 
 func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	var err error
 	values := r.URL.Query()
@@ -80,10 +81,10 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	if status == "" {
 		q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
-		rows, err = h.db.QueryContext(r.Context(), q, userID, limit, offset)
+		rows, err = h.db.QueryContext(r.Context(), q, user.ID, limit, offset)
 	} else {
 		q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? AND status = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
-		rows, err = h.db.QueryContext(r.Context(), q, userID, status, limit, offset)
+		rows, err = h.db.QueryContext(r.Context(), q, user.ID, status, limit, offset)
 	}
 
 	if err != nil {
@@ -114,6 +115,7 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := TaskData{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
 		},
 		Tasks:     tasks,
 		LastIndex: len(tasks) - 1,
@@ -165,10 +167,10 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	q := "SELECT id, user_id, title, status FROM tasks WHERE id = ? AND user_id = ?"
-	row := h.db.QueryRowContext(r.Context(), q, id, userID)
+	row := h.db.QueryRowContext(r.Context(), q, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -184,6 +186,7 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := TaskData{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
+			UserName:   GetUserFromContext(r.Context()).Name,
 		},
 		Tasks:     []Task{task},
 		LastIndex: -1,
@@ -224,10 +227,10 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
 
 	q := "SELECT id, user_id, title, status FROM tasks WHERE id = ? AND user_id = ?"
-	row := h.db.QueryRowContext(r.Context(), q, id, userID)
+	row := h.db.QueryRowContext(r.Context(), q, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -285,13 +288,33 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "begin transaction", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	defer tx.Rollback() // nolint:errcheck
 
 	q := "INSERT INTO tasks (user_id, title) VALUES (?, ?) RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, userID, title)
+	row := tx.QueryRowContext(r.Context(), q, user.ID, title)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		slog.ErrorContext(r.Context(), "create task", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf("add task %d, title: \"%s\"", task.ID, task.Title)); err != nil {
+		slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(r.Context(), "commit transaction", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
@@ -352,10 +375,18 @@ func (h *PutTaskTitleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "begin transaction", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	defer tx.Rollback() // nolint:errcheck
 
 	q := "UPDATE tasks SET title = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, title, id, userID)
+	row := tx.QueryRowContext(r.Context(), q, title, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -364,6 +395,18 @@ func (h *PutTaskTitleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		}
 
 		slog.ErrorContext(r.Context(), "update task", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf("edit task %d, title: \"%s\"", task.ID, task.Title)); err != nil {
+		slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(r.Context(), "commit transaction", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
@@ -422,10 +465,18 @@ func (h *PutTaskStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "begin transaction", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	defer tx.Rollback() // nolint:errcheck
 
 	q := "UPDATE tasks SET status = ?, updated_at = UNIXEPOCH() WHERE id = ? AND user_id = ? RETURNING id, user_id, title, status"
-	row := h.db.QueryRowContext(r.Context(), q, status, id, userID)
+	row := tx.QueryRowContext(r.Context(), q, status, id, user.ID)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -434,6 +485,22 @@ func (h *PutTaskStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		}
 
 		slog.ErrorContext(r.Context(), "update task", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	activity := "done"
+	if status == "created" {
+		activity = "undone"
+	}
+	if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf(`%s task %d, "%s"`, activity, task.ID, task.Title)); err != nil {
+		slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(r.Context(), "commit transaction", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
@@ -458,11 +525,40 @@ func (h *DeleteTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	user := GetUserFromContext(r.Context())
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "begin transaction", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	defer tx.Rollback() // nolint:errcheck
 
 	q := "DELETE FROM tasks WHERE id = ? AND user_id = ?"
-	if _, err := h.db.ExecContext(r.Context(), q, id, userID); err != nil {
+	result, err := tx.ExecContext(r.Context(), q, id, user.ID)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		slog.ErrorContext(r.Context(), "rows affected", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	if count > 0 {
+		if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf("delete task %d", id)); err != nil {
+			slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
+			Handle500(w, r)
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.ErrorContext(r.Context(), "commit transaction", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}

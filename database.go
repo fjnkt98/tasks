@@ -11,6 +11,18 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type DBTX interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	Exec(query string, args ...any) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+var _ DBTX = &sql.DB{}
+var _ DBTX = &sql.Tx{}
+
 func NewDB(ctx context.Context, dsn string) (db *sql.DB, err error) {
 	dsn, err = enforceForeignKeys(dsn)
 	if err != nil {
