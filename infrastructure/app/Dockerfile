@@ -5,6 +5,7 @@ ARG TARGETARCH
 
 WORKDIR /app
 
+COPY account.go /app/account.go
 COPY auth.go /app/auth.go
 COPY database.go /app/database.go
 COPY go.mod /app/go.mod
@@ -16,6 +17,7 @@ COPY server.go /app/server.go
 COPY static /app/static
 COPY task.go /app/task.go
 COPY templates /app/templates
+COPY user.go /app/user.go
 
 COPY schema.sql /app/schema.sql
 
