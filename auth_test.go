@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -178,6 +177,9 @@ func TestChangePassword(t *testing.T) {
 		err := CreateUser(t.Context(), db, "user1", "password")
 		require.NoError(t, err)
 
+		_, err = db.ExecContext(t.Context(), "UPDATE users SET updated_at = 0 WHERE id = 1")
+		require.NoError(t, err)
+
 		_, err = db.ExecContext(t.Context(), "INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'token', 32503680000)")
 		require.NoError(t, err)
 	}
@@ -209,7 +211,6 @@ func TestChangePassword(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		db := NewTestDB(t)
 		fixture(t, db)
-		time.Sleep(2 * time.Second)
 
 		q := "SELECT digest, updated_at FROM users WHERE name = 'user1'"
 

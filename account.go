@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -62,7 +63,7 @@ func SaveActivity(ctx context.Context, db DBTX, userID int, kind string, message
 }
 
 func GetActivities(ctx context.Context, db *sql.DB, userID int) (activities []Activity, err error) {
-	q := "SELECT kind, message, created_at FROM activities WHERE user_id = ? ORDER BY created_at DESC, id DESC"
+	q := "SELECT kind, message, created_at FROM activities WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 100"
 	rows, err := db.QueryContext(ctx, q, userID)
 	if err != nil {
 		return nil, fmt.Errorf("select activities: %w", err)
@@ -101,19 +102,45 @@ func NewGetMeHandler(db *sql.DB) *GetMeHandler {
 func (h GetMeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user := GetUserFromContext(r.Context())
 
+	rawActivities, err := GetActivities(r.Context(), h.db, user.ID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "get activities", slog.Any("error", err))
+		Handle500(w, r)
+		return
+	}
+
+	type ActivityWithDate struct {
+		UserID    int
+		Kind      string
+		Message   string
+		CreatedAt time.Time
+	}
+
+	activities := make([]ActivityWithDate, len(rawActivities))
+	for i, a := range rawActivities {
+		activities[i] = ActivityWithDate{
+			UserID:    a.UserID,
+			Kind:      a.Kind,
+			Message:   a.Message,
+			CreatedAt: time.Unix(a.CreatedAt, 0).UTC(),
+		}
+	}
+
 	data := struct {
 		LayoutData
-		IsAdmin   bool
-		TaskCount int
-		DoneCount int
+		IsAdmin    bool
+		TaskCount  int
+		DoneCount  int
+		Activities []ActivityWithDate
 	}{
 		LayoutData: LayoutData{
 			Authorized: IsAuthorized(r.Context()),
 			UserName:   user.Name,
 		},
-		IsAdmin:   IsAdmin(r.Context()),
-		TaskCount: 0,
-		DoneCount: 0,
+		IsAdmin:    IsAdmin(r.Context()),
+		TaskCount:  0,
+		DoneCount:  0,
+		Activities: activities,
 	}
 
 	q := "SELECT COUNT(*), COALESCE(SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), 0) FROM tasks WHERE user_id = ?"

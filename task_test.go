@@ -836,7 +836,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		require.NoError(t, rows.Err())
 
 		want := []Activity{
-			{UserID: 1, Kind: "task", Message: "done task 1"},
+			{UserID: 1, Kind: "task", Message: "done task 1, \"test\""},
 		}
 		assert.Equal(t, want, activities)
 	})
@@ -887,7 +887,7 @@ func TestPutTaskStatusHandler(t *testing.T) {
 		require.NoError(t, rows.Err())
 
 		want := []Activity{
-			{UserID: 1, Kind: "task", Message: "undone task 1"},
+			{UserID: 1, Kind: "task", Message: "undone task 1, \"test\""},
 		}
 		assert.Equal(t, want, activities)
 	})

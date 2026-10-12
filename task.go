@@ -493,7 +493,7 @@ func (h *PutTaskStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	if status == "created" {
 		activity = "undone"
 	}
-	if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf("%s task %d", activity, task.ID)); err != nil {
+	if err := SaveActivity(r.Context(), tx, user.ID, "task", fmt.Sprintf(`%s task %d, "%s"`, activity, task.ID, task.Title)); err != nil {
 		slog.ErrorContext(r.Context(), "save activity", slog.Any("error", err))
 		Handle500(w, r)
 		return
