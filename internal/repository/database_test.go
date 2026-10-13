@@ -1,54 +1,12 @@
-package main
+package repository
 
 import (
-	"bytes"
-	"database/sql"
-	"fmt"
-	"os/exec"
-	"path/filepath"
 	"testing"
-
-	_ "embed"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-//go:embed schema.sql
-var schema []byte
-
-func NewTestDBFile(t *testing.T) string {
-	t.Helper()
-
-	file := filepath.Join(t.TempDir(), "test.db")
-	cmd := exec.CommandContext(t.Context(), "sqlite3def", file, "--apply")
-	cmd.Stdin = bytes.NewReader(schema)
-
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("sqlite3def failed: %v\n%s", err, out)
-	}
-
-	return file
-}
-
-func NewTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-
-	file := NewTestDBFile(t)
-
-	dsn, err := enforceForeignKeys(fmt.Sprintf("file:%s", file))
-	require.NoError(t, err)
-
-	db, err := sql.Open("sqlite3", dsn)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		assert.NoError(t, db.Close())
-	})
-
-	return db
-}
 
 func TestNewDB(t *testing.T) {
 	dsn := "file::memory:"
@@ -73,7 +31,7 @@ func TestEnforceForeignKeys(t *testing.T) {
 		{Name: "duplicated", Value: "file:app.db?_fk=0&_fk=0", Want: "file:app.db?_fk=1"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			got, err := enforceForeignKeys(test.Value)
+			got, err := EnforceForeignKeys(test.Value)
 			require.NoError(t, err)
 			assert.Equal(t, test.Want, got)
 		})
@@ -87,7 +45,7 @@ func TestEnforceForeignKeys(t *testing.T) {
 		{Name: "invalid url", Value: "file:///app%zz.d"},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			_, err := enforceForeignKeys(test.Value)
+			_, err := EnforceForeignKeys(test.Value)
 			require.Error(t, err)
 		})
 	}

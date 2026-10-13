@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fjnkt98/tasks/internal/presentation"
+	"github.com/fjnkt98/tasks/internal/repository"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -148,7 +150,7 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 		return nil, shutdown, fmt.Errorf("parse PORT: %w", err)
 	}
 
-	db, err := NewDB(ctx, os.Getenv("DATABASE_URL"))
+	db, err := repository.NewDB(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("open database: %w", err)
 	}
@@ -159,7 +161,7 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 
 	// server
-	server, err := NewServer(port, db)
+	server, err := presentation.NewServer(port, db)
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("create server: %w", err)
 	}

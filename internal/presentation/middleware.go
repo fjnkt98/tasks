@@ -1,4 +1,4 @@
-package main
+package presentation
 
 import (
 	"database/sql"
@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"slices"
 	"time"
+
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type Middleware func(http.Handler) http.Handler
@@ -59,6 +61,7 @@ func NewRecoveryMiddleware() Middleware {
 }
 
 func NewSessionMiddleware(db *sql.DB) Middleware {
+	sessions := usecases.NewSessionUsecase(db)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookieName)
@@ -67,77 +70,26 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
-			q := "SELECT user_id, expires_at FROM sessions WHERE token = ? LIMIT 1"
-			row := db.QueryRowContext(r.Context(), q, cookie.Value)
-			var userID int
-			var expiresAt int64
-			if err := row.Scan(&userID, &expiresAt); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					http.SetCookie(w, NewAuthCookie("", -1))
-
-					next.ServeHTTP(w, r)
-					return
-				}
-
-				slog.ErrorContext(r.Context(), "get session by token", slog.Any("error", err))
+			user, err := sessions.Continue(r.Context(), cookie.Value)
+			if err != nil {
+				slog.ErrorContext(r.Context(), "continue session", slog.Any("error", err))
 				Handle500(w, r)
 				return
 			}
 
-			now := time.Now().Unix()
-			if expiresAt <= now {
-				if _, err := db.ExecContext(r.Context(), "DELETE FROM sessions WHERE token = ? AND expires_at <= ?", cookie.Value, now); err != nil {
-					slog.ErrorContext(r.Context(), "delete expired session", slog.Any("error", err))
-				}
+			if user == nil {
 				http.SetCookie(w, NewAuthCookie("", -1))
-
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			var user User
-			q = "SELECT id, name FROM users WHERE id = ? LIMIT 1"
-			row = db.QueryRowContext(r.Context(), q, userID)
-			if err := row.Scan(&user.ID, &user.Name); err != nil {
-				slog.ErrorContext(r.Context(), "get user", slog.Any("error", err))
-				Handle500(w, r)
-				return
-			}
-
-			roles := make([]string, 0)
-			q = "SELECT role FROM user_role_relations WHERE user_id = ? ORDER BY role ASC"
-			rows, err := db.QueryContext(r.Context(), q, user.ID)
-			if err != nil {
-				slog.ErrorContext(r.Context(), "get user's roles", slog.Any("error", err))
-				Handle500(w, r)
-				return
-			}
-			defer rows.Close() // nolint:errcheck
-			for rows.Next() {
-				var role string
-				if err := rows.Scan(&role); err != nil {
-					slog.ErrorContext(r.Context(), "scan role", slog.Any("error", err))
-					Handle500(w, r)
-					return
-				}
-
-				roles = append(roles, role)
-			}
-			if err := rows.Err(); err != nil {
-				slog.ErrorContext(r.Context(), "get users'role", slog.Any("error", err))
-				Handle500(w, r)
-				return
-			}
-			user.Roles = roles
-
-			if _, err := db.ExecContext(r.Context(), "UPDATE sessions SET expires_at = ? WHERE token = ?", time.Now().Add(24*time.Hour).Unix(), cookie.Value); err != nil {
-				slog.ErrorContext(r.Context(), "extend session", slog.Any("error", err))
-				Handle500(w, r)
-				return
-			}
 			http.SetCookie(w, NewAuthCookie(cookie.Value, 86400))
 
-			ctx := SetUserIntoContext(r.Context(), user)
+			ctx := SetUserIntoContext(r.Context(), User{
+				ID:    user.ID,
+				Name:  user.Name,
+				Roles: user.Roles,
+			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -170,7 +122,23 @@ func NewAdminRequiredMiddleware() Middleware {
 
 func NewByteLimitMiddleware() Middleware {
 	return func(next http.Handler) http.Handler {
-		return http.MaxBytesHandler(next, 1<<20)
+		return http.MaxBytesHandler(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
+					if err := r.ParseForm(); err != nil {
+						var ErrMaxBytesExceeded *http.MaxBytesError
+						if errors.As(err, &ErrMaxBytesExceeded) {
+							http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+							return
+						}
+						http.Error(w, "bad request", http.StatusBadRequest)
+						return
+					}
+				}
+				next.ServeHTTP(w, r)
+			}),
+			1<<20,
+		)
 	}
 }
 

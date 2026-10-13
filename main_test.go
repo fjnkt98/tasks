@@ -15,6 +15,7 @@ import (
 	"testing/slogtest"
 	"time"
 
+	"github.com/fjnkt98/tasks/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -178,7 +179,7 @@ func TestSetup(t *testing.T) {
 		slog.SetDefault(original)
 	})
 
-	file := NewTestDBFile(t)
+	file := testutil.NewDBFile(t)
 
 	t.Setenv("DATABASE_URL", fmt.Sprintf("file:%s", file))
 	t.Setenv("PORT", "8000")
@@ -312,7 +313,7 @@ func TestSeed(t *testing.T) {
 		t.Setenv("ADMIN_USERNAME", "admin")
 		t.Setenv("ADMIN_PASSWORD", "admin")
 
-		db := NewTestDB(t)
+		db := testutil.NewDB(t)
 		_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('user1', 'test')")
 		require.NoError(t, err)
 		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
@@ -344,7 +345,7 @@ func TestSeed(t *testing.T) {
 		t.Setenv("ADMIN_USERNAME", "admin")
 		t.Setenv("ADMIN_PASSWORD", "admin")
 
-		db := NewTestDB(t)
+		db := testutil.NewDB(t)
 		err := seed(t.Context(), db)
 		require.NoError(t, err)
 
@@ -379,7 +380,7 @@ func TestSeed(t *testing.T) {
 				t.Setenv("ADMIN_USERNAME", test.Username)
 				t.Setenv("ADMIN_PASSWORD", test.Password)
 
-				db := NewTestDB(t)
+				db := testutil.NewDB(t)
 				err := seed(t.Context(), db)
 				require.Error(t, err)
 			})
@@ -387,7 +388,7 @@ func TestSeed(t *testing.T) {
 	})
 
 	t.Run("existing admin's password will be updated", func(t *testing.T) {
-		db := NewTestDB(t)
+		db := testutil.NewDB(t)
 
 		t.Setenv("ADMIN_USERNAME", "admin")
 		t.Setenv("ADMIN_PASSWORD", "admin")
@@ -417,7 +418,7 @@ func TestSeed(t *testing.T) {
 	})
 
 	t.Run("old admin user and role will be deleted", func(t *testing.T) {
-		db := NewTestDB(t)
+		db := testutil.NewDB(t)
 
 		t.Setenv("ADMIN_USERNAME", "admin")
 		t.Setenv("ADMIN_PASSWORD", "admin")

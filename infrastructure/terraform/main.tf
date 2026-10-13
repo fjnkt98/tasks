@@ -147,7 +147,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
 
       env {
-        name  = "ADMIN_PASSWORD"
+        name = "ADMIN_PASSWORD"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.admin_password.secret_id
@@ -156,7 +156,7 @@ resource "google_cloud_run_v2_service" "app" {
         }
       }
       env {
-        name  = "ADMIN_USERNAME"
+        name = "ADMIN_USERNAME"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.admin_username.secret_id

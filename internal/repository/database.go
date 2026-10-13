@@ -1,4 +1,4 @@
-package main
+package repository
 
 import (
 	"context"
@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/url"
 
+	_ "embed"
+
 	"github.com/XSAM/otelsql"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
 type DBTX interface {
@@ -23,8 +25,11 @@ type DBTX interface {
 var _ DBTX = &sql.DB{}
 var _ DBTX = &sql.Tx{}
 
+//go:embed schema.sql
+var Schema []byte
+
 func NewDB(ctx context.Context, dsn string) (db *sql.DB, err error) {
-	dsn, err = enforceForeignKeys(dsn)
+	dsn, err = EnforceForeignKeys(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("enforce foreign keys: %w", err)
 	}
@@ -46,7 +51,7 @@ func NewDB(ctx context.Context, dsn string) (db *sql.DB, err error) {
 	return db, nil
 }
 
-func enforceForeignKeys(dsn string) (string, error) {
+func EnforceForeignKeys(dsn string) (string, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return "", fmt.Errorf("parse database URL: %w", err)
@@ -62,4 +67,9 @@ func enforceForeignKeys(dsn string) (string, error) {
 	u.RawQuery = q.Encode()
 
 	return u.String(), nil
+}
+
+func IsUniqueConstraintError(err error) bool {
+	var sqliteErr sqlite3.Error
+	return errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique
 }

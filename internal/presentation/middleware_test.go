@@ -1,4 +1,4 @@
-package main
+package presentation
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/fjnkt98/tasks/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -177,7 +178,7 @@ func TestSessionMiddleware(t *testing.T) {
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
-		db := NewTestDB(t)
+		db := testutil.NewDB(t)
 		fixture(t, db)
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
@@ -193,7 +194,7 @@ func TestSessionMiddleware(t *testing.T) {
 	})
 
 	t.Run("expired", func(t *testing.T) {
-		db := NewTestDB(t)
+		db := testutil.NewDB(t)
 		fixture(t, db)
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
@@ -207,7 +208,7 @@ func TestSessionMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "test\n", rec.Body.String())
 
-		cookies := extractCookies(t, rec.Result().Header)
+		cookies := testutil.ExtractCookies(t, rec.Result().Header)
 		tokenCookie, ok := cookies[AuthCookieName]
 		require.True(t, ok, "session_token cookie should be set")
 		assert.Equal(t, -1, tokenCookie.MaxAge)
@@ -221,7 +222,7 @@ func TestSessionMiddleware(t *testing.T) {
 	})
 
 	t.Run("session not found", func(t *testing.T) {
-		db := NewTestDB(t)
+		db := testutil.NewDB(t)
 		fixture(t, db)
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
@@ -235,7 +236,7 @@ func TestSessionMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "test\n", rec.Body.String())
 
-		cookies := extractCookies(t, rec.Result().Header)
+		cookies := testutil.ExtractCookies(t, rec.Result().Header)
 		tokenCookie, ok := cookies[AuthCookieName]
 		require.True(t, ok, "session_token cookie should be set")
 		assert.Equal(t, -1, tokenCookie.MaxAge)
@@ -245,7 +246,7 @@ func TestSessionMiddleware(t *testing.T) {
 
 	t.Run("authorized", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			db := NewTestDB(t)
+			db := testutil.NewDB(t)
 			fixture(t, db)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
@@ -259,7 +260,7 @@ func TestSessionMiddleware(t *testing.T) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			assert.Equal(t, "test\n", rec.Body.String())
 
-			cookies := extractCookies(t, rec.Result().Header)
+			cookies := testutil.ExtractCookies(t, rec.Result().Header)
 			tokenCookie, ok := cookies[AuthCookieName]
 			require.True(t, ok, "session_token cookie should be set")
 			assert.Equal(t, 86400, tokenCookie.MaxAge)
@@ -274,7 +275,7 @@ func TestSessionMiddleware(t *testing.T) {
 	})
 
 	t.Run("context", func(t *testing.T) {
-		db := NewTestDB(t)
+		db := testutil.NewDB(t)
 		fixture(t, db)
 
 		for _, test := range []struct {
