@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -31,16 +29,12 @@ type TaskData struct {
 }
 
 type ListTasksHandler struct {
-	db           *sql.DB
-	templateHTTP *template.Template
-	templateHTMX *template.Template
+	db *sql.DB
 }
 
 func NewListTasksHandler(db *sql.DB) *ListTasksHandler {
 	return &ListTasksHandler{
-		db:           db,
-		templateHTTP: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/tasks.html", "templates/partials/tasks.html")),
-		templateHTMX: template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
+		db: db,
 	}
 }
 
@@ -127,12 +121,13 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		data.LastIndex = -1
 	}
 
-	var buf bytes.Buffer
+	var body []byte
 	if IsHTMX(r) {
-		err = h.templateHTMX.ExecuteTemplate(&buf, "tasks", &data)
+		body, err = RenderTemplate("partial/tasks", &data)
 	} else {
-		err = h.templateHTTP.Execute(&buf, &data)
+		body, err = RenderTemplate("page/tasks", &data)
 	}
+
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
@@ -142,7 +137,7 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -150,13 +145,11 @@ func (h *ListTasksHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type GetTaskHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewGetTaskHandler(db *sql.DB) *GetTaskHandler {
 	return &GetTaskHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -192,8 +185,8 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LastIndex: -1,
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.ExecuteTemplate(&buf, "tasks", &data); err != nil {
+	body, err := RenderTemplate("partial/tasks", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -202,7 +195,7 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -210,13 +203,11 @@ func (h *GetTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type GetTaskEditHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewGetTaskEditHandler(db *sql.DB) *GetTaskEditHandler {
 	return &GetTaskEditHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/partials/task_edit.html")),
 	}
 }
 
@@ -243,8 +234,8 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.ExecuteTemplate(&buf, "task_edit", &task); err != nil {
+	body, err := RenderTemplate("partial/task_edit", &task)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -253,7 +244,7 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -261,13 +252,11 @@ func (h *GetTaskEditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type PostTaskHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewPostTaskHandler(db *sql.DB) *PostTaskHandler {
 	return &PostTaskHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -324,8 +313,8 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LastIndex: -1,
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.ExecuteTemplate(&buf, "tasks", &data); err != nil {
+	body, err := RenderTemplate("partial/tasks", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -334,7 +323,7 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusCreated)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -342,13 +331,11 @@ func (h *PostTaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type PutTaskTitleHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewPutTaskTitleHandler(db *sql.DB) *PutTaskTitleHandler {
 	return &PutTaskTitleHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/partials/tasks.html")),
 	}
 }
 
@@ -416,8 +403,8 @@ func (h *PutTaskTitleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		LastIndex: -1,
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.ExecuteTemplate(&buf, "tasks", &data); err != nil {
+	body, err := RenderTemplate("partial/tasks", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -426,7 +413,7 @@ func (h *PutTaskTitleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}

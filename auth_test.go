@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -270,19 +269,6 @@ func TestGetSignupHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
-
-	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
-		rec := httptest.NewRecorder()
-
-		h := NewGetSignupHandler()
-		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-	})
 }
 
 func TestPostSignupHandler(t *testing.T) {
@@ -375,29 +361,6 @@ func TestPostSignupHandler(t *testing.T) {
 		assert.Equal(t, 1, count)
 	})
 
-	t.Run("render failed", func(t *testing.T) {
-		db := NewTestDB(t)
-
-		values := url.Values{}
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signup", strings.NewReader(values.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-		rec := httptest.NewRecorder()
-
-		h := NewPostSignupHandler(db)
-		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-
-		row := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM users")
-		var count int
-		require.NoError(t, row.Scan(&count))
-		assert.Equal(t, 0, count)
-	})
-
 	t.Run("success", func(t *testing.T) {
 		db := NewTestDB(t)
 
@@ -434,19 +397,6 @@ func TestGetSignupSuccessHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
-
-	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup/success", nil)
-		rec := httptest.NewRecorder()
-
-		h := NewGetSignupSuccessHandler()
-		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-	})
 }
 
 func TestGetSigninHandler(t *testing.T) {
@@ -458,19 +408,6 @@ func TestGetSigninHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-	})
-
-	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signin", nil)
-		rec := httptest.NewRecorder()
-
-		h := NewGetSigninHandler()
-		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }
@@ -539,24 +476,6 @@ func TestPostSigninHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-	})
-
-	t.Run("render failed", func(t *testing.T) {
-		db := NewTestDB(t)
-
-		values := url.Values{}
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/signin", strings.NewReader(values.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-		rec := httptest.NewRecorder()
-
-		h := NewPostSigninHandler(db)
-		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 
@@ -671,19 +590,6 @@ func TestGetPasswordChangeHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
-
-	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
-		rec := httptest.NewRecorder()
-
-		h := NewGetPasswordChangeHandler()
-		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-	})
 }
 
 func TestPostPasswordChangeHandler(t *testing.T) {
@@ -739,25 +645,6 @@ func TestPostPasswordChangeHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-	})
-
-	t.Run("render failed", func(t *testing.T) {
-		db := NewTestDB(t)
-		fixture(t, db)
-
-		values := url.Values{}
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password_change", strings.NewReader(values.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-		rec := httptest.NewRecorder()
-
-		h := NewPostPasswordChangeHandler(db)
-		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 
@@ -820,19 +707,6 @@ func TestGetPasswordChangeSuccessHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
-	})
-
-	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/signup", nil)
-		rec := httptest.NewRecorder()
-
-		h := NewGetPasswordChangeSuccessHandler()
-		h.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }

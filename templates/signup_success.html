@@ -1,11 +1,15 @@
-{{ define "content" }}
-<div class="hero">
-  <div class="hero-content text-center">
-    <div class="max-w-md">
-      <h1 class="text-3xl font-bold py-4">You have signed up Successfully!</h1>
-      <p class="py-2">Please sign in below.</p>
-      <a class="py-2 btn btn-primary" href="/account/signin">Signin</a>
+{{ define "page/signup_success" }} {{ template "header" . }}
+<div class="flex-grow">
+  <div class="hero">
+    <div class="hero-content text-center">
+      <div class="max-w-md">
+        <h1 class="text-3xl font-bold py-4">
+          You have signed up Successfully!
+        </h1>
+        <p class="py-2">Please sign in below.</p>
+        <a class="py-2 btn btn-primary" href="/account/signin">Signin</a>
+      </div>
     </div>
   </div>
 </div>
-{{ end }}
+{{ template "footer" . }} {{ end }}

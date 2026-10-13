@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -100,30 +99,6 @@ func TestListTasksHandler(t *testing.T) {
 			}
 		})
 	}
-
-	for _, test := range []struct {
-		Name      string
-		HXRequest string
-	}{
-		{Name: "render failed http", HXRequest: ""},
-		{Name: "render failed htmx", HXRequest: "true"},
-	} {
-		t.Run(test.Name, func(t *testing.T) {
-			ctx := SetUserIntoContext(t.Context(), User{ID: 1})
-			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks", nil)
-			req.Header.Set("HX-Request", test.HXRequest)
-
-			rec := httptest.NewRecorder()
-
-			h := NewListTasksHandler(db)
-			h.templateHTTP = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
-			h.templateHTMX = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
-
-			h.ServeHTTP(rec, req)
-
-			assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		})
-	}
 }
 
 func TestGetTaskHandler(t *testing.T) {
@@ -160,22 +135,6 @@ func TestGetTaskHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
-	})
-
-	t.Run("render failed", func(t *testing.T) {
-		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
-		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1", nil)
-		req.SetPathValue("id", "1")
-		req.Header.Set("HX-Request", "true")
-
-		rec := httptest.NewRecorder()
-
-		h := NewGetTaskHandler(db)
-		h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -233,22 +192,6 @@ func TestGetTaskEditHandler(t *testing.T) {
 		h.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
-	})
-
-	t.Run("render failed", func(t *testing.T) {
-		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
-		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tasks/1/edit", nil)
-		req.SetPathValue("id", "1")
-		req.Header.Set("HX-Request", "true")
-
-		rec := httptest.NewRecorder()
-
-		h := NewGetTaskEditHandler(db)
-		h.t = template.Must(template.New("task_edit").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -310,25 +253,6 @@ func TestPostTaskHandler(t *testing.T) {
 			assert.Equal(t, 0, count)
 		})
 	}
-
-	t.Run("render failed", func(t *testing.T) {
-		db := NewTestDB(t)
-		fixture(t, db)
-
-		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
-		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/tasks", strings.NewReader("title=test"))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Header.Set("HX-Request", "true")
-
-		rec := httptest.NewRecorder()
-
-		h := NewPostTaskHandler(db)
-		h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-	})
 
 	t.Run("success", func(t *testing.T) {
 		db := NewTestDB(t)
@@ -549,29 +473,6 @@ func TestPutTaskTitleHandler(t *testing.T) {
 		assert.Equal(t, "test", task.Title)
 		assert.Equal(t, "created", task.Status)
 		assert.Equal(t, 1, task.UserID)
-	})
-
-	t.Run("render failed", func(t *testing.T) {
-		db := NewTestDB(t)
-		fixture(db, t)
-
-		values := url.Values{}
-		values.Set("title", "new test")
-
-		ctx := SetUserIntoContext(t.Context(), User{ID: 1})
-		req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/tasks/1", strings.NewReader(values.Encode()))
-		req.SetPathValue("id", "1")
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Header.Set("HX-Request", "true")
-
-		rec := httptest.NewRecorder()
-
-		h := NewPutTaskTitleHandler(db)
-		h.t = template.Must(template.New("tasks").Parse("<p>{{ .MissingField }}</p>"))
-
-		h.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 
 	t.Run("success", func(t *testing.T) {

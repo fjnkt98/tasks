@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -89,13 +87,11 @@ func GetActivities(ctx context.Context, db *sql.DB, userID int) (activities []Ac
 
 type GetMeHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewGetMeHandler(db *sql.DB) *GetMeHandler {
 	return &GetMeHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/account.html")),
 	}
 }
 
@@ -151,8 +147,8 @@ func (h GetMeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/account", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -161,20 +157,16 @@ func (h GetMeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
 
-type GetAccountDeleteHandler struct {
-	t *template.Template
-}
+type GetAccountDeleteHandler struct{}
 
 func NewGetAccountDeleteHandler() *GetAccountDeleteHandler {
-	return &GetAccountDeleteHandler{
-		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/delete_account.html")),
-	}
+	return &GetAccountDeleteHandler{}
 }
 
 func (h *GetAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -189,8 +181,8 @@ func (h *GetAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		ErrorMessage: "",
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/delete_account", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -199,7 +191,7 @@ func (h *GetAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -207,13 +199,11 @@ func (h *GetAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 
 type PostAccountDeleteHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewPostAccountDeleteHandler(db *sql.DB) *PostAccountDeleteHandler {
 	return &PostAccountDeleteHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/delete_account.html")),
 	}
 }
 
@@ -255,8 +245,8 @@ func (h *PostAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 			ErrorMessage: strings.Join(errs, "; "),
 		}
 
-		var buf bytes.Buffer
-		if err := h.t.Execute(&buf, &data); err != nil {
+		body, err := RenderTemplate("page/delete_account", &data)
+		if err != nil {
 			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 			Handle500(w, r)
 			return
@@ -265,7 +255,7 @@ func (h *PostAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		w.WriteHeader(http.StatusBadRequest)
-		if _, err := buf.WriteTo(w); err != nil {
+		if _, err := w.Write(body); err != nil {
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			return
 		}
@@ -287,8 +277,8 @@ func (h *PostAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 				ErrorMessage: err.Error(),
 			}
 
-			var buf bytes.Buffer
-			if err := h.t.Execute(&buf, &data); err != nil {
+			body, err := RenderTemplate("page/delete_account", &data)
+			if err != nil {
 				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 				Handle500(w, r)
 				return
@@ -297,7 +287,7 @@ func (h *PostAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 			w.WriteHeader(http.StatusBadRequest)
-			if _, err := buf.WriteTo(w); err != nil {
+			if _, err := w.Write(body); err != nil {
 				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 				return
 			}
@@ -314,14 +304,10 @@ func (h *PostAccountDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	http.Redirect(w, r, "/account/delete/success", http.StatusSeeOther)
 }
 
-type GetAccountDeleteSuccessHandler struct {
-	t *template.Template
-}
+type GetAccountDeleteSuccessHandler struct{}
 
 func NewGetAccountDeleteSuccessHandler() *GetAccountDeleteSuccessHandler {
-	return &GetAccountDeleteSuccessHandler{
-		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/delete_account_success.html")),
-	}
+	return &GetAccountDeleteSuccessHandler{}
 }
 
 func (h *GetAccountDeleteSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -329,8 +315,8 @@ func (h *GetAccountDeleteSuccessHandler) ServeHTTP(w http.ResponseWriter, r *htt
 		Authorized: IsAuthorized(r.Context()),
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/delete_account_success", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -339,7 +325,7 @@ func (h *GetAccountDeleteSuccessHandler) ServeHTTP(w http.ResponseWriter, r *htt
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}

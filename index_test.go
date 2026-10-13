@@ -1,7 +1,6 @@
 package main
 
 import (
-	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -37,18 +36,5 @@ func TestGetIndex(t *testing.T) {
 
 		body := rec.Body.String()
 		assert.Contains(t, body, `"/account/signout"`)
-	})
-
-	t.Run("render failed", func(t *testing.T) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
-		rec := httptest.NewRecorder()
-
-		handler := NewIndexHandler()
-		handler.t = template.Must(template.New("broken").Parse("<p>{{ .MissingField }}</p>"))
-
-		handler.ServeHTTP(rec, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		assert.Equal(t, "text/html; charset=utf-8", rec.Result().Header.Get("Content-Type"))
 	})
 }

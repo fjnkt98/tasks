@@ -1,20 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"html/template"
 	"log/slog"
 	"net/http"
 )
 
-type IndexHandler struct {
-	t *template.Template
-}
+type IndexHandler struct{}
 
 func NewIndexHandler() *IndexHandler {
-	return &IndexHandler{
-		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/index.html")),
-	}
+	return &IndexHandler{}
 }
 
 func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -23,8 +17,8 @@ func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/index", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -33,7 +27,7 @@ func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}

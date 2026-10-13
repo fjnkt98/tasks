@@ -1,3 +1,4 @@
+{{ define "header" }}
 <!doctype html>
 <html lang="ja">
   <head>
@@ -47,9 +48,11 @@
         {{ end }}
       </div>
     </div>
+    {{ end }}
 
     <div class="flex-grow">{{template "content" . }}</div>
 
+    {{ define "footer" }}
     <footer
       class="footer sm:footer-horizontal footer-center bg-neutral text-neutral-content p-4"
     >
@@ -59,3 +62,4 @@
     </footer>
   </body>
 </html>
+{{ end }}

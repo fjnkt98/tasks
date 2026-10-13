@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
@@ -221,14 +219,10 @@ func Signout(ctx context.Context, db *sql.DB, token string) error {
 	return nil
 }
 
-type GetSignupHandler struct {
-	t *template.Template
-}
+type GetSignupHandler struct{}
 
 func NewGetSignupHandler() *GetSignupHandler {
-	return &GetSignupHandler{
-		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup.html")),
-	}
+	return &GetSignupHandler{}
 }
 
 func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -243,8 +237,8 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage: "",
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/signup", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -253,7 +247,7 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -261,13 +255,11 @@ func (h *GetSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type PostSignupHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewPostSignupHandler(db *sql.DB) *PostSignupHandler {
 	return &PostSignupHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup.html")),
 	}
 }
 
@@ -317,8 +309,8 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ErrorMessage: strings.Join(errs, "; "),
 		}
 
-		var buf bytes.Buffer
-		if err := h.t.Execute(&buf, &data); err != nil {
+		body, err := RenderTemplate("page/signup", &data)
+		if err != nil {
 			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 			Handle500(w, r)
 			return
@@ -327,7 +319,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		w.WriteHeader(http.StatusBadRequest)
-		if _, err := buf.WriteTo(w); err != nil {
+		if _, err := w.Write(body); err != nil {
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			return
 		}
@@ -348,8 +340,8 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ErrorMessage: err.Error(),
 			}
 
-			var buf bytes.Buffer
-			if err := h.t.Execute(&buf, &data); err != nil {
+			body, err := RenderTemplate("page/signup", &data)
+			if err != nil {
 				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 				Handle500(w, r)
 				return
@@ -358,7 +350,7 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 			w.WriteHeader(http.StatusBadRequest)
-			if _, err := buf.WriteTo(w); err != nil {
+			if _, err := w.Write(body); err != nil {
 				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 				return
 			}
@@ -374,14 +366,10 @@ func (h *PostSignupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account/signup/success", http.StatusSeeOther)
 }
 
-type GetSignupSuccessHandler struct {
-	t *template.Template
-}
+type GetSignupSuccessHandler struct{}
 
 func NewGetSignupSuccessHandler() *GetSignupSuccessHandler {
-	return &GetSignupSuccessHandler{
-		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signup_success.html")),
-	}
+	return &GetSignupSuccessHandler{}
 }
 
 func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -390,8 +378,8 @@ func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/signup_success", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -400,20 +388,16 @@ func (h *GetSignupSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
 
-type GetSigninHandler struct {
-	t *template.Template
-}
+type GetSigninHandler struct{}
 
 func NewGetSigninHandler() *GetSigninHandler {
-	return &GetSigninHandler{
-		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signin.html")),
-	}
+	return &GetSigninHandler{}
 }
 
 func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -428,8 +412,8 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage: "",
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/signin", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -438,7 +422,7 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -446,13 +430,11 @@ func (h *GetSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type PostSigninHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewPostSigninHandler(db *sql.DB) *PostSigninHandler {
 	return &PostSigninHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/signin.html")),
 	}
 }
 
@@ -494,8 +476,8 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ErrorMessage: strings.Join(errs, "; "),
 		}
 
-		var buf bytes.Buffer
-		if err := h.t.Execute(&buf, &data); err != nil {
+		body, err := RenderTemplate("page/signin", &data)
+		if err != nil {
 			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 			Handle500(w, r)
 			return
@@ -504,7 +486,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		w.WriteHeader(http.StatusBadRequest)
-		if _, err := buf.WriteTo(w); err != nil {
+		if _, err := w.Write(body); err != nil {
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			return
 		}
@@ -526,8 +508,8 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ErrorMessage: err.Error(),
 			}
 
-			var buf bytes.Buffer
-			if err := h.t.Execute(&buf, &data); err != nil {
+			body, err := RenderTemplate("page/signin", &data)
+			if err != nil {
 				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 				Handle500(w, r)
 				return
@@ -536,7 +518,7 @@ func (h *PostSigninHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 			w.WriteHeader(http.StatusBadRequest)
-			if _, err := buf.WriteTo(w); err != nil {
+			if _, err := w.Write(body); err != nil {
 				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 				return
 			}
@@ -582,14 +564,10 @@ func (h *PostSignoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-type GetPasswordChangeHandler struct {
-	t *template.Template
-}
+type GetPasswordChangeHandler struct{}
 
 func NewGetPasswordChangeHandler() *GetPasswordChangeHandler {
-	return &GetPasswordChangeHandler{
-		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/password_change.html")),
-	}
+	return &GetPasswordChangeHandler{}
 }
 
 func (h *GetPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -604,8 +582,8 @@ func (h *GetPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		ErrorMessage: "",
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/change_password", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -614,7 +592,7 @@ func (h *GetPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
@@ -622,13 +600,11 @@ func (h *GetPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 type PostPasswordChangeHandler struct {
 	db *sql.DB
-	t  *template.Template
 }
 
 func NewPostPasswordChangeHandler(db *sql.DB) *PostPasswordChangeHandler {
 	return &PostPasswordChangeHandler{
 		db: db,
-		t:  template.Must(template.ParseFS(templates, "templates/layout.html", "templates/password_change.html")),
 	}
 }
 
@@ -681,8 +657,8 @@ func (h *PostPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 			ErrorMessage: strings.Join(errs, "; "),
 		}
 
-		var buf bytes.Buffer
-		if err := h.t.Execute(&buf, &data); err != nil {
+		body, err := RenderTemplate("page/change_password", &data)
+		if err != nil {
 			slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 			Handle500(w, r)
 			return
@@ -691,7 +667,7 @@ func (h *PostPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		w.WriteHeader(http.StatusBadRequest)
-		if _, err := buf.WriteTo(w); err != nil {
+		if _, err := w.Write(body); err != nil {
 			slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 			return
 		}
@@ -714,8 +690,8 @@ func (h *PostPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 				ErrorMessage: err.Error(),
 			}
 
-			var buf bytes.Buffer
-			if err := h.t.Execute(&buf, &data); err != nil {
+			body, err := RenderTemplate("page/change_password", &data)
+			if err != nil {
 				slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 				Handle500(w, r)
 				return
@@ -724,7 +700,7 @@ func (h *PostPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 			w.WriteHeader(http.StatusBadRequest)
-			if _, err := buf.WriteTo(w); err != nil {
+			if _, err := w.Write(body); err != nil {
 				slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 				return
 			}
@@ -740,14 +716,10 @@ func (h *PostPasswordChangeHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, "/account/password_change/success", http.StatusSeeOther)
 }
 
-type GetPasswordChangeSuccessHandler struct {
-	t *template.Template
-}
+type GetPasswordChangeSuccessHandler struct{}
 
 func NewGetPasswordChangeSuccessHandler() *GetPasswordChangeSuccessHandler {
-	return &GetPasswordChangeSuccessHandler{
-		t: template.Must(template.ParseFS(templates, "templates/layout.html", "templates/password_change_success.html")),
-	}
+	return &GetPasswordChangeSuccessHandler{}
 }
 
 func (h *GetPasswordChangeSuccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -762,8 +734,8 @@ func (h *GetPasswordChangeSuccessHandler) ServeHTTP(w http.ResponseWriter, r *ht
 		ErrorMessage: "",
 	}
 
-	var buf bytes.Buffer
-	if err := h.t.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/change_password_success", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Handle500(w, r)
 		return
@@ -772,7 +744,7 @@ func (h *GetPasswordChangeSuccessHandler) ServeHTTP(w http.ResponseWriter, r *ht
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusOK)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}

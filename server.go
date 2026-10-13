@@ -19,6 +19,20 @@ var templates embed.FS
 //go:embed static
 var statics embed.FS
 
+var parsedTemplates = template.Must(template.ParseFS(
+	templates,
+	"templates/*.html",
+	"templates/partials/*.html",
+))
+
+func RenderTemplate(name string, data any) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := parsedTemplates.ExecuteTemplate(&buf, name, data); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 func IsHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
@@ -95,8 +109,6 @@ func NewHandler(db *sql.DB) http.Handler {
 	return otelhttp.NewHandler(mux, "http-request")
 }
 
-var template400 = template.Must(template.ParseFS(templates, "templates/layout.html", "templates/400.html"))
-
 func Handle400(w http.ResponseWriter, r *http.Request) {
 	if IsHTMX(r) {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -108,8 +120,8 @@ func Handle400(w http.ResponseWriter, r *http.Request) {
 		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
-	var buf bytes.Buffer
-	if err := template400.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/400", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -118,13 +130,11 @@ func Handle400(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusBadRequest)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
-
-var template404 = template.Must(template.ParseFS(templates, "templates/layout.html", "templates/404.html"))
 
 func Handle404(w http.ResponseWriter, r *http.Request) {
 	if IsHTMX(r) {
@@ -137,8 +147,8 @@ func Handle404(w http.ResponseWriter, r *http.Request) {
 		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
-	var buf bytes.Buffer
-	if err := template404.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/404", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -147,13 +157,11 @@ func Handle404(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusNotFound)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
 }
-
-var template500 = template.Must(template.ParseFS(templates, "templates/layout.html", "templates/500.html"))
 
 func Handle500(w http.ResponseWriter, r *http.Request) {
 	if IsHTMX(r) {
@@ -166,8 +174,8 @@ func Handle500(w http.ResponseWriter, r *http.Request) {
 		UserName:   GetUserFromContext(r.Context()).Name,
 	}
 
-	var buf bytes.Buffer
-	if err := template500.Execute(&buf, &data); err != nil {
+	body, err := RenderTemplate("page/500", &data)
+	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -176,7 +184,7 @@ func Handle500(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	w.WriteHeader(http.StatusInternalServerError)
-	if _, err := buf.WriteTo(w); err != nil {
+	if _, err := w.Write(body); err != nil {
 		slog.ErrorContext(r.Context(), "write response", slog.Any("error", err))
 		return
 	}
