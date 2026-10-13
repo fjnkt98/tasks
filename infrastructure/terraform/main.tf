@@ -56,6 +56,42 @@ resource "google_artifact_registry_repository" "main" {
   }
 }
 
+# Secret Manager
+resource "google_project_service" "secretmanager_api" {
+  service            = "secretmanager.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_secret_manager_secret" "admin_username" {
+  depends_on = [google_project_service.secretmanager_api]
+
+  secret_id = "tasks-admin-username"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "secretaccess_admin_username" {
+  secret_id = google_secret_manager_secret.admin_username.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.app.email}"
+}
+
+resource "google_secret_manager_secret" "admin_password" {
+  depends_on = [google_project_service.secretmanager_api]
+
+  secret_id = "tasks-admin-password"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "secretaccess_admin_password" {
+  secret_id = google_secret_manager_secret.admin_password.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.app.email}"
+}
+
 # Service Account
 resource "google_service_account" "app" {
   account_id = "tasks-app"
@@ -103,13 +139,31 @@ resource "google_cloud_run_v2_service" "app" {
     }
 
     containers {
-      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:37c7f7b16844628b9cce0fb42748f6277ac5a267"
+      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:ff66682235380cbfba1fd55b60d986f58327dbc9"
       name  = "app"
 
       ports {
         container_port = 8000
       }
 
+      env {
+        name  = "ADMIN_PASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.admin_password.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name  = "ADMIN_USERNAME"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.admin_username.secret_id
+            version = "latest"
+          }
+        }
+      }
       env {
         name  = "DATABASE_URL"
         value = "file:/app/app.db"
@@ -136,7 +190,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
     containers {
-      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:37c7f7b16844628b9cce0fb42748f6277ac5a267"
+      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:ff66682235380cbfba1fd55b60d986f58327dbc9"
       name  = "otelcol"
 
       resources {
