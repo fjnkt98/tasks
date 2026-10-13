@@ -5,21 +5,12 @@ ARG TARGETARCH
 
 WORKDIR /app
 
-COPY account.go /app/account.go
-COPY auth.go /app/auth.go
-COPY database.go /app/database.go
 COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
-COPY index.go /app/index.go
 COPY main.go /app/main.go
-COPY middleware.go /app/middleware.go
-COPY server.go /app/server.go
-COPY static /app/static
-COPY task.go /app/task.go
-COPY templates /app/templates
-COPY user.go /app/user.go
+COPY internal/ /app/internal/
 
-COPY schema.sql /app/schema.sql
+COPY internal/repository/schema.sql /app/schema.sql
 
 ENV CGO_ENABLED=1
 RUN apt-get update \
