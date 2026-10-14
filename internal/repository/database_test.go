@@ -3,6 +3,7 @@ package repository
 import (
 	"testing"
 
+	"github.com/fjnkt98/tasks/internal/testutil"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,4 +50,18 @@ func TestEnforceForeignKeys(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestIsUniqueConstraintError(t *testing.T) {
+	db := testutil.NewDB(t)
+
+	_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('test', 'digest')")
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('test', 'digest')")
+	assert.Error(t, err)
+	assert.True(t, IsUniqueConstraintError(err))
+
+	_, err = db.ExecContext(t.Context(), "INSERT INTO users (name) VALUES ('foo')")
+	assert.Error(t, err)
+	assert.False(t, IsUniqueConstraintError(err))
 }
