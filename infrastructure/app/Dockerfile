@@ -10,7 +10,7 @@ COPY go.sum /app/go.sum
 COPY main.go /app/main.go
 COPY internal/ /app/internal/
 
-COPY internal/repository/schema.sql /app/schema.sql
+COPY internal/schema/schema.sql /app/schema.sql
 
 ENV CGO_ENABLED=1
 RUN apt-get update \

@@ -25,9 +25,6 @@ type DBTX interface {
 var _ DBTX = &sql.DB{}
 var _ DBTX = &sql.Tx{}
 
-//go:embed schema.sql
-var Schema []byte
-
 func NewDB(ctx context.Context, dsn string) (db *sql.DB, err error) {
 	dsn, err = EnforceForeignKeys(dsn)
 	if err != nil {

@@ -24,6 +24,6 @@ jobs:
         with:
           command: sqlite3def
           version: v3.11.26
-          schema-file: internal/repository/schema.sql
+          schema-file: internal/schema/schema.sql
           sqlite-database: test.db
           github-token: ${{ env.GITHUB_TOKEN }}
