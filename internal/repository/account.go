@@ -16,6 +16,7 @@ type UserRepository interface {
 	Create(ctx context.Context, db DBTX, name string, digest []byte) (*User, error)
 	GetByID(ctx context.Context, db DBTX, id int) (*User, error)
 	GetByName(ctx context.Context, db DBTX, name string) (*User, error)
+	SelectUsers(ctx context.Context, db DBTX, limit int, offset int) ([]User, error)
 	UpdateDigest(ctx context.Context, db DBTX, id int, digest []byte) (bool, error)
 	Delete(ctx context.Context, db DBTX, id int) (bool, error)
 	SelectRoles(ctx context.Context, db DBTX, id int) ([]Role, error)
@@ -65,6 +66,32 @@ func (r *userRepository) GetByName(ctx context.Context, db DBTX, name string) (*
 	}
 
 	return &user, nil
+}
+
+func (r *userRepository) SelectUsers(ctx context.Context, db DBTX, limit int, offset int) (users []User, err error) {
+	q := "SELECT id, name, digest FROM users ORDER BY id ASC LIMIT ? OFFSET ?"
+	rows, err := db.QueryContext(ctx, q, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("execute: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
+
+	users = make([]User, 0)
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
+			return nil, fmt.Errorf("scan rows: %w", err)
+		}
+
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+
+	return users, nil
 }
 
 func (r *userRepository) UpdateDigest(ctx context.Context, db DBTX, id int, digest []byte) (bool, error) {
