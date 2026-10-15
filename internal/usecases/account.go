@@ -81,6 +81,9 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 func (u *accountUsecase) Signin(ctx context.Context, username string, password string) (string, error) {
 	user, err := u.users.GetByName(ctx, u.db, username)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrInvalidCredentials
+		}
 		return "", fmt.Errorf("get user by name: %w", err)
 	}
 
@@ -122,6 +125,9 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 
 	user, err := u.users.GetByID(ctx, tx, userID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidCredentials
+		}
 		return fmt.Errorf("get user by id: %w", err)
 	}
 
@@ -165,6 +171,9 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
 		return fmt.Errorf("get session by token: %w", err)
 	}
 
@@ -236,6 +245,9 @@ func (u *accountUsecase) RevokeRole(ctx context.Context, userID int, role string
 func (u *accountUsecase) Delete(ctx context.Context, userID int, password string) error {
 	user, err := u.users.GetByID(ctx, u.db, userID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidCredentials
+		}
 		return fmt.Errorf("get user: %w", err)
 	}
 
@@ -262,97 +274,4 @@ func (u *accountUsecase) Delete(ctx context.Context, userID int, password string
 	}
 
 	return nil
-}
-
-type User struct {
-	ID    int
-	Name  string
-	Roles []string
-}
-
-type SessionUsecase interface {
-	Continue(ctx context.Context, token string) (*User, error)
-}
-
-type sessionUsecase struct {
-	db       *sql.DB
-	users    repository.UserRepository
-	sessions repository.SessionRepository
-}
-
-var _ SessionUsecase = &sessionUsecase{}
-
-func NewSessionUsecase(db *sql.DB) *sessionUsecase {
-	return &sessionUsecase{
-		db:       db,
-		users:    repository.NewUserRepository(),
-		sessions: repository.NewSessionRepository(),
-	}
-}
-
-func (u *sessionUsecase) Continue(ctx context.Context, token string) (*User, error) {
-	tx, err := u.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() // nolint:errcheck
-
-	// get session
-	session, err := u.sessions.GetByToken(ctx, tx, token)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
-		return nil, fmt.Errorf("get session by token: %w", err)
-	}
-
-	// session expiration check
-	if session.ExpiresAt <= time.Now().Unix() {
-		if _, err := u.sessions.DeleteByToken(ctx, tx, session.Token); err != nil {
-			return nil, fmt.Errorf("delete session by token: %w", err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return nil, fmt.Errorf("commit transaction: %w", err)
-		}
-
-		return nil, nil
-	}
-
-	// user identification
-	user, err := u.users.GetByID(ctx, tx, session.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
-	}
-
-	roles, err := u.users.SelectRoles(ctx, tx, session.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("select roles: %w", err)
-	}
-
-	// extend expiration
-	ok, err := u.sessions.UpdateByToken(ctx, tx, session.Token, time.Now().Add(24*time.Hour))
-	if err != nil {
-		return nil, fmt.Errorf("update session by token: %w", err)
-	}
-
-	if !ok {
-		return nil, nil
-	}
-
-	roleNames := make([]string, len(roles))
-	for i, r := range roles {
-		roleNames[i] = r.Name
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-
-	return &User{
-		ID:    user.ID,
-		Name:  user.Name,
-		Roles: roleNames,
-	}, nil
 }
