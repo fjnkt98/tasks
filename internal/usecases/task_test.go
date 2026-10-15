@@ -25,6 +25,7 @@ func TestTaskUsecase(t *testing.T) {
 			(1, 'baz', 'done'),
 			(2, 'qux', 'created')`,
 		)
+		require.NoError(t, err)
 	}
 
 	t.Run("list", func(t *testing.T) {

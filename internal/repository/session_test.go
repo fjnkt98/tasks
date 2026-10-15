@@ -86,7 +86,7 @@ func TestSessionRepository(t *testing.T) {
 		assert.Equal(t, &Session{UserID: 1, Token: "token4", ExpiresAt: date.Unix()}, session)
 
 		// create session with invalid digest
-		session, err = repo.Create(t.Context(), db, 2, "foo", "token", date)
+		_, err = repo.Create(t.Context(), db, 2, "foo", "token", date)
 		require.ErrorIs(t, err, ErrInvalidCredentials)
 		session, err = repo.GetByToken(t.Context(), db, "token")
 		require.ErrorIs(t, err, sql.ErrNoRows)
