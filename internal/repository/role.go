@@ -11,7 +11,7 @@ type Role struct {
 }
 
 type RoleRepository interface {
-	Ensure(ctx context.Context, db DBTX, name string) error
+	Ensure(ctx context.Context, db DBTX, name string) (*Role, error)
 	Select(ctx context.Context, db DBTX) ([]Role, error)
 	Delete(ctx context.Context, db DBTX, name string) (bool, error)
 }
@@ -24,12 +24,19 @@ func NewRoleRepository() *roleRepository {
 	return &roleRepository{}
 }
 
-func (r *roleRepository) Ensure(ctx context.Context, db DBTX, name string) error {
-	q := "INSERT INTO roles (name) VALUES (?) ON CONFLICT (name) DO NOTHING;"
+func (r *roleRepository) Ensure(ctx context.Context, db DBTX, name string) (*Role, error) {
+	q := "INSERT INTO roles (name) VALUES (?) ON CONFLICT (name) DO NOTHING"
 	if _, err := db.ExecContext(ctx, q, name); err != nil {
-		return fmt.Errorf("execute: %w", err)
+		return nil, fmt.Errorf("execute: %w", err)
 	}
-	return nil
+
+	q = "SELECT name FROM roles WHERE name = ?"
+	row := db.QueryRowContext(ctx, q, name)
+	var role Role
+	if err := row.Scan(&role.Name); err != nil {
+		return nil, fmt.Errorf("scan row: %w", err)
+	}
+	return &role, nil
 }
 
 func (r *roleRepository) Select(ctx context.Context, db DBTX) (roles []Role, err error) {

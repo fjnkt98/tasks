@@ -193,8 +193,8 @@ func (u *accountUsecase) GrantRole(ctx context.Context, userID int, role string)
 	}
 	defer tx.Rollback() // nolint:errcheck
 
-	if err := u.users.AddRole(ctx, tx, userID, repository.Role{Name: role}); err != nil {
-		return fmt.Errorf("add role: %w", err)
+	if err := u.users.EnsureRole(ctx, tx, userID, repository.Role{Name: role}); err != nil {
+		return fmt.Errorf("ensure role: %w", err)
 	}
 
 	if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf(`grant role: "%s"`, role)); err != nil {

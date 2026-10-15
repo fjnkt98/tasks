@@ -14,14 +14,16 @@ type User struct {
 
 type UserRepository interface {
 	Create(ctx context.Context, db DBTX, name string, digest []byte) (*User, error)
+	CreateOrReplace(ctx context.Context, db DBTX, name string, digest []byte) (*User, error)
 	GetByID(ctx context.Context, db DBTX, id int) (*User, error)
 	GetByName(ctx context.Context, db DBTX, name string) (*User, error)
 	SelectUsers(ctx context.Context, db DBTX, limit int, offset int) ([]User, error)
 	UpdateDigest(ctx context.Context, db DBTX, id int, digest []byte) (bool, error)
 	Delete(ctx context.Context, db DBTX, id int) (bool, error)
 	SelectRoles(ctx context.Context, db DBTX, id int) ([]Role, error)
-	AddRole(ctx context.Context, db DBTX, id int, role Role) error
+	EnsureRole(ctx context.Context, db DBTX, id int, role Role) error
 	DeleteRole(ctx context.Context, db DBTX, id int, role Role) (bool, error)
+	SelectByRoles(ctx context.Context, db DBTX, role Role) ([]User, error)
 }
 
 type userRepository struct{}
@@ -34,6 +36,18 @@ func NewUserRepository() *userRepository {
 
 func (r *userRepository) Create(ctx context.Context, db DBTX, name string, digest []byte) (*User, error) {
 	q := "INSERT INTO users (name, digest) VALUES (?, ?) RETURNING id, name, digest"
+	row := db.QueryRowContext(ctx, q, name, string(digest))
+
+	var user User
+	if err := row.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
+		return nil, fmt.Errorf("execute: %w", err)
+	}
+
+	return &user, nil
+}
+
+func (r *userRepository) CreateOrReplace(ctx context.Context, db DBTX, name string, digest []byte) (*User, error) {
+	q := "INSERT INTO users (name, digest) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET digest = EXCLUDED.digest RETURNING id, name, digest"
 	row := db.QueryRowContext(ctx, q, name, string(digest))
 
 	var user User
@@ -147,8 +161,8 @@ func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) (role
 	return roles, nil
 }
 
-func (r *userRepository) AddRole(ctx context.Context, db DBTX, id int, role Role) error {
-	q := "INSERT INTO user_role_relations (user_id, role) VALUES (?, ?)"
+func (r *userRepository) EnsureRole(ctx context.Context, db DBTX, id int, role Role) error {
+	q := "INSERT INTO user_role_relations (user_id, role) VALUES (?, ?) ON CONFLICT (user_id, role) DO NOTHING"
 	if _, err := db.ExecContext(ctx, q, id, role.Name); err != nil {
 		return fmt.Errorf("execute: %w", err)
 	}
@@ -167,4 +181,30 @@ func (r *userRepository) DeleteRole(ctx context.Context, db DBTX, id int, role R
 	}
 
 	return count > 0, nil
+}
+
+func (r *userRepository) SelectByRoles(ctx context.Context, db DBTX, role Role) (users []User, err error) {
+	q := "SELECT id, name, digest FROM users WHERE id IN (SELECT user_id FROM user_role_relations WHERE role = ?)"
+	rows, err := db.QueryContext(ctx, q, role.Name)
+	if err != nil {
+		return nil, fmt.Errorf("execute: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
+
+	users = make([]User, 0)
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
+			return nil, fmt.Errorf("scan rows: %w", err)
+		}
+
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+
+	return users, nil
 }

@@ -14,6 +14,8 @@ func TestSessionRepository(t *testing.T) {
 	date := time.Date(2006, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
 		_, err := db.ExecContext(t.Context(), `INSERT INTO users (name, digest) VALUES
 			('user1', 'digest'),
 			('user2', 'digest')`,

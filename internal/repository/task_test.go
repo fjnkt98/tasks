@@ -11,6 +11,8 @@ import (
 
 func TestTaskRepository(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
 		_, err := db.ExecContext(t.Context(), `INSERT INTO users (id, name, digest) VALUES
 			(1, 'user1', 'digest'),
 			(2, 'user2', 'digest')`,

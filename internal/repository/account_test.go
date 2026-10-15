@@ -30,12 +30,30 @@ func TestUserRepository(t *testing.T) {
 		db := testutil.NewDB(t)
 
 		repo := NewUserRepository()
-		user, err := repo.Create(t.Context(), db, "test", []byte("digest"))
 
+		user, err := repo.Create(t.Context(), db, "test", []byte("digest"))
 		require.NoError(t, err)
 		assert.Equal(t, 1, user.ID)
 		assert.Equal(t, "test", user.Name)
 		assert.Equal(t, "digest", user.Digest)
+	})
+
+	t.Run("create or replace", func(t *testing.T) {
+		db := testutil.NewDB(t)
+
+		repo := NewUserRepository()
+
+		user, err := repo.CreateOrReplace(t.Context(), db, "test", []byte("digest"))
+		require.NoError(t, err)
+		assert.Equal(t, 1, user.ID)
+		assert.Equal(t, "test", user.Name)
+		assert.Equal(t, "digest", user.Digest)
+
+		user, err = repo.CreateOrReplace(t.Context(), db, "test", []byte("new digest"))
+		require.NoError(t, err)
+		assert.Equal(t, 1, user.ID)
+		assert.Equal(t, "test", user.Name)
+		assert.Equal(t, "new digest", user.Digest)
 	})
 
 	t.Run("get existing user by id", func(t *testing.T) {
@@ -233,7 +251,7 @@ func TestUserRepository(t *testing.T) {
 
 		repo := NewUserRepository()
 
-		err := repo.AddRole(t.Context(), db, 2, Role{Name: "admin"})
+		err := repo.EnsureRole(t.Context(), db, 2, Role{Name: "admin"})
 		require.NoError(t, err)
 
 		roles, err := repo.SelectRoles(t.Context(), db, 2)
@@ -292,5 +310,20 @@ func TestUserRepository(t *testing.T) {
 		roles, err = repo.SelectRoles(t.Context(), db, 2)
 		require.NoError(t, err)
 		assert.Equal(t, []Role{}, roles)
+	})
+
+	t.Run("select by role", func(t *testing.T) {
+		db := testutil.NewDB(t)
+		fixture(t, db)
+
+		repo := NewUserRepository()
+
+		users, err := repo.SelectByRoles(t.Context(), db, Role{Name: "admin"})
+		require.NoError(t, err)
+
+		want := []User{
+			{ID: 1, Name: "user1", Digest: "digest"},
+		}
+		assert.Equal(t, want, users)
 	})
 }

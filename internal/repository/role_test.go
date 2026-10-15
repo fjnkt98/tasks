@@ -11,6 +11,8 @@ import (
 
 func TestRoleRepository(t *testing.T) {
 	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
 		_, err := db.ExecContext(t.Context(), "INSERT INTO roles (name) VALUES ('test')")
 		require.NoError(t, err)
 	}
@@ -22,18 +24,14 @@ func TestRoleRepository(t *testing.T) {
 		repo := NewRoleRepository()
 
 		// add roles
-		err := repo.Ensure(t.Context(), db, "admin")
+		role, err := repo.Ensure(t.Context(), db, "admin")
 		require.NoError(t, err)
-		roles, err := repo.Select(t.Context(), db)
-		require.NoError(t, err)
-		assert.Equal(t, []Role{{Name: "admin"}, {Name: "test"}}, roles)
+		assert.Equal(t, &Role{Name: "admin"}, role)
 
 		// add existing role (no effect)
-		err = repo.Ensure(t.Context(), db, "admin")
+		role, err = repo.Ensure(t.Context(), db, "admin")
 		require.NoError(t, err)
-		roles, err = repo.Select(t.Context(), db)
-		require.NoError(t, err)
-		assert.Equal(t, []Role{{Name: "admin"}, {Name: "test"}}, roles)
+		assert.Equal(t, &Role{Name: "admin"}, role)
 	})
 
 	t.Run("get", func(t *testing.T) {
