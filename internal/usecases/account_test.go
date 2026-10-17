@@ -21,29 +21,29 @@ var getdigest = sync.OnceValue(func() []byte {
 	return digest
 })
 
-func fixture(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	_, err := db.ExecContext(t.Context(), `INSERT INTO users (id, name, digest) VALUES
-		(1, 'user1', ?),
-		(2, 'user2', ?)`,
-		string(getdigest()),
-		string(getdigest()),
-	)
-	require.NoError(t, err)
-
-	_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
-		(2, 'token', 10000000000)`,
-	)
-	require.NoError(t, err)
-
-	_, err = db.ExecContext(t.Context(), `INSERT INTO roles (name) VALUES
-		('test')`,
-	)
-	require.NoError(t, err)
-}
-
 func TestSignup(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (id, name, digest) VALUES
+			(1, 'user1', ?),
+			(2, 'user2', ?)`,
+			string(getdigest()),
+			string(getdigest()),
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
+			(2, 'token', 10000000000)`,
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO roles (name) VALUES
+			('test')`,
+		)
+		require.NoError(t, err)
+	}
+
 	t.Run("user already exists", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		fixture(t, db)
@@ -68,6 +68,28 @@ func TestSignup(t *testing.T) {
 }
 
 func TestSignin(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (id, name, digest) VALUES
+			(1, 'user1', ?),
+			(2, 'user2', ?)`,
+			string(getdigest()),
+			string(getdigest()),
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
+			(2, 'token', 10000000000)`,
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO roles (name) VALUES
+			('test')`,
+		)
+		require.NoError(t, err)
+	}
+
 	t.Run("user not found", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		fixture(t, db)
@@ -117,6 +139,28 @@ func TestSignin(t *testing.T) {
 }
 
 func TestChangePassword(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (id, name, digest) VALUES
+			(1, 'user1', ?),
+			(2, 'user2', ?)`,
+			string(getdigest()),
+			string(getdigest()),
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
+			(2, 'token', 10000000000)`,
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO roles (name) VALUES
+			('test')`,
+		)
+		require.NoError(t, err)
+	}
+
 	t.Run("user not found", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		fixture(t, db)
@@ -171,6 +215,28 @@ func TestChangePassword(t *testing.T) {
 }
 
 func TestSignout(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (id, name, digest) VALUES
+			(1, 'user1', ?),
+			(2, 'user2', ?)`,
+			string(getdigest()),
+			string(getdigest()),
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
+			(2, 'token', 10000000000)`,
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO roles (name) VALUES
+			('test')`,
+		)
+		require.NoError(t, err)
+	}
+
 	t.Run("not found", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		fixture(t, db)
@@ -217,6 +283,28 @@ func TestSignout(t *testing.T) {
 }
 
 func TestDeleteUser(t *testing.T) {
+	var fixture = func(t *testing.T, db *sql.DB) {
+		t.Helper()
+
+		_, err := db.ExecContext(t.Context(), `INSERT INTO users (id, name, digest) VALUES
+			(1, 'user1', ?),
+			(2, 'user2', ?)`,
+			string(getdigest()),
+			string(getdigest()),
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO sessions (user_id, token, expires_at) VALUES
+			(2, 'token', 10000000000)`,
+		)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(t.Context(), `INSERT INTO roles (name) VALUES
+			('test')`,
+		)
+		require.NoError(t, err)
+	}
+
 	t.Run("user not found", func(t *testing.T) {
 		db := testutil.NewDB(t)
 		fixture(t, db)
