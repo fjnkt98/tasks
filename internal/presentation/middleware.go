@@ -70,14 +70,14 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 				return
 			}
 
-			user, err := sessions.Continue(r.Context(), cookie.Value)
+			session, err := sessions.Continue(r.Context(), cookie.Value)
 			if err != nil {
 				slog.ErrorContext(r.Context(), "continue session", slog.Any("error", err))
 				Handle500(w, r)
 				return
 			}
 
-			if user == nil {
+			if session == nil {
 				http.SetCookie(w, NewAuthCookie("", -1))
 				next.ServeHTTP(w, r)
 				return
@@ -86,9 +86,9 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 			http.SetCookie(w, NewAuthCookie(cookie.Value, 86400))
 
 			ctx := SetUserIntoContext(r.Context(), User{
-				ID:    user.ID,
-				Name:  user.Name,
-				Roles: user.Roles,
+				ID:    session.UserID,
+				Name:  session.UserName,
+				Roles: session.Roles,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

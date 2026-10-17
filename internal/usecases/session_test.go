@@ -54,9 +54,9 @@ func TestSessionUsecase(t *testing.T) {
 
 		u := NewSessionUsecase(db)
 
-		user, err := u.Continue(t.Context(), "token2")
+		s, err := u.Continue(t.Context(), "token2")
 		require.NoError(t, err)
-		assert.Equal(t, 2, user.ID)
+		assert.Equal(t, 2, s.UserID)
 
 		session, err := u.sessions.GetByToken(t.Context(), db, "token2")
 		require.NoError(t, err)

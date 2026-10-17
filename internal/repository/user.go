@@ -20,10 +20,10 @@ type UserRepository interface {
 	Select(ctx context.Context, db DBTX, limit int, offset int) ([]User, error)
 	UpdateDigest(ctx context.Context, db DBTX, id int, digest []byte) (bool, error)
 	Delete(ctx context.Context, db DBTX, id int) (bool, error)
-	SelectRoles(ctx context.Context, db DBTX, id int) ([]Role, error)
-	EnsureRole(ctx context.Context, db DBTX, id int, role Role) error
-	DeleteRole(ctx context.Context, db DBTX, id int, role Role) (bool, error)
-	SelectByRoles(ctx context.Context, db DBTX, role Role) ([]User, error)
+	SelectRoles(ctx context.Context, db DBTX, id int) ([]string, error)
+	EnsureRole(ctx context.Context, db DBTX, id int, role string) error
+	DeleteRole(ctx context.Context, db DBTX, id int, role string) (bool, error)
+	SelectByRoles(ctx context.Context, db DBTX, role string) ([]User, error)
 }
 
 type userRepository struct{}
@@ -136,7 +136,7 @@ func (r *userRepository) Delete(ctx context.Context, db DBTX, id int) (bool, err
 	return count > 0, nil
 }
 
-func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) (roles []Role, err error) {
+func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) (roles []string, err error) {
 	q := "SELECT role FROM user_role_relations WHERE user_id = ?"
 	rows, err := db.QueryContext(ctx, q, id)
 	if err != nil {
@@ -146,10 +146,10 @@ func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) (role
 		err = errors.Join(err, rows.Close())
 	}()
 
-	roles = make([]Role, 0)
+	roles = make([]string, 0)
 	for rows.Next() {
-		var role Role
-		if err := rows.Scan(&role.Name); err != nil {
+		var role string
+		if err := rows.Scan(&role); err != nil {
 			return nil, fmt.Errorf("scan rows: %w", err)
 		}
 		roles = append(roles, role)
@@ -161,17 +161,17 @@ func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) (role
 	return roles, nil
 }
 
-func (r *userRepository) EnsureRole(ctx context.Context, db DBTX, id int, role Role) error {
+func (r *userRepository) EnsureRole(ctx context.Context, db DBTX, id int, role string) error {
 	q := "INSERT INTO user_role_relations (user_id, role) VALUES (?, ?) ON CONFLICT (user_id, role) DO NOTHING"
-	if _, err := db.ExecContext(ctx, q, id, role.Name); err != nil {
+	if _, err := db.ExecContext(ctx, q, id, role); err != nil {
 		return fmt.Errorf("execute: %w", err)
 	}
 	return nil
 }
 
-func (r *userRepository) DeleteRole(ctx context.Context, db DBTX, id int, role Role) (bool, error) {
+func (r *userRepository) DeleteRole(ctx context.Context, db DBTX, id int, role string) (bool, error) {
 	q := "DELETE FROM user_role_relations WHERE user_id = ? AND role = ?"
-	result, err := db.ExecContext(ctx, q, id, role.Name)
+	result, err := db.ExecContext(ctx, q, id, role)
 	if err != nil {
 		return false, fmt.Errorf("execute: %w", err)
 	}
@@ -183,9 +183,9 @@ func (r *userRepository) DeleteRole(ctx context.Context, db DBTX, id int, role R
 	return count > 0, nil
 }
 
-func (r *userRepository) SelectByRoles(ctx context.Context, db DBTX, role Role) (users []User, err error) {
+func (r *userRepository) SelectByRoles(ctx context.Context, db DBTX, role string) (users []User, err error) {
 	q := "SELECT id, name, digest FROM users WHERE id IN (SELECT user_id FROM user_role_relations WHERE role = ?)"
-	rows, err := db.QueryContext(ctx, q, role.Name)
+	rows, err := db.QueryContext(ctx, q, role)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}

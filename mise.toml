@@ -84,7 +84,7 @@ run = [
 [tasks.serve]
 run = ["go run ."]
 sources = [
-    "*.go",
-    "templates/**/*.html",
-    "static/**/*",
+    "**/*.go",
+    "internal/presentation/templates/**/*",
+    "internal/presentation/static/**/*",
 ]

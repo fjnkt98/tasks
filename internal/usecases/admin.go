@@ -53,11 +53,11 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		return fmt.Errorf("create or replace admin: %w", err)
 	}
 
-	if err := u.accounts.EnsureRole(ctx, tx, admin.ID, *role); err != nil {
+	if err := u.accounts.EnsureRole(ctx, tx, admin.ID, role); err != nil {
 		return fmt.Errorf("grant admin role for admin user: %w", err)
 	}
 
-	users, err := u.accounts.SelectByRoles(ctx, tx, *role)
+	users, err := u.accounts.SelectByRoles(ctx, tx, role)
 	if err != nil {
 		return fmt.Errorf("select users which have admin role: %w", err)
 	}

@@ -10,7 +10,7 @@
 
     <div class="flex min-w-0 w-full flex-col max-w-md mx-auto">
       <h1 class="text-2xl font-bold text-primary my-2">
-        {{ .UserName }} {{ if .IsAdmin }}(admin){{ end }}
+        {{ .AccountName }} {{ if .IsAdmin }}(admin){{ end }}
       </h1>
 
       <div class="stats shadow my-4">
@@ -24,11 +24,15 @@
           <div class="stat-value text-secondary">{{ .DoneCount }}</div>
         </div>
       </div>
-      {{ if not .IsAdmin }}
       <ul class="menu rounded-box shadow w-full">
         <li>
           <h2 class="menu-title">Menu</h2>
           <ul>
+            {{ if .IsAdmin }}
+            <li>
+              <a href="/users" class="link link-hover">Users</a>
+            </li>
+            {{ else }}
             <li>
               <a href="/account/password_change" class="link link-hover"
                 >Change password</a
@@ -39,49 +43,14 @@
                 >Delete an account
               </a>
             </li>
+            {{ end }}
           </ul>
         </li>
       </ul>
-      {{ end }}
 
       <div class="my-6 px-4 py-2 rounded-box shadow">
         <h2 class="text-gray-400 font-medium">Activity</h2>
-        <ul class="timeline timeline-vertical timeline-compact">
-          {{ range $activity := .Activities }}
-          <li class="min-w-0 w-full">
-            <hr />
-            <div
-              class="timeline-start min-w-0 wrap-anywhere text-xs text-gray-400"
-            >
-              {{ $activity.CreatedAt.Format "2006-01-02T15:04:05Z07:00" }}
-            </div>
-            <div class="timeline-middle">
-              {{ if eq $activity.Kind "account" }}
-              <div
-                aria-label="status"
-                class="status status-lg status-primary"
-              ></div>
-              {{ else if eq $activity.Kind "task" }}
-              <div
-                aria-label="status"
-                class="status status-lg status-secondary"
-              ></div>
-              {{ else }}
-              <div
-                aria-label="status"
-                class="status status-lg status-neutral"
-              ></div>
-              {{ end }}
-            </div>
-            <div
-              class="timeline-end timeline-box min-w-0 justify-self-stretch whitespace-normal wrap-anywhere"
-            >
-              {{ $activity.Message }}
-            </div>
-            <hr />
-          </li>
-          {{ end }}
-        </ul>
+        {{ template "partials/activities" . }}
       </div>
     </div>
   </div>

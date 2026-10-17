@@ -76,8 +76,8 @@ func (h *SignupHandler) render(w http.ResponseWriter, r *http.Request, msg strin
 		ErrorMessage string
 	}{
 		LayoutData: LayoutData{
-			Authorized: IsAuthorized(r.Context()),
-			UserName:   GetUserFromContext(r.Context()).Name,
+			Authorized:  IsAuthorized(r.Context()),
+			AccountName: GetUserFromContext(r.Context()).Name,
 		},
 		ErrorMessage: msg,
 	}
@@ -150,8 +150,8 @@ func (h *SignupHandler) Post(w http.ResponseWriter, r *http.Request) {
 
 func (h *SignupHandler) Success(w http.ResponseWriter, r *http.Request) {
 	data := LayoutData{
-		Authorized: IsAuthorized(r.Context()),
-		UserName:   GetUserFromContext(r.Context()).Name,
+		Authorized:  IsAuthorized(r.Context()),
+		AccountName: GetUserFromContext(r.Context()).Name,
 	}
 
 	body, err := RenderTemplate("page/signup_success", &data)
@@ -186,8 +186,8 @@ func (h *SigninHandler) render(w http.ResponseWriter, r *http.Request, msg strin
 		ErrorMessage string
 	}{
 		LayoutData: LayoutData{
-			Authorized: IsAuthorized(r.Context()),
-			UserName:   GetUserFromContext(r.Context()).Name,
+			Authorized:  IsAuthorized(r.Context()),
+			AccountName: GetUserFromContext(r.Context()).Name,
 		},
 		ErrorMessage: msg,
 	}
@@ -268,8 +268,8 @@ func (h *ChangePasswordHandler) render(w http.ResponseWriter, r *http.Request, m
 		ErrorMessage string
 	}{
 		LayoutData: LayoutData{
-			Authorized: IsAuthorized(r.Context()),
-			UserName:   GetUserFromContext(r.Context()).Name,
+			Authorized:  IsAuthorized(r.Context()),
+			AccountName: GetUserFromContext(r.Context()).Name,
 		},
 		ErrorMessage: msg,
 	}
@@ -348,8 +348,8 @@ func (h *ChangePasswordHandler) Post(w http.ResponseWriter, r *http.Request) {
 
 func (h *ChangePasswordHandler) Success(w http.ResponseWriter, r *http.Request) {
 	data := LayoutData{
-		Authorized: IsAuthorized(r.Context()),
-		UserName:   GetUserFromContext(r.Context()).Name,
+		Authorized:  IsAuthorized(r.Context()),
+		AccountName: GetUserFromContext(r.Context()).Name,
 	}
 
 	body, err := RenderTemplate("page/change_password_success", &data)
@@ -396,38 +396,25 @@ func (h *SignoutHandler) Post(w http.ResponseWriter, r *http.Request) {
 }
 
 type AccountHandler struct {
-	accounts   usecases.AccountUsecase
-	activities usecases.ActivityUsecase
-	tasks      usecases.TaskUsecase
+	accounts usecases.AccountUsecase
+	users    usecases.UserUsecase
+	tasks    usecases.TaskUsecase
 }
 
 func NewAccountHandler(db *sql.DB) *AccountHandler {
 	return &AccountHandler{
-		accounts:   usecases.NewAccountUsecase(db),
-		activities: usecases.NewActivityUsecase(db),
-		tasks:      usecases.NewTaskUsecase(db),
+		accounts: usecases.NewAccountUsecase(db),
+		users:    usecases.NewUserUsecase(db),
+		tasks:    usecases.NewTaskUsecase(db),
 	}
 }
 
 func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 	user := GetUserFromContext(r.Context())
 
-	activities, err := h.activities.List(r.Context(), user.ID)
+	detail, err := h.users.Get(r.Context(), user.ID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "list activities", slog.Any("error", err))
-		Handle500(w, r)
-		return
-	}
-
-	count, err := h.tasks.Count(r.Context(), user.ID, "")
-	if err != nil {
-		slog.ErrorContext(r.Context(), "count tasks", slog.Any("error", err))
-		Handle500(w, r)
-		return
-	}
-	doneCount, err := h.tasks.Count(r.Context(), user.ID, "done")
-	if err != nil {
-		slog.ErrorContext(r.Context(), "count done tasks", slog.Any("error", err))
+		slog.ErrorContext(r.Context(), "get user detail", slog.Any("error", err))
 		Handle500(w, r)
 		return
 	}
@@ -440,13 +427,13 @@ func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 		Activities []usecases.Activity
 	}{
 		LayoutData: LayoutData{
-			Authorized: IsAuthorized(r.Context()),
-			UserName:   user.Name,
+			Authorized:  IsAuthorized(r.Context()),
+			AccountName: user.Name,
 		},
 		IsAdmin:    IsAdmin(r.Context()),
-		TaskCount:  count,
-		DoneCount:  doneCount,
-		Activities: activities,
+		TaskCount:  detail.TaskCount,
+		DoneCount:  detail.DoneCount,
+		Activities: detail.Activities,
 	}
 
 	body, err := RenderTemplate("page/account", &data)
@@ -481,8 +468,8 @@ func (h *DeleteAccountHandler) render(w http.ResponseWriter, r *http.Request, ms
 		ErrorMessage string
 	}{
 		LayoutData: LayoutData{
-			Authorized: IsAuthorized(r.Context()),
-			UserName:   GetUserFromContext(r.Context()).Name,
+			Authorized:  IsAuthorized(r.Context()),
+			AccountName: GetUserFromContext(r.Context()).Name,
 		},
 		ErrorMessage: msg,
 	}

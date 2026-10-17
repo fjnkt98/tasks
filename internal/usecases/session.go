@@ -10,8 +10,14 @@ import (
 	"github.com/fjnkt98/tasks/internal/repository"
 )
 
+type Session struct {
+	UserID   int
+	UserName string
+	Roles    []string
+}
+
 type SessionUsecase interface {
-	Continue(ctx context.Context, token string) (*User, error)
+	Continue(ctx context.Context, token string) (*Session, error)
 }
 
 type sessionUsecase struct {
@@ -30,7 +36,7 @@ func NewSessionUsecase(db *sql.DB) *sessionUsecase {
 	}
 }
 
-func (u *sessionUsecase) Continue(ctx context.Context, token string) (*User, error) {
+func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, error) {
 	tx, err := u.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -81,18 +87,13 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*User, err
 		return nil, nil
 	}
 
-	roleNames := make([]string, len(roles))
-	for i, r := range roles {
-		roleNames[i] = r.Name
-	}
-
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	return &User{
-		ID:    user.ID,
-		Name:  user.Name,
-		Roles: roleNames,
+	return &Session{
+		UserID:   user.ID,
+		UserName: user.Name,
+		Roles:    roles,
 	}, nil
 }

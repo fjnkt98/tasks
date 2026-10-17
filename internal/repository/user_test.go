@@ -238,11 +238,11 @@ func TestUserRepository(t *testing.T) {
 
 		roles, err := repo.SelectRoles(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Equal(t, []Role{{Name: "admin"}}, roles)
+		assert.Equal(t, []string{"admin"}, roles)
 
 		roles, err = repo.SelectRoles(t.Context(), db, 2)
 		require.NoError(t, err)
-		assert.Equal(t, []Role{}, roles)
+		assert.Equal(t, []string{}, roles)
 	})
 
 	t.Run("add role", func(t *testing.T) {
@@ -251,12 +251,12 @@ func TestUserRepository(t *testing.T) {
 
 		repo := NewUserRepository()
 
-		err := repo.EnsureRole(t.Context(), db, 2, Role{Name: "admin"})
+		err := repo.EnsureRole(t.Context(), db, 2, "admin")
 		require.NoError(t, err)
 
 		roles, err := repo.SelectRoles(t.Context(), db, 2)
 		require.NoError(t, err)
-		assert.Equal(t, []Role{{Name: "admin"}}, roles)
+		assert.Equal(t, []string{"admin"}, roles)
 	})
 
 	t.Run("delete role", func(t *testing.T) {
@@ -265,13 +265,13 @@ func TestUserRepository(t *testing.T) {
 
 		repo := NewUserRepository()
 
-		ok, err := repo.DeleteRole(t.Context(), db, 1, Role{Name: "admin"})
+		ok, err := repo.DeleteRole(t.Context(), db, 1, "admin")
 		require.NoError(t, err)
 		assert.True(t, ok)
 
 		roles, err := repo.SelectRoles(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Equal(t, []Role{}, roles)
+		assert.Equal(t, []string{}, roles)
 	})
 
 	t.Run("delete non-existent role", func(t *testing.T) {
@@ -280,17 +280,17 @@ func TestUserRepository(t *testing.T) {
 
 		repo := NewUserRepository()
 
-		ok, err := repo.DeleteRole(t.Context(), db, 2, Role{Name: "admin"})
+		ok, err := repo.DeleteRole(t.Context(), db, 2, "admin")
 		require.NoError(t, err)
 		assert.False(t, ok)
 
 		roles, err := repo.SelectRoles(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Equal(t, []Role{{Name: "admin"}}, roles)
+		assert.Equal(t, []string{"admin"}, roles)
 
 		roles, err = repo.SelectRoles(t.Context(), db, 2)
 		require.NoError(t, err)
-		assert.Equal(t, []Role{}, roles)
+		assert.Equal(t, []string{}, roles)
 	})
 
 	t.Run("delete non-existent user's role", func(t *testing.T) {
@@ -299,17 +299,17 @@ func TestUserRepository(t *testing.T) {
 
 		repo := NewUserRepository()
 
-		ok, err := repo.DeleteRole(t.Context(), db, 0, Role{Name: "admin"})
+		ok, err := repo.DeleteRole(t.Context(), db, 0, "admin")
 		require.NoError(t, err)
 		assert.False(t, ok)
 
 		roles, err := repo.SelectRoles(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Equal(t, []Role{{Name: "admin"}}, roles)
+		assert.Equal(t, []string{"admin"}, roles)
 
 		roles, err = repo.SelectRoles(t.Context(), db, 2)
 		require.NoError(t, err)
-		assert.Equal(t, []Role{}, roles)
+		assert.Equal(t, []string{}, roles)
 	})
 
 	t.Run("select by role", func(t *testing.T) {
@@ -318,7 +318,7 @@ func TestUserRepository(t *testing.T) {
 
 		repo := NewUserRepository()
 
-		users, err := repo.SelectByRoles(t.Context(), db, Role{Name: "admin"})
+		users, err := repo.SelectByRoles(t.Context(), db, "admin")
 		require.NoError(t, err)
 
 		want := []User{

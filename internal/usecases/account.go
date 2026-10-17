@@ -27,8 +27,6 @@ type AccountUsecase interface {
 	Signin(ctx context.Context, username, password string) (string, error)
 	ChangePassword(ctx context.Context, userID int, password string, new string) error
 	Signout(ctx context.Context, token string) error
-	GrantRole(ctx context.Context, userID int, role string) error
-	RevokeRole(ctx context.Context, userID int, role string) error
 	Delete(ctx context.Context, userID int, password string) error
 }
 
@@ -184,53 +182,6 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 
 	if ok {
 		if err := u.activities.Create(ctx, tx, session.UserID, "account", "signout"); err != nil {
-			return fmt.Errorf("create activity: %w", err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
-	}
-
-	return nil
-}
-
-func (u *accountUsecase) GrantRole(ctx context.Context, userID int, role string) error {
-	tx, err := u.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() // nolint:errcheck
-
-	if err := u.users.EnsureRole(ctx, tx, userID, repository.Role{Name: role}); err != nil {
-		return fmt.Errorf("ensure role: %w", err)
-	}
-
-	if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf(`grant role: "%s"`, role)); err != nil {
-		return fmt.Errorf("create activity: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
-	}
-
-	return nil
-}
-
-func (u *accountUsecase) RevokeRole(ctx context.Context, userID int, role string) error {
-	tx, err := u.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() // nolint:errcheck
-
-	ok, err := u.users.DeleteRole(ctx, tx, userID, repository.Role{Name: role})
-	if err != nil {
-		return fmt.Errorf("add role: %w", err)
-	}
-
-	if ok {
-		if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf(`revoke role: "%s"`, role)); err != nil {
 			return fmt.Errorf("create activity: %w", err)
 		}
 	}

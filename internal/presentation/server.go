@@ -38,8 +38,8 @@ func IsHTMX(r *http.Request) bool {
 }
 
 type LayoutData struct {
-	Authorized bool
-	UserName   string
+	Authorized  bool
+	AccountName string
 }
 
 func NewServer(port int, db *sql.DB) (*http.Server, error) {
@@ -73,6 +73,7 @@ func NewHandler(db *sql.DB) http.Handler {
 	deleteAccount := NewDeleteAccountHandler(db)
 	tasks := NewTaskHandler(db)
 	account := NewAccountHandler(db)
+	users := NewUserHandler(db)
 
 	mux.Handle("GET /", m(index))
 	mux.Handle("GET /account/signup", m(http.HandlerFunc(signup.Get)))
@@ -105,6 +106,17 @@ func NewHandler(db *sql.DB) http.Handler {
 		mux.Handle("POST /account/delete", m(http.HandlerFunc(deleteAccount.Post)))
 	}
 
+	{
+		m := NewChainedMiddleware(
+			m,
+			NewSigninRequiredMiddleware(),
+			NewAdminRequiredMiddleware(),
+		)
+
+		mux.Handle("GET /users", m(http.HandlerFunc(users.Index)))
+		mux.Handle("GET /users/{id}", m(http.HandlerFunc(users.Show)))
+	}
+
 	return otelhttp.NewHandler(mux, "http-request")
 }
 
@@ -116,8 +128,8 @@ func NewIndexHandler() *IndexHandler {
 
 func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := LayoutData{
-		Authorized: IsAuthorized(r.Context()),
-		UserName:   GetUserFromContext(r.Context()).Name,
+		Authorized:  IsAuthorized(r.Context()),
+		AccountName: GetUserFromContext(r.Context()).Name,
 	}
 
 	body, err := RenderTemplate("page/index", &data)

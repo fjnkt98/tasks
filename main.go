@@ -156,9 +156,9 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return db.Close() })
 
-	if err := seed(ctx, db); err != nil {
-		return nil, shutdown, fmt.Errorf("database initialization: %w", err)
-	}
+	// if err := seed(ctx, db); err != nil {
+	// 	return nil, shutdown, fmt.Errorf("database initialization: %w", err)
+	// }
 
 	// server
 	server, err := presentation.NewServer(port, db)

@@ -68,8 +68,8 @@ func (h *TaskHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	data := TaskData{
 		LayoutData: LayoutData{
-			Authorized: IsAuthorized(r.Context()),
-			UserName:   GetUserFromContext(r.Context()).Name,
+			Authorized:  IsAuthorized(r.Context()),
+			AccountName: GetUserFromContext(r.Context()).Name,
 		},
 		Tasks:     tasks,
 		LastIndex: len(tasks) - 1,
@@ -121,8 +121,8 @@ func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	data := TaskData{
 		LayoutData: LayoutData{
-			Authorized: IsAuthorized(r.Context()),
-			UserName:   GetUserFromContext(r.Context()).Name,
+			Authorized:  IsAuthorized(r.Context()),
+			AccountName: GetUserFromContext(r.Context()).Name,
 		},
 		Tasks:     []usecases.Task{*task},
 		LastIndex: -1,

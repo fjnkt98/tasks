@@ -13,7 +13,7 @@ func Handle400(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
-		UserName:   GetUserFromContext(r.Context()).Name,
+		AccountName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	body, err := RenderTemplate("page/400", &data)
@@ -40,7 +40,7 @@ func Handle404(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
-		UserName:   GetUserFromContext(r.Context()).Name,
+		AccountName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	body, err := RenderTemplate("page/404", &data)
@@ -67,7 +67,7 @@ func Handle500(w http.ResponseWriter, r *http.Request) {
 
 	data := LayoutData{
 		Authorized: IsAuthorized(r.Context()),
-		UserName:   GetUserFromContext(r.Context()).Name,
+		AccountName:   GetUserFromContext(r.Context()).Name,
 	}
 
 	body, err := RenderTemplate("page/500", &data)

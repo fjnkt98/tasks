@@ -50,7 +50,7 @@ func TestAdminUsecase(t *testing.T) {
 
 		roles, err := userRepo.SelectRoles(t.Context(), db, user.ID)
 		require.NoError(t, err)
-		assert.Equal(t, []repository.Role{{Name: "admin"}}, roles)
+		assert.Equal(t, []string{"admin"}, roles)
 	})
 
 	t.Run("overwrite", func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestAdminUsecase(t *testing.T) {
 
 		roles, err := userRepo.SelectRoles(t.Context(), db, user.ID)
 		require.NoError(t, err)
-		assert.Equal(t, []repository.Role{{Name: "admin"}}, roles)
+		assert.Equal(t, []string{"admin"}, roles)
 
 		user, err = userRepo.GetByName(t.Context(), db, "old_admin")
 		require.ErrorIs(t, err, sql.ErrNoRows)
