@@ -51,7 +51,7 @@ func NewRecoveryMiddleware() Middleware {
 						panic(err)
 					}
 					slog.ErrorContext(r.Context(), "panic recovered", slog.Any("error", err))
-					Handle500(w, r)
+					Error(w, r, ErrorCode500)
 				}
 			}()
 
@@ -73,7 +73,7 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 			session, err := sessions.Continue(r.Context(), cookie.Value)
 			if err != nil {
 				slog.ErrorContext(r.Context(), "continue session", slog.Any("error", err))
-				Handle500(w, r)
+				Error(w, r, ErrorCode500)
 				return
 			}
 

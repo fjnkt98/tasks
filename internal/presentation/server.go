@@ -135,7 +135,7 @@ func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := RenderTemplate("page/index", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 

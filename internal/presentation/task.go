@@ -62,7 +62,7 @@ func (h *TaskHandler) Index(w http.ResponseWriter, r *http.Request) {
 	tasks, err := h.tasks.List(r.Context(), user.ID, status, limit, page)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "list tasks", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -90,7 +90,7 @@ func (h *TaskHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -106,7 +106,7 @@ func (h *TaskHandler) Index(w http.ResponseWriter, r *http.Request) {
 func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		Handle404(w, r)
+		Error(w, r, ErrorCode404)
 		return
 	}
 
@@ -115,7 +115,7 @@ func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 	task, err := h.tasks.Get(r.Context(), user.ID, id)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "get task", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -131,7 +131,7 @@ func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 	body, err := RenderTemplate("partial/tasks", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -147,7 +147,7 @@ func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		Handle404(w, r)
+		Error(w, r, ErrorCode404)
 		return
 	}
 
@@ -156,14 +156,14 @@ func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	task, err := h.tasks.Get(r.Context(), user.ID, id)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "get task", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
 	body, err := RenderTemplate("partial/task_edit", task)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -179,7 +179,7 @@ func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
 func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.PostForm.Get("title"))
 	if title == "" {
-		Handle400(w, r)
+		Error(w, r, ErrorCode400)
 		return
 	}
 
@@ -188,7 +188,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	task, err := h.tasks.Add(r.Context(), user.ID, title)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "add task", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -200,7 +200,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	body, err := RenderTemplate("partial/tasks", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -216,13 +216,13 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		Handle404(w, r)
+		Error(w, r, ErrorCode404)
 		return
 	}
 
 	title := strings.TrimSpace(r.PostForm.Get("title"))
 	if title == "" {
-		Handle400(w, r)
+		Error(w, r, ErrorCode400)
 		return
 	}
 
@@ -231,7 +231,7 @@ func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 	task, err := h.tasks.UpdateTitle(r.Context(), user.ID, id, title)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "update task title", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -243,7 +243,7 @@ func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 	body, err := RenderTemplate("partial/tasks", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -258,13 +258,13 @@ func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 func (h *TaskHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		Handle404(w, r)
+		Error(w, r, ErrorCode404)
 		return
 	}
 
 	status := r.PostForm.Get("status")
 	if !slices.Contains([]string{"created", "done"}, status) {
-		Handle400(w, r)
+		Error(w, r, ErrorCode400)
 		return
 	}
 
@@ -272,7 +272,7 @@ func (h *TaskHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := h.tasks.UpdateStatus(r.Context(), user.ID, id, status); err != nil {
 		slog.ErrorContext(r.Context(), "update task status", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -282,7 +282,7 @@ func (h *TaskHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 func (h *TaskHandler) Destroy(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		Handle404(w, r)
+		Error(w, r, ErrorCode404)
 		return
 	}
 
@@ -290,7 +290,7 @@ func (h *TaskHandler) Destroy(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.tasks.Delete(r.Context(), user.ID, id); err != nil {
 		slog.ErrorContext(r.Context(), "delete task", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 

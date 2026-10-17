@@ -85,7 +85,7 @@ func (h *SignupHandler) render(w http.ResponseWriter, r *http.Request, msg strin
 	body, err := RenderTemplate("page/signup", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -141,7 +141,7 @@ func (h *SignupHandler) Post(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.ErrorContext(r.Context(), "request failed", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -157,7 +157,7 @@ func (h *SignupHandler) Success(w http.ResponseWriter, r *http.Request) {
 	body, err := RenderTemplate("page/signup_success", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -195,7 +195,7 @@ func (h *SigninHandler) render(w http.ResponseWriter, r *http.Request, msg strin
 	body, err := RenderTemplate("page/signin", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -244,7 +244,7 @@ func (h *SigninHandler) Post(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.ErrorContext(r.Context(), "signin", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -277,7 +277,7 @@ func (h *ChangePasswordHandler) render(w http.ResponseWriter, r *http.Request, m
 	body, err := RenderTemplate("page/change_password", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -338,7 +338,7 @@ func (h *ChangePasswordHandler) Post(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.ErrorContext(r.Context(), "change password", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -355,7 +355,7 @@ func (h *ChangePasswordHandler) Success(w http.ResponseWriter, r *http.Request) 
 	body, err := RenderTemplate("page/change_password_success", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -387,7 +387,7 @@ func (h *SignoutHandler) Post(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.accounts.Signout(r.Context(), cookie.Value); err != nil {
 		slog.ErrorContext(r.Context(), "signout", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -415,7 +415,7 @@ func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 	detail, err := h.users.Get(r.Context(), user.ID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "get user detail", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -439,7 +439,7 @@ func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 	body, err := RenderTemplate("page/account", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -477,7 +477,7 @@ func (h *DeleteAccountHandler) render(w http.ResponseWriter, r *http.Request, ms
 	body, err := RenderTemplate("page/delete_account", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -527,7 +527,7 @@ func (h *DeleteAccountHandler) Post(w http.ResponseWriter, r *http.Request) {
 		}
 
 		slog.ErrorContext(r.Context(), "delete account", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -543,7 +543,7 @@ func (h *DeleteAccountHandler) Success(w http.ResponseWriter, r *http.Request) {
 	body, err := RenderTemplate("page/delete_account_success", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 

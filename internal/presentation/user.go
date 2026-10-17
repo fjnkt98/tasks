@@ -35,7 +35,7 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 	users, err := h.users.List(r.Context(), page, 100)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "select users", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -68,7 +68,7 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -84,14 +84,14 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		Handle404(w, r)
+		Error(w, r, ErrorCode404)
 		return
 	}
 
 	user, err := h.users.Get(r.Context(), id)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "get user", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
@@ -119,7 +119,7 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 	body, err := RenderTemplate("page/user", data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
-		Handle500(w, r)
+		Error(w, r, ErrorCode500)
 		return
 	}
 
