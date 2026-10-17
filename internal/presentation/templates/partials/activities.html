@@ -1,0 +1,27 @@
+{{ define "partials/activities" }}
+<ul class="timeline timeline-vertical timeline-compact">
+  {{ range $activity := .Activities }}
+  <li class="min-w-0 w-full">
+    <hr />
+    <div class="timeline-start min-w-0 wrap-anywhere text-xs text-gray-400">
+      {{ $activity.CreatedAt.Format "2006-01-02T15:04:05Z07:00" }}
+    </div>
+    <div class="timeline-middle">
+      {{ if eq $activity.Kind "account" }}
+      <div aria-label="status" class="status status-lg status-primary"></div>
+      {{ else if eq $activity.Kind "task" }}
+      <div aria-label="status" class="status status-lg status-secondary"></div>
+      {{ else }}
+      <div aria-label="status" class="status status-lg status-neutral"></div>
+      {{ end }}
+    </div>
+    <div
+      class="timeline-end timeline-box min-w-0 justify-self-stretch whitespace-normal wrap-anywhere"
+    >
+      {{ $activity.Message }}
+    </div>
+    <hr />
+  </li>
+  {{ end }}
+</ul>
+{{ end }}

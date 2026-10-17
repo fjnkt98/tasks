@@ -1,0 +1,8 @@
+{{ define "partial/users" }} {{ range $user := .Users }}
+<li id="user-{{ $user.ID }}" class="list-row">
+  <div>{{ $user.ID }}</div>
+  <div>
+    <a href="/users/{{ $user.ID }}" class="link"> {{ $user.Name }} </a>
+  </div>
+</li>
+{{ end }} {{ end }}

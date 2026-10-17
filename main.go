@@ -14,6 +14,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fjnkt98/tasks/internal/presentation"
+	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/usecases"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -21,7 +24,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -148,18 +150,18 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 		return nil, shutdown, fmt.Errorf("parse PORT: %w", err)
 	}
 
-	db, err := NewDB(ctx, os.Getenv("DATABASE_URL"))
+	db, err := repository.NewDB(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("open database: %w", err)
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return db.Close() })
 
-	if err := seed(ctx, db); err != nil {
-		return nil, shutdown, fmt.Errorf("database initialization: %w", err)
-	}
+	// if err := seed(ctx, db); err != nil {
+	// 	return nil, shutdown, fmt.Errorf("database initialization: %w", err)
+	// }
 
 	// server
-	server, err := NewServer(port, db)
+	server, err := presentation.NewServer(port, db)
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("create server: %w", err)
 	}
@@ -168,57 +170,24 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 }
 
 func seed(ctx context.Context, db *sql.DB) error {
-	if os.Getenv("ADMIN_USERNAME") == "" {
+	username := os.Getenv("ADMIN_USERNAME")
+	if username == "" {
 		return errors.New("admin username must be set")
 	}
-	if os.Getenv("ADMIN_PASSWORD") == "" {
+
+	password := os.Getenv("ADMIN_PASSWORD")
+	if password == "" {
 		return errors.New("admin password must be set")
 	}
 
-	if _, err := db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at <= ?", time.Now().Unix()); err != nil {
+	sessions := repository.NewSessionRepository()
+	if _, err := sessions.DeleteExpired(ctx, db); err != nil {
 		return fmt.Errorf("delete expired session: %w", err)
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() // nolint:errcheck
-
-	q := "INSERT INTO roles (name) VALUES ('admin') ON CONFLICT (name) DO NOTHING;"
-	if _, err := tx.ExecContext(ctx, q); err != nil {
-		return fmt.Errorf("upsert roles: %w", err)
-	}
-
-	digest, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("ADMIN_PASSWORD")), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("generate digest for admin password: %w", err)
-	}
-
-	q = "INSERT INTO users (name, digest) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET digest = EXCLUDED.digest RETURNING id;"
-	row := tx.QueryRowContext(ctx, q, os.Getenv("ADMIN_USERNAME"), string(digest))
-	var adminID int
-	if err := row.Scan(&adminID); err != nil {
-		return fmt.Errorf("upsert admin user: %w", err)
-	}
-
-	q = "INSERT INTO user_role_relations (user_id, role) VALUES (?, 'admin') ON CONFLICT (user_id, role) DO NOTHING;"
-	if _, err := tx.ExecContext(ctx, q, adminID); err != nil {
-		return fmt.Errorf("grant admin role: %w", err)
-	}
-
-	q = "DELETE FROM users WHERE id IN (SELECT user_id FROM user_role_relations WHERE role = 'admin' AND user_id != ?)"
-	if _, err := tx.ExecContext(ctx, q, adminID); err != nil {
-		return fmt.Errorf("revoke old admin role: %w", err)
-	}
-
-	q = "DELETE FROM sessions WHERE user_id = ?"
-	if _, err := tx.ExecContext(ctx, q, adminID); err != nil {
-		return fmt.Errorf("delete admin's sessions: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
+	admins := usecases.NewAdminUsecase(db)
+	if err := admins.Setup(ctx, username, password); err != nil {
+		return fmt.Errorf("setup admin: %w", err)
 	}
 
 	return nil

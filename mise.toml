@@ -21,10 +21,10 @@ PORT = { default = 8000 }
 USE_SECURE_COOKIE = { default = "false" }
 
 [tasks."db:migrate"]
-run = ["sqlite3def --file=schema.sql app.db --apply --enable-drop"]
+run = ["sqlite3def --file=internal/schema/schema.sql app.db --apply --enable-drop"]
 
 [tasks."db:check"]
-run = ["sqlite3def --file=schema.sql app.db --check --enable-drop"]
+run = ["sqlite3def --file=internal/schema/schema.sql app.db --check --enable-drop"]
 
 [tasks."fmt:go"]
 run = ["go fmt"]
@@ -84,7 +84,7 @@ run = [
 [tasks.serve]
 run = ["go run ."]
 sources = [
-    "*.go",
-    "templates/**/*.html",
-    "static/**/*",
+    "**/*.go",
+    "internal/presentation/templates/**/*",
+    "internal/presentation/static/**/*",
 ]
