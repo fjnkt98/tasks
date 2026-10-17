@@ -130,7 +130,7 @@ func TestUserRepository(t *testing.T) {
 
 		repo := NewUserRepository()
 
-		users, err := repo.SelectUsers(t.Context(), db, 100, 0)
+		users, err := repo.Select(t.Context(), db, 100, 0)
 		require.NoError(t, err)
 
 		want := []User{
@@ -145,7 +145,7 @@ func TestUserRepository(t *testing.T) {
 
 		repo := NewUserRepository()
 
-		users, err := repo.SelectUsers(t.Context(), db, 100, 0)
+		users, err := repo.Select(t.Context(), db, 100, 0)
 		require.NoError(t, err)
 
 		assert.Equal(t, []User{}, users)
@@ -161,7 +161,7 @@ func TestUserRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, ok)
 
-		users, err := repo.SelectUsers(t.Context(), db, 100, 0)
+		users, err := repo.Select(t.Context(), db, 100, 0)
 		require.NoError(t, err)
 
 		want := []User{
@@ -181,7 +181,7 @@ func TestUserRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, ok)
 
-		users, err := repo.SelectUsers(t.Context(), db, 100, 0)
+		users, err := repo.Select(t.Context(), db, 100, 0)
 		require.NoError(t, err)
 
 		want := []User{
@@ -201,7 +201,7 @@ func TestUserRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, ok)
 
-		users, err := repo.SelectUsers(t.Context(), db, 100, 0)
+		users, err := repo.Select(t.Context(), db, 100, 0)
 		require.NoError(t, err)
 
 		want := []User{
@@ -220,7 +220,7 @@ func TestUserRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, ok)
 
-		users, err := repo.SelectUsers(t.Context(), db, 100, 0)
+		users, err := repo.Select(t.Context(), db, 100, 0)
 		require.NoError(t, err)
 
 		want := []User{

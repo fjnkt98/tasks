@@ -17,7 +17,7 @@ type UserRepository interface {
 	CreateOrReplace(ctx context.Context, db DBTX, name string, digest []byte) (*User, error)
 	Get(ctx context.Context, db DBTX, id int) (*User, error)
 	GetByName(ctx context.Context, db DBTX, name string) (*User, error)
-	SelectUsers(ctx context.Context, db DBTX, limit int, offset int) ([]User, error)
+	Select(ctx context.Context, db DBTX, limit int, offset int) ([]User, error)
 	UpdateDigest(ctx context.Context, db DBTX, id int, digest []byte) (bool, error)
 	Delete(ctx context.Context, db DBTX, id int) (bool, error)
 	SelectRoles(ctx context.Context, db DBTX, id int) ([]Role, error)
@@ -82,7 +82,7 @@ func (r *userRepository) GetByName(ctx context.Context, db DBTX, name string) (*
 	return &user, nil
 }
 
-func (r *userRepository) SelectUsers(ctx context.Context, db DBTX, limit int, offset int) (users []User, err error) {
+func (r *userRepository) Select(ctx context.Context, db DBTX, limit int, offset int) (users []User, err error) {
 	q := "SELECT id, name, digest FROM users ORDER BY id ASC LIMIT ? OFFSET ?"
 	rows, err := db.QueryContext(ctx, q, limit, offset)
 	if err != nil {
