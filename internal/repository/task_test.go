@@ -59,7 +59,7 @@ func TestTaskRepository(t *testing.T) {
 		}
 		assert.Equal(t, want, tasks)
 
-		task, err := repo.GetByID(t.Context(), db, 2, 3)
+		task, err := repo.Get(t.Context(), db, 2, 3)
 		require.NoError(t, err)
 		assert.Equal(t, &Task{ID: 3, UserID: 2, Title: "baz", Status: "created"}, task)
 	})
@@ -90,7 +90,7 @@ func TestTaskRepository(t *testing.T) {
 
 		// not found
 		task, err = repo.UpdateTitle(t.Context(), db, 2, 1, "test")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, task)
 	})
 

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 )
@@ -40,6 +41,9 @@ func (r *userRepository) Create(ctx context.Context, db DBTX, name string, diges
 
 	var user User
 	if err := row.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
+		if isUniqueConstraintError(err) {
+			return nil, ErrUniqueConstraint
+		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
 
@@ -64,7 +68,10 @@ func (r *userRepository) Get(ctx context.Context, db DBTX, id int) (*User, error
 
 	var user User
 	if err := row.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("execute: %w", err)
 	}
 
 	return &user, nil
@@ -76,6 +83,9 @@ func (r *userRepository) GetByName(ctx context.Context, db DBTX, name string) (*
 
 	var user User
 	if err := row.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 

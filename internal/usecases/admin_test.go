@@ -72,13 +72,13 @@ func TestAdminUsecase(t *testing.T) {
 		assert.Equal(t, []string{"admin"}, roles)
 
 		user, err = userRepo.GetByName(t.Context(), db, "old_admin")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, repository.ErrNotFound)
 		assert.Nil(t, user)
 
 		sessionRepo := repository.NewSessionRepository()
 		_, err = sessionRepo.GetByToken(t.Context(), db, "token1")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, repository.ErrNotFound)
 		_, err = sessionRepo.GetByToken(t.Context(), db, "token2")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, repository.ErrNotFound)
 	})
 }

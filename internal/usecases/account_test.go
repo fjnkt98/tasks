@@ -160,7 +160,7 @@ func TestChangePassword(t *testing.T) {
 
 		sessionRepo := repository.NewSessionRepository()
 		session, err := sessionRepo.GetByToken(t.Context(), db, "token")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, repository.ErrNotFound)
 		assert.Nil(t, session)
 
 		a := repository.NewActivityRepository()
@@ -244,11 +244,11 @@ func TestDeleteUser(t *testing.T) {
 		require.NoError(t, err)
 
 		user, err := u.users.Get(t.Context(), db, 2)
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, repository.ErrNotFound)
 		assert.Nil(t, user)
 
 		session, err := u.sessions.GetByToken(t.Context(), db, "token")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, repository.ErrNotFound)
 		assert.Nil(t, session)
 	})
 }

@@ -40,7 +40,7 @@ func TestSessionRepository(t *testing.T) {
 
 		// get non-existent session
 		session, err := repo.GetByToken(t.Context(), db, "foo")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, session)
 
 		// update non-existent session
@@ -70,7 +70,7 @@ func TestSessionRepository(t *testing.T) {
 
 		// get non-existent session
 		session, err = repo.GetByToken(t.Context(), db, "foo")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, session)
 	})
 
@@ -89,7 +89,7 @@ func TestSessionRepository(t *testing.T) {
 		_, err = repo.Create(t.Context(), db, 2, "foo", "token", date)
 		require.ErrorIs(t, err, ErrInvalidCredentials)
 		session, err = repo.GetByToken(t.Context(), db, "token")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, session)
 	})
 
@@ -118,9 +118,9 @@ func TestSessionRepository(t *testing.T) {
 		assert.True(t, ok)
 
 		_, err = repo.GetByToken(t.Context(), db, "token1")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 		_, err = repo.GetByToken(t.Context(), db, "token2")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 
 		session, err := repo.GetByToken(t.Context(), db, "token3")
 		require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestSessionRepository(t *testing.T) {
 		_, err = repo.GetByToken(t.Context(), db, "token2")
 		require.NoError(t, err)
 		_, err = repo.GetByToken(t.Context(), db, "token3")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 	})
 
 	t.Run("delete expired", func(t *testing.T) {
@@ -156,10 +156,10 @@ func TestSessionRepository(t *testing.T) {
 		assert.True(t, ok)
 
 		_, err = repo.GetByToken(t.Context(), db, "token1")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 		_, err = repo.GetByToken(t.Context(), db, "token2")
 		require.NoError(t, err)
 		_, err = repo.GetByToken(t.Context(), db, "token3")
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ErrorIs(t, err, ErrNotFound)
 	})
 }

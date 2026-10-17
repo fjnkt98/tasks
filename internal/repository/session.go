@@ -54,6 +54,9 @@ func (r *sessionRepository) GetByToken(ctx context.Context, db DBTX, token strin
 
 	var session Session
 	if err := row.Scan(&session.UserID, &session.Token, &session.ExpiresAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
 

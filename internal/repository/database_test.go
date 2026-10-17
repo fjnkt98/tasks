@@ -59,9 +59,9 @@ func TestIsUniqueConstraintError(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('test', 'digest')")
 	assert.Error(t, err)
-	assert.True(t, IsUniqueConstraintError(err))
+	assert.True(t, isUniqueConstraintError(err))
 
 	_, err = db.ExecContext(t.Context(), "INSERT INTO users (name) VALUES ('foo')")
 	assert.Error(t, err)
-	assert.False(t, IsUniqueConstraintError(err))
+	assert.False(t, isUniqueConstraintError(err))
 }

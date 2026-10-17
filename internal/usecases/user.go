@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -87,6 +88,9 @@ func (u *userUsecase) List(ctx context.Context, page int, limit int) (*UserList,
 func (u *userUsecase) Get(ctx context.Context, id int) (*UserDetail, error) {
 	user, err := u.users.Get(ctx, u.db, id)
 	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 

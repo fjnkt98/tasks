@@ -63,7 +63,7 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 	defer tx.Rollback() // nolint:errcheck
 
 	if _, err = u.users.Create(ctx, tx, username, digest); err != nil {
-		if repository.IsUniqueConstraintError(err) {
+		if errors.Is(err, repository.ErrUniqueConstraint) {
 			return ErrUserAlreadyExists
 		}
 		return fmt.Errorf("create user: %w", err)
@@ -79,7 +79,7 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 func (u *accountUsecase) Signin(ctx context.Context, username string, password string) (string, error) {
 	user, err := u.users.GetByName(ctx, u.db, username)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return "", ErrInvalidCredentials
 		}
 		return "", fmt.Errorf("get user by name: %w", err)
@@ -123,7 +123,7 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 
 	user, err := u.users.Get(ctx, tx, userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return ErrInvalidCredentials
 		}
 		return fmt.Errorf("get user by id: %w", err)
@@ -169,7 +169,7 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return nil
 		}
 		return fmt.Errorf("get session by token: %w", err)
@@ -196,7 +196,7 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 func (u *accountUsecase) Delete(ctx context.Context, userID int, password string) error {
 	user, err := u.users.Get(ctx, u.db, userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return ErrInvalidCredentials
 		}
 		return fmt.Errorf("get user: %w", err)

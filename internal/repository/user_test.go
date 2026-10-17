@@ -86,7 +86,7 @@ func TestUserRepository(t *testing.T) {
 		repo := NewUserRepository()
 		user, err := repo.Get(t.Context(), db, 0)
 
-		assert.ErrorIs(t, err, sql.ErrNoRows)
+		assert.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, user)
 	})
 
@@ -120,7 +120,7 @@ func TestUserRepository(t *testing.T) {
 		repo := NewUserRepository()
 		user, err := repo.GetByName(t.Context(), db, "foo")
 
-		assert.ErrorIs(t, err, sql.ErrNoRows)
+		assert.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, user)
 	})
 

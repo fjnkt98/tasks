@@ -46,7 +46,7 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 	// get session
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return nil, nil
 		}
 

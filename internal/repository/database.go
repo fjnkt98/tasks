@@ -66,7 +66,10 @@ func EnforceForeignKeys(dsn string) (string, error) {
 	return u.String(), nil
 }
 
-func IsUniqueConstraintError(err error) bool {
+var ErrNotFound = errors.New("not found")
+var ErrUniqueConstraint = errors.New("unique constraint violation")
+
+func isUniqueConstraintError(err error) bool {
 	var sqliteErr sqlite3.Error
 	return errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique
 }

@@ -72,7 +72,7 @@ func (u *taskUsecase) List(ctx context.Context, userID int, status string, limit
 }
 
 func (u *taskUsecase) Get(ctx context.Context, userID int, id int) (*Task, error) {
-	task, err := u.tasks.GetByID(ctx, u.db, userID, id)
+	task, err := u.tasks.Get(ctx, u.db, userID, id)
 	if err != nil {
 		return nil, fmt.Errorf("get task by id: %w", err)
 	}

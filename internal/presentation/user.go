@@ -2,6 +2,7 @@ package presentation
 
 import (
 	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -29,7 +30,11 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			page = 1
 		}
-		page = min(1000, max(1, page))
+		page = max(page, 1)
+	}
+	if page > 1000 {
+		Error(w, r, ErrorCode400)
+		return
 	}
 
 	users, err := h.users.List(r.Context(), page, 100)
@@ -57,7 +62,7 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 		Current: page,
 		Next:    page + 1,
 		HasPrev: page-1 > 0,
-		HasNext: users.HasNext,
+		HasNext: users.HasNext && page < 1000,
 	}
 
 	var body []byte
@@ -90,6 +95,10 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.users.Get(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, usecases.ErrNotFound) {
+			Error(w, r, ErrorCode404)
+			return
+		}
 		slog.ErrorContext(r.Context(), "get user", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
 		return

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 )
@@ -17,7 +18,7 @@ type TaskRepository interface {
 	Create(ctx context.Context, db DBTX, userID int, title string) (*Task, error)
 	Select(ctx context.Context, db DBTX, userID int, limit int, offset int) ([]Task, error)
 	SelectByStatus(ctx context.Context, db DBTX, userID int, status string, limit int, offset int) ([]Task, error)
-	GetByID(ctx context.Context, db DBTX, userID int, id int) (*Task, error)
+	Get(ctx context.Context, db DBTX, userID int, id int) (*Task, error)
 	UpdateTitle(ctx context.Context, db DBTX, userID int, id int, title string) (*Task, error)
 	UpdateStatus(ctx context.Context, db DBTX, userID int, id int, status string) (*Task, error)
 	Delete(ctx context.Context, db DBTX, userID int, id int) (bool, error)
@@ -96,11 +97,14 @@ func (r *taskRepository) SelectByStatus(ctx context.Context, db DBTX, userID int
 	return tasks, nil
 }
 
-func (r *taskRepository) GetByID(ctx context.Context, db DBTX, userID int, id int) (*Task, error) {
+func (r *taskRepository) Get(ctx context.Context, db DBTX, userID int, id int) (*Task, error) {
 	q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? AND id = ?"
 	row := db.QueryRowContext(ctx, q, userID, id)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
 	return &task, nil
@@ -111,6 +115,9 @@ func (r *taskRepository) UpdateTitle(ctx context.Context, db DBTX, userID int, i
 	row := db.QueryRowContext(ctx, q, title, userID, id)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
 	return &task, nil
@@ -121,6 +128,9 @@ func (r *taskRepository) UpdateStatus(ctx context.Context, db DBTX, userID int, 
 	row := db.QueryRowContext(ctx, q, status, userID, id)
 	var task Task
 	if err := row.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
 	return &task, nil
