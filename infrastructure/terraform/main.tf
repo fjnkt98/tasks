@@ -20,6 +20,10 @@ provider "google" {
   zone    = "asia-northeast1-a"
 }
 
+locals {
+  image_tag = "ff66682235380cbfba1fd55b60d986f58327dbc9"
+}
+
 # State
 resource "google_storage_bucket" "terraform-state" {
   name     = "tasks-terraform-state"
@@ -139,7 +143,7 @@ resource "google_cloud_run_v2_service" "app" {
     }
 
     containers {
-      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:ff66682235380cbfba1fd55b60d986f58327dbc9"
+      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/app:${local.image_tag}"
       name  = "app"
 
       ports {
@@ -190,7 +194,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
     containers {
-      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:ff66682235380cbfba1fd55b60d986f58327dbc9"
+      image = "${google_artifact_registry_repository.main.location}-docker.pkg.dev/tasks-510111/${google_artifact_registry_repository.main.name}/otelcol:${local.image_tag}"
       name  = "otelcol"
 
       resources {
