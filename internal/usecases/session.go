@@ -10,12 +10,6 @@ import (
 	"github.com/fjnkt98/tasks/internal/repository"
 )
 
-type User struct {
-	ID    int
-	Name  string
-	Roles []string
-}
-
 type SessionUsecase interface {
 	Continue(ctx context.Context, token string) (*User, error)
 }
@@ -67,7 +61,7 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*User, err
 	}
 
 	// user identification
-	user, err := u.users.GetByID(ctx, tx, session.UserID)
+	user, err := u.users.Get(ctx, tx, session.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}

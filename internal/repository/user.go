@@ -15,7 +15,7 @@ type User struct {
 type UserRepository interface {
 	Create(ctx context.Context, db DBTX, name string, digest []byte) (*User, error)
 	CreateOrReplace(ctx context.Context, db DBTX, name string, digest []byte) (*User, error)
-	GetByID(ctx context.Context, db DBTX, id int) (*User, error)
+	Get(ctx context.Context, db DBTX, id int) (*User, error)
 	GetByName(ctx context.Context, db DBTX, name string) (*User, error)
 	SelectUsers(ctx context.Context, db DBTX, limit int, offset int) ([]User, error)
 	UpdateDigest(ctx context.Context, db DBTX, id int, digest []byte) (bool, error)
@@ -58,7 +58,7 @@ func (r *userRepository) CreateOrReplace(ctx context.Context, db DBTX, name stri
 	return &user, nil
 }
 
-func (r *userRepository) GetByID(ctx context.Context, db DBTX, id int) (*User, error) {
+func (r *userRepository) Get(ctx context.Context, db DBTX, id int) (*User, error) {
 	q := "SELECT id, name, digest FROM users WHERE id = ?"
 	row := db.QueryRowContext(ctx, q, id)
 

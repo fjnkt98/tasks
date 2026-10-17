@@ -71,7 +71,7 @@ func TestUserRepository(t *testing.T) {
 			{Name: "2", Key: 2, Want: &User{ID: 2, Name: "user2", Digest: "digest"}},
 		} {
 			t.Run(test.Name, func(t *testing.T) {
-				user, err := repo.GetByID(t.Context(), db, test.Key)
+				user, err := repo.Get(t.Context(), db, test.Key)
 
 				require.NoError(t, err)
 				assert.Equal(t, test.Want, user)
@@ -84,7 +84,7 @@ func TestUserRepository(t *testing.T) {
 		fixture(t, db)
 
 		repo := NewUserRepository()
-		user, err := repo.GetByID(t.Context(), db, 0)
+		user, err := repo.Get(t.Context(), db, 0)
 
 		assert.ErrorIs(t, err, sql.ErrNoRows)
 		assert.Nil(t, user)

@@ -123,7 +123,7 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 	}
 	defer tx.Rollback() // nolint:errcheck
 
-	user, err := u.users.GetByID(ctx, tx, userID)
+	user, err := u.users.Get(ctx, tx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrInvalidCredentials
@@ -243,7 +243,7 @@ func (u *accountUsecase) RevokeRole(ctx context.Context, userID int, role string
 }
 
 func (u *accountUsecase) Delete(ctx context.Context, userID int, password string) error {
-	user, err := u.users.GetByID(ctx, u.db, userID)
+	user, err := u.users.Get(ctx, u.db, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrInvalidCredentials

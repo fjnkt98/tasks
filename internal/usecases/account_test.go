@@ -154,7 +154,7 @@ func TestChangePassword(t *testing.T) {
 		require.NoError(t, err)
 
 		userRepo := repository.NewUserRepository()
-		user, err := userRepo.GetByID(t.Context(), db, 2)
+		user, err := userRepo.Get(t.Context(), db, 2)
 		require.NoError(t, err)
 		assert.NotEqual(t, string(getdigest()), user.Digest)
 
@@ -327,7 +327,7 @@ func TestDeleteUser(t *testing.T) {
 		err := u.Delete(t.Context(), 2, "password")
 		require.NoError(t, err)
 
-		user, err := u.users.GetByID(t.Context(), db, 2)
+		user, err := u.users.Get(t.Context(), db, 2)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 		assert.Nil(t, user)
 
