@@ -46,6 +46,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "assertion.repository_owner_id == '${local.github_owner_id}'",
     "assertion.ref == 'refs/heads/main'",
     "assertion.event_name == 'push'",
+    "assertion.workflow_ref == 'fjnkt98/tasks/.github/workflows/test.yaml@refs/heads/main'",
   ])
 }
 
