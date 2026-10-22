@@ -1,14 +1,14 @@
 [tools]
 actionlint = "1.7.12"
-go = "1.27.1"
-golangci-lint = "2.14.0"
+go = "1.27.3"
+golangci-lint = "2.15.0"
 litestream = "0.5.17"
-node = "24"
-pinact = "4.1.0"
-sqlite = "3.53.4"
+node = "26.12.1"
+pinact = "5.0.1"
+sqlite = "3.54.1"
 sqlite3def = "3.11.26"
-terraform = "1.16.4"
-tflint = "latest"
+terraform = "1.17.0"
+tflint = "0.64.0"
 
 [env]
 ADMIN_PASSWORD = { required = true, redact = true }

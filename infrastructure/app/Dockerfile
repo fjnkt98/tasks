@@ -1,5 +1,5 @@
 # App
-FROM golang:1.27.1-trixie@sha256:3b77fc618ec235a1ab412de7737f120dd507c57e8d87de4cbb7994fb94275ed5 AS stage
+FROM golang:1.27.3-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4 AS stage
 
 ARG TARGETARCH
 
@@ -7,18 +7,14 @@ WORKDIR /app
 
 COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
+RUN go mod download
+
 COPY main.go /app/main.go
 COPY internal/ /app/internal/
 
 COPY internal/schema/schema.sql /app/schema.sql
 
 ENV CGO_ENABLED=1
-RUN apt-get update \
-    && apt-get install -y \
-    build-essential \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN go build -o /app/app
 
 # Litestream
@@ -41,7 +37,6 @@ COPY --from=sqldef /usr/local/bin/sqldef /usr/local/bin/sqlite3def
 COPY --from=stage /app/schema.sql /app/schema.sql
 
 COPY infrastructure/app/litestream.yaml /etc/litestream.yaml
-COPY infrastructure/app/run.sh /app/run.sh
-RUN chmod +x /app/run.sh
+COPY --chmod=755 infrastructure/app/run.sh /app/run.sh
 
 CMD ["/app/run.sh"]
