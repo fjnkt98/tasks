@@ -29,8 +29,15 @@ resource "google_storage_bucket" "terraform-state" {
   name     = "tasks-terraform-state"
   location = "asia-northeast1"
 
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
   versioning {
     enabled = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -38,7 +45,14 @@ resource "google_storage_bucket" "terraform-state" {
 resource "google_storage_bucket" "db" {
   name          = "tasks-db"
   location      = "asia-northeast1"
-  force_destroy = true
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Artifact Registry
@@ -132,7 +146,7 @@ resource "google_cloud_run_v2_service" "app" {
   location = "asia-northeast1"
   ingress  = "INGRESS_TRAFFIC_ALL"
 
-  deletion_protection = false
+  deletion_protection = true
 
   template {
     service_account = google_service_account.app.email
