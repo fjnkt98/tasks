@@ -7,18 +7,14 @@ WORKDIR /app
 
 COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
+RUN go mod download
+
 COPY main.go /app/main.go
 COPY internal/ /app/internal/
 
 COPY internal/schema/schema.sql /app/schema.sql
 
 ENV CGO_ENABLED=1
-RUN apt-get update \
-    && apt-get install -y \
-    build-essential \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN go build -o /app/app
 
 # Litestream
@@ -41,7 +37,6 @@ COPY --from=sqldef /usr/local/bin/sqldef /usr/local/bin/sqlite3def
 COPY --from=stage /app/schema.sql /app/schema.sql
 
 COPY infrastructure/app/litestream.yaml /etc/litestream.yaml
-COPY infrastructure/app/run.sh /app/run.sh
-RUN chmod +x /app/run.sh
+COPY --chmod=755 infrastructure/app/run.sh /app/run.sh
 
 CMD ["/app/run.sh"]
