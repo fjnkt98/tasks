@@ -21,7 +21,7 @@ provider "google" {
 }
 
 locals {
-  image_tag = "9ad5cfda8eb28b1adc4d1041fc0dae85015a16c3"
+  image_tag = "00de5beb2d8270617d579c3931f15076f25d6916"
 }
 
 # State
