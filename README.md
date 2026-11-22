@@ -29,3 +29,5 @@ mise run fmt:go
 Go lint rules: `.golangci.yml`. Agent notes: `AGENTS.md`.
 
 Dependency PRs: Dependabot (`.github/dependabot.yml`). Vulnerability gate: `govulncheck` in CI (`mise run vuln`).
+
+GitHub Actions pins are checked by Dependabot + `pinact` (`mise run lint:action`). The mise CLI version in workflows (`jdx/mise-action` → `with.version`) is pinned separately and needs a manual/agent bump when you want a newer mise.
