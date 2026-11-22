@@ -1,5 +1,5 @@
 # App
-FROM golang:1.27.4-trixie@sha256:2cd7e1ebf475c6208122d2b9cefc638d98fcc8dfd8554c8872c9dd0c21f4ac61 AS stage
+FROM golang:1.27.4-trixie@sha256:f18c3d73a184fb0582828510722e723b63a93f7188d11dd223d9be6f6880e65d AS stage
 
 ARG TARGETARCH
 
@@ -18,13 +18,13 @@ ENV CGO_ENABLED=1
 RUN go build -o /app/app
 
 # Litestream
-FROM litestream/litestream:0.5.17-scratch@sha256:f757c70d070ac278d45b8847d31a54ab2de24de5e77b09018c642eca263e3967 AS litestream
+FROM litestream/litestream:0.5.18-scratch@sha256:0ba1cdbb2d0be8876e27b1e646dc031309b7e3928e0ed91503ebaa73ff7e2c5d AS litestream
 
 # sqldef
-FROM sqldef/sqlite3def:3.11.26@sha256:91db0e5a8d1a3fc64ca0e33eab9ba29b768e7f0a870f4a8f93565640d0ed2977 AS sqldef
+FROM sqldef/sqlite3def:3.11.30@sha256:87110de34d00e9bb7d607656f4bd0afe27890696755a721a5037c079ff86c6c7 AS sqldef
 
 # Main
-FROM debian:trixie-20260918-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+FROM debian:trixie-20261104-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
 
 WORKDIR /app
 
