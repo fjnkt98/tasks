@@ -220,16 +220,20 @@ func serve(ctx context.Context, server *http.Server, timeout time.Duration) erro
 	return nil
 }
 
-func run(ctx context.Context) error {
+//nolint:nonamedreturns // named err joins shutdown failures from defer into the returned error
+func run(ctx context.Context) (err error) {
 	server, shutdown, err := setup(ctx)
+	defer func() {
+		err = errors.Join(err, shutdown())
+	}()
 	if err != nil {
-		return errors.Join(err, shutdown())
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	return errors.Join(serve(ctx, server, 5*time.Second), shutdown())
+	return serve(ctx, server, 5*time.Second)
 }
 
 func main() {
