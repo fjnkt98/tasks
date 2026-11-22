@@ -220,6 +220,7 @@ func serve(ctx context.Context, server *http.Server, timeout time.Duration) erro
 	return nil
 }
 
+//nolint:nonamedreturns // named err joins shutdown failures from defer into the returned error
 func run(ctx context.Context) (err error) {
 	server, shutdown, err := setup(ctx)
 	defer func() {

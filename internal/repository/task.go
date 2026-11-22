@@ -47,17 +47,15 @@ func (r *taskRepository) Create(ctx context.Context, db DBTX, userID int, title 
 	return &task, nil
 }
 
-func (r *taskRepository) Select(ctx context.Context, db DBTX, userID int, limit int, offset int) (tasks []Task, err error) {
+func (r *taskRepository) Select(ctx context.Context, db DBTX, userID int, limit int, offset int) ([]Task, error) {
 	q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
 	rows, err := db.QueryContext(ctx, q, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}
-	defer func() {
-		err = errors.Join(err, rows.Close())
-	}()
+	defer rows.Close()
 
-	tasks = make([]Task, 0)
+	tasks := make([]Task, 0)
 	for rows.Next() {
 		var task Task
 		if err := rows.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {
@@ -72,17 +70,15 @@ func (r *taskRepository) Select(ctx context.Context, db DBTX, userID int, limit 
 	return tasks, nil
 }
 
-func (r *taskRepository) SelectByStatus(ctx context.Context, db DBTX, userID int, status string, limit int, offset int) (tasks []Task, err error) {
+func (r *taskRepository) SelectByStatus(ctx context.Context, db DBTX, userID int, status string, limit int, offset int) ([]Task, error) {
 	q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? AND status = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
 	rows, err := db.QueryContext(ctx, q, userID, status, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}
-	defer func() {
-		err = errors.Join(err, rows.Close())
-	}()
+	defer rows.Close()
 
-	tasks = make([]Task, 0)
+	tasks := make([]Task, 0)
 	for rows.Next() {
 		var task Task
 		if err := rows.Scan(&task.ID, &task.UserID, &task.Title, &task.Status); err != nil {

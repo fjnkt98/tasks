@@ -25,6 +25,7 @@ type DBTX interface {
 var _ DBTX = &sql.DB{}
 var _ DBTX = &sql.Tx{}
 
+//nolint:nonamedreturns // named err lets defer Close the DB on later failure and join that error
 func NewDB(ctx context.Context, dsn string) (db *sql.DB, err error) {
 	dsn, err = EnforceForeignKeys(dsn)
 	if err != nil {
