@@ -32,6 +32,15 @@ mise run fmt:go
 
 Dependency updates: Dependabot (`.github/dependabot.yml`). Vulnerability scan: `govulncheck` via `mise run vuln`.
 
+### Workflow / Action versions
+
+| What | How it stays current |
+| --- | --- |
+| `uses: owner/action@sha` | Dependabot `github-actions` (weekly) + `pinact run --check` in CI |
+| mise CLI `with.version` in workflows | **Not** updated by Dependabot; bump when raising mise (or omit `version` to let mise-action pick the newest release older than `minimum_release_age`, default 24h) |
+
+Prefer SHA-pinned actions with a `# vX.Y.Z` comment (pinact). Do not switch to floating `@v5` tags.
+
 DB schema changes:
 
 ```bash
