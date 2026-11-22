@@ -126,6 +126,9 @@ func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 		},
 		Tasks:     []usecases.Task{*task},
 		LastIndex: -1,
+		NextPage:  0,
+		Limit:     0,
+		Status:    "",
 	}
 
 	body, err := RenderTemplate("partial/tasks", &data)
@@ -193,8 +196,12 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := TaskData{
-		Tasks:     []usecases.Task{*task},
-		LastIndex: -1,
+		LayoutData: LayoutData{Authorized: false, AccountName: ""},
+		Tasks:      []usecases.Task{*task},
+		LastIndex:  -1,
+		NextPage:   0,
+		Limit:      0,
+		Status:     "",
 	}
 
 	body, err := RenderTemplate("partial/tasks", &data)
@@ -236,8 +243,12 @@ func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := TaskData{
-		Tasks:     []usecases.Task{*task},
-		LastIndex: -1,
+		LayoutData: LayoutData{Authorized: false, AccountName: ""},
+		Tasks:      []usecases.Task{*task},
+		LastIndex:  -1,
+		NextPage:   0,
+		Limit:      0,
+		Status:     "",
 	}
 
 	body, err := RenderTemplate("partial/tasks", &data)

@@ -47,10 +47,11 @@ func (r *activityRepository) Select(ctx context.Context, db DBTX, userID int) (a
 
 	activities = make([]Activity, 0)
 	for rows.Next() {
-		activity := Activity{UserID: userID}
+		var activity Activity
 		if err := rows.Scan(&activity.Kind, &activity.Message, &activity.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan rows: %w", err)
 		}
+		activity.UserID = userID
 		activities = append(activities, activity)
 	}
 	if err := rows.Err(); err != nil {

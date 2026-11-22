@@ -16,8 +16,10 @@ linters:
     - copyloopvar
     - durationcheck
     - errorlint
+    - exhaustruct_v5
     - exptostd
     - fatcontext
+    - forbidigo
     - forcetypeassert
     - gocritic
     - gosec
@@ -54,6 +56,19 @@ linters:
       errorf: true
       asserts: true
       comparison: true
+    exhaustruct_v5:
+      # Opt-in for this module's types only (stdlib/third-party stay unchecked).
+      explicit-mode: true
+      enforce-patterns:
+        - 'github\.com/fjnkt98/tasks(\..*|/.+)'
+      allow-empty-declarations: true
+      allow-empty-blank-assignments: true
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^(fmt\.Print(|f|ln)|print|println)$
+        - pattern: ^http\.(DefaultClient|DefaultTransport)$
+          msg: Do not use the shared http.DefaultClient/DefaultTransport; create a client with timeouts.
     gocritic:
       enabled-tags:
         - diagnostic

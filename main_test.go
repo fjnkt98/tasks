@@ -31,7 +31,8 @@ func TestMain(m *testing.M) {
 func TestTraceHandler(t *testing.T) {
 	var buf bytes.Buffer
 	h := &traceHandler{
-		Handler: slog.NewJSONHandler(&buf, nil),
+		Handler:    slog.NewJSONHandler(&buf, nil),
+		operations: nil,
 	}
 
 	results := func() []map[string]any {
@@ -97,7 +98,8 @@ func TestTraceHandlerWithTrace(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			var buf bytes.Buffer
 			logger := test.Logger(slog.New(&traceHandler{
-				Handler: slog.NewJSONHandler(&buf, nil),
+				Handler:    slog.NewJSONHandler(&buf, nil),
+				operations: nil,
 			}))
 			logger.InfoContext(ctx, "test", slog.String("action", "query"))
 
@@ -120,7 +122,7 @@ func TestTraceHandlerWithTrace(t *testing.T) {
 
 func TestTraceHandlerDerivedLoggers(t *testing.T) {
 	var buf bytes.Buffer
-	base := slog.New(&traceHandler{Handler: slog.NewJSONHandler(&buf, nil)})
+	base := slog.New(&traceHandler{Handler: slog.NewJSONHandler(&buf, nil), operations: nil})
 	group := base.WithGroup("request").With("component", "db")
 	first := group.With("branch", "first")
 	second := group.With("branch", "second")
@@ -148,7 +150,7 @@ func TestTraceHandlerDerivedLoggers(t *testing.T) {
 
 func TestTraceHandlerContextPerRecord(t *testing.T) {
 	var buf bytes.Buffer
-	logger := slog.New(&traceHandler{Handler: slog.NewJSONHandler(&buf, nil)}).WithGroup("request").With("component", "db")
+	logger := slog.New(&traceHandler{Handler: slog.NewJSONHandler(&buf, nil), operations: nil}).WithGroup("request").With("component", "db")
 
 	for _, spanContext := range []trace.SpanContext{
 		trace.NewSpanContext(trace.SpanContextConfig{TraceID: trace.TraceID{1}, SpanID: trace.SpanID{2}, TraceFlags: trace.FlagsSampled}),
@@ -266,12 +268,12 @@ func TestServe(t *testing.T) {
 			go func() {
 				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+server.Addr, nil)
 				if err != nil {
-					requestDone <- result{err: err}
+					requestDone <- result{status: 0, body: "", err: err}
 					return
 				}
 				res, err := client.Do(req)
 				if err != nil {
-					requestDone <- result{err: err}
+					requestDone <- result{status: 0, body: "", err: err}
 					return
 				}
 				defer res.Body.Close()

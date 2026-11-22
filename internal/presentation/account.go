@@ -32,7 +32,7 @@ func SetUserIntoContext(ctx context.Context, user User) context.Context {
 func GetUserFromContext(ctx context.Context) User {
 	value, ok := ctx.Value(contextKeyUser).(User)
 	if !ok {
-		return User{}
+		return User{ID: 0, Name: "", Roles: nil}
 	}
 	return value
 }
@@ -537,7 +537,8 @@ func (h *DeleteAccountHandler) Post(w http.ResponseWriter, r *http.Request) {
 
 func (h *DeleteAccountHandler) Success(w http.ResponseWriter, r *http.Request) {
 	data := LayoutData{
-		Authorized: IsAuthorized(r.Context()),
+		Authorized:  IsAuthorized(r.Context()),
+		AccountName: "",
 	}
 
 	body, err := RenderTemplate("page/delete_account_success", &data)

@@ -68,6 +68,7 @@ func (h *traceHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		Handler: h.Handler,
 		operations: append(slices.Clone(h.operations), operation{
 			attrs: slices.Clone(attrs),
+			group: "",
 		}),
 	}
 }
@@ -79,6 +80,7 @@ func (h *traceHandler) WithGroup(name string) slog.Handler {
 	return &traceHandler{
 		Handler: h.Handler,
 		operations: append(slices.Clone(h.operations), operation{
+			attrs: nil,
 			group: name,
 		}),
 	}
@@ -87,7 +89,8 @@ func (h *traceHandler) WithGroup(name string) slog.Handler {
 func setup(ctx context.Context) (*http.Server, func() error, error) {
 	// logger
 	logger := slog.New(&traceHandler{
-		Handler: slog.NewJSONHandler(os.Stdout, nil),
+		Handler:    slog.NewJSONHandler(os.Stdout, nil),
+		operations: nil,
 	})
 	slog.SetDefault(logger)
 
