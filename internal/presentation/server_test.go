@@ -60,7 +60,6 @@ func TestIntegrationSignupAndSignin(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/account/signup/success", res.Request.URL.Path)
 
-	// fail
 	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{"contains whitespace"},
@@ -70,7 +69,6 @@ func TestIntegrationSignupAndSignin(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 	assert.Equal(t, "/account/signin", res.Request.URL.Path)
 
-	// success
 	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{" contains whitespace "},
@@ -107,7 +105,6 @@ func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 	err := usecases.NewAccountUsecase(db).Signup(t.Context(), "test", "password")
 	require.NoError(t, err)
 
-	// signin
 	res, err := client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{"password"},
@@ -117,7 +114,6 @@ func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/tasks", res.Request.URL.Path)
 
-	// password change
 	res, err = client.PostForm(server.URL+"/account/password_change", url.Values{
 		"current-password":     []string{"password"},
 		"new-password":         []string{"new-password"},
@@ -128,14 +124,12 @@ func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/account/password_change/success", res.Request.URL.Path)
 
-	// check logged out
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
 	cookies := client.Jar.Cookies(u)
 	i := slices.IndexFunc(cookies, func(cookie *http.Cookie) bool { return cookie.Name == AuthCookieName })
 	require.Equal(t, -1, i)
 
-	// signin again with new password
 	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{"new-password"},
@@ -156,7 +150,6 @@ func TestIntegrationPasswordChangeAndSignin(t *testing.T) {
 func TestIntegrationDeleteAccount(t *testing.T) {
 	_, server, client := integrationTestFixture(t)
 
-	// signup
 	res, err := client.PostForm(server.URL+"/account/signup", url.Values{
 		"username":         []string{"test"},
 		"password":         []string{"password"},
@@ -167,7 +160,6 @@ func TestIntegrationDeleteAccount(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/account/signup/success", res.Request.URL.Path)
 
-	// signin
 	res, err = client.PostForm(server.URL+"/account/signin", url.Values{
 		"username": []string{"test"},
 		"password": []string{"password"},
@@ -177,7 +169,6 @@ func TestIntegrationDeleteAccount(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "/tasks", res.Request.URL.Path)
 
-	// delete account
 	res, err = client.PostForm(server.URL+"/account/delete", url.Values{
 		"password":     []string{"password"},
 		"confirmation": []string{"delete account"},

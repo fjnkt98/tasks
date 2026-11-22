@@ -1,4 +1,3 @@
-# Main
 terraform {
   required_version = "~>1.16.4"
   required_providers {
@@ -24,7 +23,6 @@ locals {
   image_tag = "9ad5cfda8eb28b1adc4d1041fc0dae85015a16c3"
 }
 
-# State
 resource "google_storage_bucket" "terraform-state" {
   name     = "tasks-terraform-state"
   location = "asia-northeast1"
@@ -34,14 +32,12 @@ resource "google_storage_bucket" "terraform-state" {
   }
 }
 
-# Storage
 resource "google_storage_bucket" "db" {
   name          = "tasks-db"
   location      = "asia-northeast1"
   force_destroy = true
 }
 
-# Artifact Registry
 resource "google_project_service" "artifact_registry" {
   service = "artifactregistry.googleapis.com"
 
@@ -60,7 +56,6 @@ resource "google_artifact_registry_repository" "main" {
   }
 }
 
-# Secret Manager
 resource "google_project_service" "secretmanager_api" {
   service            = "secretmanager.googleapis.com"
   disable_on_destroy = false
@@ -96,7 +91,6 @@ resource "google_secret_manager_secret_iam_member" "secretaccess_admin_password"
   member    = "serviceAccount:${google_service_account.app.email}"
 }
 
-# Service Account
 resource "google_service_account" "app" {
   account_id = "tasks-app"
 }
@@ -113,7 +107,6 @@ resource "google_project_iam_member" "app_cloudtrace" {
   member  = "serviceAccount:${google_service_account.app.email}"
 }
 
-# Cloud Run
 resource "google_project_service" "cloud_run" {
   service = "run.googleapis.com"
 
@@ -230,7 +223,6 @@ output "url" {
   value = google_cloud_run_v2_service.app.uri
 }
 
-# Custom Domain
 data "google_project" "project" {}
 
 resource "google_cloud_run_domain_mapping" "main" {

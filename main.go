@@ -87,14 +87,12 @@ func (h *traceHandler) WithGroup(name string) slog.Handler {
 }
 
 func setup(ctx context.Context) (*http.Server, func() error, error) {
-	// logger
 	logger := slog.New(&traceHandler{
 		Handler:    slog.NewJSONHandler(os.Stdout, nil),
 		operations: nil,
 	})
 	slog.SetDefault(logger)
 
-	// opentelemetry
 	var shutdowns []func(context.Context) error
 
 	shutdown := func() error {
@@ -109,7 +107,6 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 		return err
 	}
 
-	// grpc
 	conn, err := grpc.NewClient(
 		os.Getenv("OTEL_COLLECTOR_URL"),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -119,7 +116,6 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return conn.Close() })
 
-	// resource
 	res, err := resource.New(
 		ctx,
 		resource.WithAttributes(serviceName),
@@ -128,14 +124,12 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 		return nil, shutdown, fmt.Errorf("create resource: %w", err)
 	}
 
-	// propagator
 	propagator := propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	)
 	otel.SetTextMapPropagator(propagator)
 
-	// tracer provider
 	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("create trace exporter: %w", err)
@@ -148,7 +142,6 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	shutdowns = append(shutdowns, tracerProvider.Shutdown)
 	otel.SetTracerProvider(tracerProvider)
 
-	// db
 	port, err := strconv.Atoi(os.Getenv("PORT"))
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("parse PORT: %w", err)
@@ -160,9 +153,6 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return db.Close() })
 
-	// seed() (admin bootstrap) stays unused while local signup is the primary path.
-
-	// server
 	server, err := presentation.NewServer(port, db)
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("create server: %w", err)

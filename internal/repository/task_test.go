@@ -71,12 +71,10 @@ func TestTaskRepository(t *testing.T) {
 
 		repo := NewTaskRepository()
 
-		// update title
 		task, err := repo.UpdateTitle(t.Context(), db, 1, 1, "qux")
 		require.NoError(t, err)
 		assert.Equal(t, &Task{ID: 1, UserID: 1, Title: "qux", Status: "created"}, task)
 
-		// update status
 		task, err = repo.UpdateStatus(t.Context(), db, 1, 2, "created")
 		require.NoError(t, err)
 		assert.Equal(t, &Task{ID: 2, UserID: 1, Title: "bar", Status: "created"}, task)
@@ -89,7 +87,6 @@ func TestTaskRepository(t *testing.T) {
 		}
 		assert.Equal(t, want, tasks)
 
-		// not found
 		task, err = repo.UpdateTitle(t.Context(), db, 2, 1, "test")
 		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, task)
@@ -112,7 +109,6 @@ func TestTaskRepository(t *testing.T) {
 		}
 		assert.Equal(t, want, tasks)
 
-		// not found
 		ok, err = repo.Delete(t.Context(), db, 2, 1)
 		require.NoError(t, err)
 		assert.False(t, ok)
