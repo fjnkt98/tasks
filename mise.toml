@@ -1,6 +1,7 @@
 [tools]
 actionlint = "1.7.12"
-go = "1.27.3"
+go = "1.27.4"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.10.0"
 golangci-lint = "2.15.0"
 litestream = "0.5.17"
 node = "26.12.1"
@@ -42,6 +43,9 @@ run = ["actionlint", "pinact run --check"]
 [tasks."lint:terraform"]
 dir = "infrastructure/terraform"
 run = ["terraform fmt -check", "tflint"]
+
+[tasks.vuln]
+run = ["govulncheck ./..."]
 
 [tasks.test]
 run = [
