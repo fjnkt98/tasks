@@ -319,7 +319,7 @@ func TestSigninRequiredMiddleware(t *testing.T) {
 	h := NewSigninRequiredMiddleware()(mux)
 
 	t.Run("authorized", func(t *testing.T) {
-		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "test"})
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "test", Roles: nil})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
 
@@ -359,7 +359,7 @@ func TestAdminRequiredMiddleware(t *testing.T) {
 	})
 
 	t.Run("non-admin", func(t *testing.T) {
-		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "test"})
+		ctx := SetUserIntoContext(t.Context(), User{ID: 1, Name: "test", Roles: nil})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
 
