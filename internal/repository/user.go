@@ -92,15 +92,18 @@ func (r *userRepository) GetByName(ctx context.Context, db DBTX, name string) (*
 	return &user, nil
 }
 
-func (r *userRepository) Select(ctx context.Context, db DBTX, limit int, offset int) ([]User, error) {
+//nolint:nonamedreturns // named err joins rows.Close failures from defer into the returned error
+func (r *userRepository) Select(ctx context.Context, db DBTX, limit int, offset int) (users []User, err error) {
 	q := "SELECT id, name, digest FROM users ORDER BY id ASC LIMIT ? OFFSET ?"
 	rows, err := db.QueryContext(ctx, q, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	users := make([]User, 0)
+	users = make([]User, 0)
 	for rows.Next() {
 		var user User
 		if err := rows.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
@@ -144,15 +147,18 @@ func (r *userRepository) Delete(ctx context.Context, db DBTX, id int) (bool, err
 	return count > 0, nil
 }
 
-func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) ([]string, error) {
+//nolint:nonamedreturns // named err joins rows.Close failures from defer into the returned error
+func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) (roles []string, err error) {
 	q := "SELECT role FROM user_role_relations WHERE user_id = ?"
 	rows, err := db.QueryContext(ctx, q, id)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	roles := make([]string, 0)
+	roles = make([]string, 0)
 	for rows.Next() {
 		var role string
 		if err := rows.Scan(&role); err != nil {
@@ -189,15 +195,18 @@ func (r *userRepository) DeleteRole(ctx context.Context, db DBTX, id int, role s
 	return count > 0, nil
 }
 
-func (r *userRepository) SelectByRoles(ctx context.Context, db DBTX, role string) ([]User, error) {
+//nolint:nonamedreturns // named err joins rows.Close failures from defer into the returned error
+func (r *userRepository) SelectByRoles(ctx context.Context, db DBTX, role string) (users []User, err error) {
 	q := "SELECT id, name, digest FROM users WHERE id IN (SELECT user_id FROM user_role_relations WHERE role = ?)"
 	rows, err := db.QueryContext(ctx, q, role)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		err = errors.Join(err, rows.Close())
+	}()
 
-	users := make([]User, 0)
+	users = make([]User, 0)
 	for rows.Next() {
 		var user User
 		if err := rows.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
