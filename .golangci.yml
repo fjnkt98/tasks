@@ -42,6 +42,7 @@ linters:
     - spancheck
     - sqlclosecheck
     - testifylint
+    - thelper
     - unconvert
     - unparam
     - usestdlibvars

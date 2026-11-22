@@ -32,6 +32,8 @@ func integrationTestFixture(t *testing.T) (
 	server *httptest.Server,
 	client *http.Client,
 ) {
+	t.Helper()
+
 	t.Setenv("USE_SECURE_COOKIE", "false")
 
 	db = testutil.NewDB(t)
