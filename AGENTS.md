@@ -20,6 +20,7 @@ mise install
 
 ```bash
 mise run 'lint:*'
+mise run vuln
 mise run test
 ```
 
@@ -28,6 +29,8 @@ Go lint config lives in `.golangci.yml` (golangci-lint v2). Format with:
 ```bash
 mise run fmt:go
 ```
+
+Dependency updates: Dependabot (`.github/dependabot.yml`). Vulnerability scan: `govulncheck` via `mise run vuln`.
 
 DB schema changes:
 

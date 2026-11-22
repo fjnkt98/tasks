@@ -26,6 +26,9 @@ jobs:
       - name: lint
         run: mise run 'lint:*'
 
+      - name: vuln
+        run: mise run vuln
+
       - name: test
         run: mise run test
 

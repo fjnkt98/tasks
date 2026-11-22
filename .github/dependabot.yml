@@ -1,0 +1,84 @@
+# Weekly dependency updates for Go, Actions, Docker, Compose, and Terraform.
+# Prefer Dependabot over Renovate here: already used on this repo, no extra app.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      go_modules:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - go
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      github_actions:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: docker
+    directories:
+      - /infrastructure/app
+      - /infrastructure/otelcol
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      docker:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: terraform
+    directory: /infrastructure/terraform
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    groups:
+      terraform:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+      - terraform

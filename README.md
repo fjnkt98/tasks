@@ -21,8 +21,11 @@ Open http://127.0.0.1:8000
 
 ```bash
 mise run 'lint:*'
+mise run vuln
 mise run test
 mise run fmt:go
 ```
 
 Go lint rules: `.golangci.yml`. Agent notes: `AGENTS.md`.
+
+Dependency PRs: Dependabot (`.github/dependabot.yml`). Vulnerability gate: `govulncheck` in CI (`mise run vuln`).
