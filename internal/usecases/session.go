@@ -16,6 +16,9 @@ type Session struct {
 	Roles    []string
 }
 
+// ErrSessionInvalid means the token is missing, expired, or no longer usable.
+var ErrSessionInvalid = errors.New("session invalid")
+
 type SessionUsecase interface {
 	Continue(ctx context.Context, token string) (*Session, error)
 }
@@ -41,13 +44,13 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	// get session
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return nil, nil
+			return nil, ErrSessionInvalid
 		}
 
 		return nil, fmt.Errorf("get session by token: %w", err)
@@ -63,7 +66,7 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 			return nil, fmt.Errorf("commit transaction: %w", err)
 		}
 
-		return nil, nil
+		return nil, ErrSessionInvalid
 	}
 
 	// user identification
@@ -84,7 +87,7 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 	}
 
 	if !ok {
-		return nil, nil
+		return nil, ErrSessionInvalid
 	}
 
 	if err := tx.Commit(); err != nil {

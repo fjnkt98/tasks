@@ -90,14 +90,14 @@ func (u *taskUsecase) Add(ctx context.Context, userID int, title string) (*Task,
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	task, err := u.tasks.Create(ctx, tx, userID, title)
 	if err != nil {
 		return nil, fmt.Errorf("create task: %w", err)
 	}
 
-	if err := u.activities.Create(ctx, tx, userID, "task", fmt.Sprintf(`add task %d, title: "%s"`, task.ID, task.Title)); err != nil {
+	if err := u.activities.Create(ctx, tx, userID, "task", fmt.Sprintf("add task %d, title: %q", task.ID, task.Title)); err != nil {
 		return nil, fmt.Errorf("create activity: %w", err)
 	}
 
@@ -118,14 +118,14 @@ func (u *taskUsecase) UpdateTitle(ctx context.Context, userID int, id int, title
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	task, err := u.tasks.UpdateTitle(ctx, tx, userID, id, title)
 	if err != nil {
 		return nil, fmt.Errorf("update task title: %w", err)
 	}
 
-	if err := u.activities.Create(ctx, tx, userID, "task", fmt.Sprintf(`edit task %d, title: "%s"`, task.ID, task.Title)); err != nil {
+	if err := u.activities.Create(ctx, tx, userID, "task", fmt.Sprintf("edit task %d, title: %q", task.ID, task.Title)); err != nil {
 		return nil, fmt.Errorf("create activity: %w", err)
 	}
 
@@ -146,7 +146,7 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, stat
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	task, err := u.tasks.UpdateStatus(ctx, tx, userID, id, status)
 	if err != nil {
@@ -158,7 +158,7 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, stat
 		action = "undone"
 	}
 
-	if err := u.activities.Create(ctx, tx, userID, "task", fmt.Sprintf(`%s task %d, "%s"`, action, task.ID, task.Title)); err != nil {
+	if err := u.activities.Create(ctx, tx, userID, "task", fmt.Sprintf("%s task %d, %q", action, task.ID, task.Title)); err != nil {
 		return nil, fmt.Errorf("create activity: %w", err)
 	}
 
@@ -179,7 +179,7 @@ func (u *taskUsecase) Delete(ctx context.Context, userID int, id int) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	ok, err := u.tasks.Delete(ctx, tx, userID, id)
 	if err != nil {

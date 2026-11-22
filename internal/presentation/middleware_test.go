@@ -13,9 +13,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/fjnkt98/tasks/internal/testutil"
 )
 
 var mu sync.Mutex
@@ -174,7 +175,7 @@ func TestSessionMiddleware(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "test") // nolint:errcheck
+		fmt.Fprintln(w, "test")
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
@@ -212,7 +213,7 @@ func TestSessionMiddleware(t *testing.T) {
 		tokenCookie, ok := cookies[AuthCookieName]
 		require.True(t, ok, "session_token cookie should be set")
 		assert.Equal(t, -1, tokenCookie.MaxAge)
-		assert.Equal(t, "", tokenCookie.Value)
+		assert.Empty(t, tokenCookie.Value)
 		assert.Equal(t, "/", tokenCookie.Path)
 
 		row := db.QueryRowContext(t.Context(), "SELECT EXISTS (SELECT 1 FROM sessions WHERE token = 'token2')")
@@ -240,7 +241,7 @@ func TestSessionMiddleware(t *testing.T) {
 		tokenCookie, ok := cookies[AuthCookieName]
 		require.True(t, ok, "session_token cookie should be set")
 		assert.Equal(t, -1, tokenCookie.MaxAge)
-		assert.Equal(t, "", tokenCookie.Value)
+		assert.Empty(t, tokenCookie.Value)
 		assert.Equal(t, "/", tokenCookie.Path)
 	})
 
@@ -312,7 +313,7 @@ func TestSigninRequiredMiddleware(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "test") // nolint:errcheck
+		fmt.Fprintln(w, "test")
 	})
 
 	h := NewSigninRequiredMiddleware()(mux)
@@ -342,7 +343,7 @@ func TestAdminRequiredMiddleware(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "test") // nolint:errcheck
+		fmt.Fprintln(w, "test")
 	})
 
 	h := NewAdminRequiredMiddleware()(mux)

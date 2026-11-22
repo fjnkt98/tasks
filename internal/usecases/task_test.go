@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/fjnkt98/tasks/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/fjnkt98/tasks/internal/testutil"
 )
 
 func TestTaskUsecase(t *testing.T) {
@@ -118,7 +119,7 @@ func TestTaskUsecase(t *testing.T) {
 
 		activities, err = u.activities.Select(t.Context(), db, 2)
 		require.NoError(t, err)
-		assert.Len(t, activities, 0)
+		assert.Empty(t, activities)
 	})
 
 	t.Run("update title", func(t *testing.T) {
@@ -137,7 +138,7 @@ func TestTaskUsecase(t *testing.T) {
 
 		activities, err = u.activities.Select(t.Context(), db, 2)
 		require.NoError(t, err)
-		assert.Len(t, activities, 0)
+		assert.Empty(t, activities)
 	})
 
 	t.Run("update status", func(t *testing.T) {
@@ -152,7 +153,7 @@ func TestTaskUsecase(t *testing.T) {
 
 		activities, err := u.activities.Select(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Len(t, activities, 0)
+		assert.Empty(t, activities)
 
 		activities, err = u.activities.Select(t.Context(), db, 2)
 		require.NoError(t, err)
@@ -174,7 +175,7 @@ func TestTaskUsecase(t *testing.T) {
 
 		activities, err = u.activities.Select(t.Context(), db, 2)
 		require.NoError(t, err)
-		assert.Len(t, activities, 0)
+		assert.Empty(t, activities)
 	})
 
 	t.Run("count", func(t *testing.T) {

@@ -46,11 +46,11 @@ func NewRecoveryMiddleware() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
-				if err := recover(); err != nil {
-					if err == http.ErrAbortHandler {
+				if recovered := recover(); recovered != nil {
+					if err, ok := recovered.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 						panic(err)
 					}
-					slog.ErrorContext(r.Context(), "panic recovered", slog.Any("error", err))
+					slog.ErrorContext(r.Context(), "panic recovered", slog.Any("error", recovered))
 					Error(w, r, ErrorCode500)
 				}
 			}()
@@ -71,15 +71,14 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 			}
 
 			session, err := sessions.Continue(r.Context(), cookie.Value)
+			if errors.Is(err, usecases.ErrSessionInvalid) {
+				http.SetCookie(w, NewAuthCookie("", -1))
+				next.ServeHTTP(w, r)
+				return
+			}
 			if err != nil {
 				slog.ErrorContext(r.Context(), "continue session", slog.Any("error", err))
 				Error(w, r, ErrorCode500)
-				return
-			}
-
-			if session == nil {
-				http.SetCookie(w, NewAuthCookie("", -1))
-				next.ServeHTTP(w, r)
 				return
 			}
 
@@ -126,8 +125,7 @@ func NewByteLimitMiddleware() Middleware {
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 					if err := r.ParseForm(); err != nil {
-						var ErrMaxBytesExceeded *http.MaxBytesError
-						if errors.As(err, &ErrMaxBytesExceeded) {
+						if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 							http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 							return
 						}

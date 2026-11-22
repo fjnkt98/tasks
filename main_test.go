@@ -15,15 +15,16 @@ import (
 	"testing/slogtest"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/fjnkt98/tasks/internal/testutil"
 )
 
 func TestMain(m *testing.M) {
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	m.Run()
 }
 
@@ -188,7 +189,7 @@ func TestSetup(t *testing.T) {
 
 	_, shutdown, err := setup(t.Context())
 	require.NoError(t, err)
-	defer shutdown() // nolint:errcheck
+	t.Cleanup(func() { _ = shutdown() })
 }
 
 func TestServe(t *testing.T) {
@@ -207,12 +208,14 @@ func TestServe(t *testing.T) {
 
 			unblock := sync.OnceFunc(func() { close(release) })
 
-			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			lc := &net.ListenConfig{}
+			listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 			require.NoError(t, err)
 			require.NoError(t, listener.Close())
 
 			server := &http.Server{
-				Addr: listener.Addr().String(),
+				Addr:              listener.Addr().String(),
+				ReadHeaderTimeout: time.Second,
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					close(started)
 
@@ -241,8 +244,9 @@ func TestServe(t *testing.T) {
 				serveDone <- serve(ctx, server, test.Timeout)
 			}()
 
+			dialer := &net.Dialer{Timeout: 100 * time.Millisecond}
 			require.Eventually(t, func() bool {
-				conn, err := net.DialTimeout("tcp", server.Addr, 100*time.Millisecond)
+				conn, err := dialer.DialContext(t.Context(), "tcp", server.Addr)
 				if err != nil {
 					return false
 				}
@@ -260,12 +264,17 @@ func TestServe(t *testing.T) {
 			client := &http.Client{}
 			t.Cleanup(client.CloseIdleConnections)
 			go func() {
-				res, err := client.Get("http://" + server.Addr)
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+server.Addr, nil)
 				if err != nil {
 					requestDone <- result{err: err}
 					return
 				}
-				defer res.Body.Close() // nolint:errcheck
+				res, err := client.Do(req)
+				if err != nil {
+					requestDone <- result{err: err}
+					return
+				}
+				defer res.Body.Close()
 
 				body, err := io.ReadAll(res.Body)
 				requestDone <- result{
@@ -328,7 +337,7 @@ func TestSeed(t *testing.T) {
 		tokens := make([]string, 0)
 		rows, err := db.QueryContext(t.Context(), "SELECT token FROM sessions")
 		require.NoError(t, err)
-		defer rows.Close() // nolint:errcheck
+		defer rows.Close()
 		for rows.Next() {
 			var token string
 			err = rows.Scan(&token)
@@ -353,7 +362,7 @@ func TestSeed(t *testing.T) {
 		var user User
 		require.NoError(t, row.Scan(&user.name, &user.digest))
 		assert.Equal(t, "admin", user.name)
-		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
+		require.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
 
 		row = db.QueryRowContext(t.Context(), "SELECT name FROM roles")
 		var name string
@@ -408,8 +417,8 @@ func TestSeed(t *testing.T) {
 		require.NoError(t, row.Scan(&user.name, &user.digest))
 
 		assert.Equal(t, "admin", user.name)
-		assert.Error(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
-		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("new-admin-password")))
+		require.Error(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
+		require.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("new-admin-password")))
 
 		row = db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sessions WHERE user_id = 1")
 		var count int
@@ -429,7 +438,7 @@ func TestSeed(t *testing.T) {
 		var user User
 		require.NoError(t, row.Scan(&user.name, &user.digest))
 		assert.Equal(t, "admin", user.name)
-		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
+		require.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.digest), []byte("admin")))
 
 		row = db.QueryRowContext(t.Context(), "SELECT user_id, role FROM user_role_relations")
 		var relation Relation
@@ -445,7 +454,7 @@ func TestSeed(t *testing.T) {
 		users := make([]User, 0)
 		rows, err := db.QueryContext(t.Context(), "SELECT name, digest FROM users")
 		require.NoError(t, err)
-		defer rows.Close() // nolint:errcheck
+		defer rows.Close()
 		for rows.Next() {
 			var user User
 			require.NoError(t, rows.Scan(&user.name, &user.digest))
@@ -455,12 +464,12 @@ func TestSeed(t *testing.T) {
 
 		require.Len(t, users, 1)
 		assert.Equal(t, "new-admin", users[0].name)
-		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(users[0].digest), []byte("new-admin")))
+		require.NoError(t, bcrypt.CompareHashAndPassword([]byte(users[0].digest), []byte("new-admin")))
 
 		relations := make([]Relation, 0)
 		rows, err = db.QueryContext(t.Context(), "SELECT user_id, role FROM user_role_relations")
 		require.NoError(t, err)
-		defer rows.Close() // nolint:errcheck
+		defer rows.Close()
 		for rows.Next() {
 			var relation Relation
 			require.NoError(t, rows.Scan(&relation.userID, &relation.role))

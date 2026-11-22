@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/repository"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
@@ -25,7 +26,7 @@ func NewSessionToken() string {
 type AccountUsecase interface {
 	Signup(ctx context.Context, username, password string) error
 	Signin(ctx context.Context, username, password string) (string, error)
-	ChangePassword(ctx context.Context, userID int, password string, new string) error
+	ChangePassword(ctx context.Context, userID int, password string, newPassword string) error
 	Signout(ctx context.Context, token string) error
 	Delete(ctx context.Context, userID int, password string) error
 }
@@ -60,7 +61,7 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	if _, err = u.users.Create(ctx, tx, username, digest); err != nil {
 		if errors.Is(err, repository.ErrUniqueConstraint) {
@@ -93,7 +94,7 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 	if err != nil {
 		return "", fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	session, err := u.sessions.Create(ctx, tx, user.ID, user.Digest, NewSessionToken(), time.Now().Add(24*time.Hour))
 	if err != nil {
@@ -114,12 +115,12 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 	return session.Token, nil
 }
 
-func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, password string, new string) error {
+func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, password string, newPassword string) error {
 	tx, err := u.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	user, err := u.users.Get(ctx, tx, userID)
 	if err != nil {
@@ -133,7 +134,7 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 		return ErrInvalidCredentials
 	}
 
-	digest, err := bcrypt.GenerateFromPassword([]byte(new), bcrypt.DefaultCost)
+	digest, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest for new password: %w", err)
 	}
@@ -165,7 +166,7 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
@@ -210,7 +211,7 @@ func (u *accountUsecase) Delete(ctx context.Context, userID int, password string
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	ok, err := u.users.Delete(ctx, tx, userID)
 	if err != nil {
