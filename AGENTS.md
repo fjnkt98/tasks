@@ -2,6 +2,10 @@
 
 Learning project: a small Go ToDo web app (SQLite + HTMX). Prefer small, reviewable changes. Architecture and security still need deliberate improvement; do not "enterprise-rewrite" in one pass.
 
+## Principles
+
+Build with the Go standard library as far as practical. Prefer `net/http`, `database/sql`, `html/template`, `log/slog`, and other stdlib packages over application frameworks or heavy middleware stacks. Keep third-party dependencies minimal and intentional (drivers, OTel, test helpers, etc.). Feature work and rearchitecture must keep this goal; do not introduce a web framework or similar abstraction layer unless explicitly asked.
+
 ## Tooling
 
 Use [mise](https://mise.jdx.dev/). Required env (also used by CI):
