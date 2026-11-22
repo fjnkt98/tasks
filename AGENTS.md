@@ -6,6 +6,8 @@ Learning project: a small Go ToDo web app (SQLite + HTMX). Prefer small, reviewa
 
 Build with the Go standard library as far as practical. Prefer `net/http`, `database/sql`, `html/template`, `log/slog`, and other stdlib packages over application frameworks or heavy middleware stacks. Keep third-party dependencies minimal and intentional (drivers, OTel, test helpers, etc.). Feature work and rearchitecture must keep this goal; do not introduce a web framework or similar abstraction layer unless explicitly asked.
 
+Prefer self-explanatory code over narrative comments. Do not add comments that only restate context, intent, or history for the reader (there is no golangci-lint rule for this yet; treat it as a project convention). Allowed exceptions: GoDoc on exported APIs when useful, `//nolint` / `//go:` / build and codegen directives, and brief comments required by a tool or a non-obvious invariant that the code cannot express.
+
 ## Tooling
 
 Use [mise](https://mise.jdx.dev/). Required env (also used by CI):
