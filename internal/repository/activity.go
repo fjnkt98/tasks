@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 )
 
@@ -15,7 +14,7 @@ type Activity struct {
 
 type ActivityRepository interface {
 	Create(ctx context.Context, db DBTX, userID int, kind string, message string) error
-	Select(ctx context.Context, db DBTX, userID int) (activities []Activity, err error)
+	Select(ctx context.Context, db DBTX, userID int) ([]Activity, error)
 }
 
 type activityRepository struct{}
@@ -35,17 +34,15 @@ func (r *activityRepository) Create(ctx context.Context, db DBTX, userID int, ki
 	return nil
 }
 
-func (r *activityRepository) Select(ctx context.Context, db DBTX, userID int) (activities []Activity, err error) {
+func (r *activityRepository) Select(ctx context.Context, db DBTX, userID int) ([]Activity, error) {
 	q := "SELECT kind, message, created_at FROM activities WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 100"
 	rows, err := db.QueryContext(ctx, q, userID)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}
-	defer func() {
-		err = errors.Join(err, rows.Close())
-	}()
+	defer rows.Close()
 
-	activities = make([]Activity, 0)
+	activities := make([]Activity, 0)
 	for rows.Next() {
 		var activity Activity
 		if err := rows.Scan(&activity.Kind, &activity.Message, &activity.CreatedAt); err != nil {

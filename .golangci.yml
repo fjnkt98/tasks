@@ -33,6 +33,7 @@ linters:
     - nilnil
     - noctx
     - nolintlint
+    - nonamedreturns
     - predeclared
     - reassign
     - recvcheck
@@ -70,6 +71,8 @@ linters:
         - pattern: ^(fmt\.Print(|f|ln)|print|println)$
         - pattern: ^http\.(DefaultClient|DefaultTransport)$
           msg: Do not use the shared http.DefaultClient/DefaultTransport; create a client with timeouts.
+    nonamedreturns:
+      report-error-in-defer: true
     gocritic:
       enabled-tags:
         - diagnostic

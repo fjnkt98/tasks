@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 )
 
@@ -35,17 +34,15 @@ func (r *roleRepository) Ensure(ctx context.Context, db DBTX, name string) (stri
 	return role, nil
 }
 
-func (r *roleRepository) Select(ctx context.Context, db DBTX) (roles []string, err error) {
+func (r *roleRepository) Select(ctx context.Context, db DBTX) ([]string, error) {
 	q := "SELECT name FROM roles ORDER BY name ASC"
 	rows, err := db.QueryContext(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}
-	defer func() {
-		err = errors.Join(err, rows.Close())
-	}()
+	defer rows.Close()
 
-	roles = make([]string, 0)
+	roles := make([]string, 0)
 	for rows.Next() {
 		var role string
 		if err := rows.Scan(&role); err != nil {

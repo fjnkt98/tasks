@@ -27,28 +27,24 @@ func discard(t *testing.T, body io.ReadCloser) {
 	require.NoError(t, body.Close())
 }
 
-func integrationTestFixture(t *testing.T) (
-	db *sql.DB,
-	server *httptest.Server,
-	client *http.Client,
-) {
+func integrationTestFixture(t *testing.T) (*sql.DB, *httptest.Server, *http.Client) {
 	t.Helper()
 
 	t.Setenv("USE_SECURE_COOKIE", "false")
 
-	db = testutil.NewDB(t)
+	db := testutil.NewDB(t)
 	handler := NewHandler(db)
-	server = httptest.NewServer(handler)
+	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	client = server.Client()
+	client := server.Client()
 	client.Jar = jar
 	client.Timeout = 5 * time.Second
 
-	return
+	return db, server, client
 }
 
 func TestIntegrationSignupAndSignin(t *testing.T) {
