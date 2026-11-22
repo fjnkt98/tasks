@@ -25,25 +25,19 @@ type DBTX interface {
 var _ DBTX = &sql.DB{}
 var _ DBTX = &sql.Tx{}
 
-//nolint:nonamedreturns // named err lets defer Close the DB on ping failure and join that error
-func NewDB(ctx context.Context, dsn string) (db *sql.DB, err error) {
-	dsn, err = EnforceForeignKeys(dsn)
+func NewDB(ctx context.Context, dsn string) (*sql.DB, error) {
+	dsn, err := EnforceForeignKeys(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("enforce foreign keys: %w", err)
 	}
 
-	db, err = otelsql.Open("sqlite3", dsn)
+	db, err := otelsql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	defer func(db *sql.DB) {
-		if err != nil {
-			err = errors.Join(err, db.Close())
-		}
-	}(db)
 
 	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("ping database: %w", err)
+		return nil, errors.Join(fmt.Errorf("ping database: %w", err), db.Close())
 	}
 
 	return db, nil
