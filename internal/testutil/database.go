@@ -8,10 +8,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fjnkt98/tasks/internal/schema"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/fjnkt98/tasks/internal/schema"
 )
 
 func NewDBFile(t *testing.T) string {

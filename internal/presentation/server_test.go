@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/testutil"
-	"github.com/fjnkt98/tasks/internal/usecases"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/fjnkt98/tasks/internal/testutil"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 func discard(t *testing.T, body io.ReadCloser) {

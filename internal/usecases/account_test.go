@@ -5,11 +5,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fjnkt98/tasks/internal/repository"
-	"github.com/fjnkt98/tasks/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/testutil"
 )
 
 var getdigest = sync.OnceValue(func() []byte {
@@ -101,7 +102,7 @@ func TestSignin(t *testing.T) {
 		a := repository.NewActivityRepository()
 		activities, err := a.Select(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Len(t, activities, 0)
+		assert.Empty(t, activities)
 	})
 
 	t.Run("password not match", func(t *testing.T) {
@@ -115,7 +116,7 @@ func TestSignin(t *testing.T) {
 		a := repository.NewActivityRepository()
 		activities, err := a.Select(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Len(t, activities, 0)
+		assert.Empty(t, activities)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -172,7 +173,7 @@ func TestChangePassword(t *testing.T) {
 		a := repository.NewActivityRepository()
 		activities, err := a.Select(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Len(t, activities, 0)
+		assert.Empty(t, activities)
 	})
 
 	t.Run("password not match", func(t *testing.T) {
@@ -186,7 +187,7 @@ func TestChangePassword(t *testing.T) {
 		a := repository.NewActivityRepository()
 		activities, err := a.Select(t.Context(), db, 1)
 		require.NoError(t, err)
-		assert.Len(t, activities, 0)
+		assert.Empty(t, activities)
 	})
 
 	t.Run("success", func(t *testing.T) {

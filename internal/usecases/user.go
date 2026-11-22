@@ -141,13 +141,13 @@ func (u *userUsecase) GrantRole(ctx context.Context, userID int, role string) er
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	if err := u.users.EnsureRole(ctx, tx, userID, role); err != nil {
 		return fmt.Errorf("ensure role: %w", err)
 	}
 
-	if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf(`grant role: "%s"`, role)); err != nil {
+	if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf("grant role: %q", role)); err != nil {
 		return fmt.Errorf("create activity: %w", err)
 	}
 
@@ -163,7 +163,7 @@ func (u *userUsecase) RevokeRole(ctx context.Context, userID int, role string) e
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	ok, err := u.users.DeleteRole(ctx, tx, userID, role)
 	if err != nil {
@@ -171,7 +171,7 @@ func (u *userUsecase) RevokeRole(ctx context.Context, userID int, role string) e
 	}
 
 	if ok {
-		if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf(`revoke role: "%s"`, role)); err != nil {
+		if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf("revoke role: %q", role)); err != nil {
 			return fmt.Errorf("create activity: %w", err)
 		}
 	}

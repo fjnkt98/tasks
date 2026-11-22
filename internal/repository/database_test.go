@@ -3,10 +3,11 @@ package repository
 import (
 	"testing"
 
-	"github.com/fjnkt98/tasks/internal/testutil"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/fjnkt98/tasks/internal/testutil"
 )
 
 func TestNewDB(t *testing.T) {
@@ -58,10 +59,10 @@ func TestIsUniqueConstraintError(t *testing.T) {
 	_, err := db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('test', 'digest')")
 	require.NoError(t, err)
 	_, err = db.ExecContext(t.Context(), "INSERT INTO users (name, digest) VALUES ('test', 'digest')")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.True(t, isUniqueConstraintError(err))
 
 	_, err = db.ExecContext(t.Context(), "INSERT INTO users (name) VALUES ('foo')")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.False(t, isUniqueConstraintError(err))
 }

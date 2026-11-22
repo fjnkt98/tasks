@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/fjnkt98/tasks/internal/repository"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 type AdminUsecase interface {
@@ -36,7 +37,7 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() // nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	role, err := u.roles.Ensure(ctx, tx, "admin")
 	if err != nil {

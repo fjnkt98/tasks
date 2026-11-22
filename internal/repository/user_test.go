@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/fjnkt98/tasks/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/fjnkt98/tasks/internal/testutil"
 )
 
 func TestUserRepository(t *testing.T) {
@@ -86,7 +87,7 @@ func TestUserRepository(t *testing.T) {
 		repo := NewUserRepository()
 		user, err := repo.Get(t.Context(), db, 0)
 
-		assert.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, user)
 	})
 
@@ -120,7 +121,7 @@ func TestUserRepository(t *testing.T) {
 		repo := NewUserRepository()
 		user, err := repo.GetByName(t.Context(), db, "foo")
 
-		assert.ErrorIs(t, err, ErrNotFound)
+		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, user)
 	})
 

@@ -34,7 +34,7 @@ func RenderTemplate(name string, data any) ([]byte, error) {
 }
 
 func IsHTMX(r *http.Request) bool {
-	return r.Header.Get("HX-Request") == "true"
+	return r.Header.Get("Hx-Request") == "true"
 }
 
 type LayoutData struct {
@@ -44,11 +44,12 @@ type LayoutData struct {
 
 func NewServer(port int, db *sql.DB) (*http.Server, error) {
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      NewHandler(db),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:              fmt.Sprintf(":%d", port),
+		Handler:           NewHandler(db),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 	return server, nil
 }

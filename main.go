@@ -14,9 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/presentation"
-	"github.com/fjnkt98/tasks/internal/repository"
-	"github.com/fjnkt98/tasks/internal/usecases"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -26,6 +23,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/fjnkt98/tasks/internal/presentation"
+	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 var serviceName = semconv.ServiceNameKey.String("tasks")
@@ -156,9 +157,7 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return db.Close() })
 
-	// if err := seed(ctx, db); err != nil {
-	// 	return nil, shutdown, fmt.Errorf("database initialization: %w", err)
-	// }
+	// seed() (admin bootstrap) stays unused while local signup is the primary path.
 
 	// server
 	server, err := presentation.NewServer(port, db)
@@ -197,7 +196,7 @@ func serve(ctx context.Context, server *http.Server, timeout time.Duration) erro
 	errs := make(chan error, 1)
 	go func() {
 		slog.InfoContext(ctx, "start server", slog.String("addr", server.Addr))
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errs <- err
 		}
 	}()
@@ -206,10 +205,10 @@ func serve(ctx context.Context, server *http.Server, timeout time.Duration) erro
 	case err := <-errs:
 		return fmt.Errorf("server error: %w", err)
 	case <-ctx.Done():
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 		defer cancel()
 
-		if err := server.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			return errors.Join(fmt.Errorf("shutdown server: %w", err), server.Close())
 		}
 	}

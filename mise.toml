@@ -27,7 +27,7 @@ run = ["sqlite3def --file=internal/schema/schema.sql app.db --apply --enable-dro
 run = ["sqlite3def --file=internal/schema/schema.sql app.db --check --enable-drop"]
 
 [tasks."fmt:go"]
-run = ["go fmt"]
+run = ["golangci-lint fmt"]
 
 [tasks."fmt:terraform"]
 dir = "infrastructure/terraform"

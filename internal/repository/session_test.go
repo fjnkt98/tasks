@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/fjnkt98/tasks/internal/testutil"
 )
 
 func TestSessionRepository(t *testing.T) {
