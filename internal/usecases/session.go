@@ -46,7 +46,6 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	// get session
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -56,7 +55,6 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 		return nil, fmt.Errorf("get session by token: %w", err)
 	}
 
-	// session expiration check
 	if session.ExpiresAt <= time.Now().Unix() {
 		if _, err := u.sessions.DeleteByToken(ctx, tx, session.Token); err != nil {
 			return nil, fmt.Errorf("delete session by token: %w", err)
@@ -69,7 +67,6 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 		return nil, ErrSessionInvalid
 	}
 
-	// user identification
 	user, err := u.users.Get(ctx, tx, session.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
@@ -80,7 +77,6 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 		return nil, fmt.Errorf("select roles: %w", err)
 	}
 
-	// extend expiration
 	ok, err := u.sessions.UpdateByToken(ctx, tx, session.Token, time.Now().Add(24*time.Hour))
 	if err != nil {
 		return nil, fmt.Errorf("update session by token: %w", err)

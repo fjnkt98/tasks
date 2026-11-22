@@ -24,12 +24,10 @@ func TestRoleRepository(t *testing.T) {
 
 		repo := NewRoleRepository()
 
-		// add roles
 		role, err := repo.Ensure(t.Context(), db, "admin")
 		require.NoError(t, err)
 		assert.Equal(t, "admin", role)
 
-		// add existing role (no effect)
 		role, err = repo.Ensure(t.Context(), db, "admin")
 		require.NoError(t, err)
 		assert.Equal(t, "admin", role)
@@ -52,7 +50,6 @@ func TestRoleRepository(t *testing.T) {
 
 		repo := NewRoleRepository()
 
-		// delete non-existent role (no effect)
 		ok, err := repo.Delete(t.Context(), db, "foo")
 		require.NoError(t, err)
 		assert.False(t, ok)
@@ -60,7 +57,6 @@ func TestRoleRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"test"}, roles)
 
-		// delete role
 		ok, err = repo.Delete(t.Context(), db, "test")
 		require.NoError(t, err)
 		assert.True(t, ok)

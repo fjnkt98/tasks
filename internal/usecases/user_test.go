@@ -171,7 +171,6 @@ func TestGrantRole(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, activities, 1)
 
-		// grant again (no effect)
 		err = u.GrantRole(t.Context(), 1, "test")
 		require.NoError(t, err)
 
@@ -236,7 +235,6 @@ func TestRevokeRole(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, activities, 1)
 
-		// revoke again
 		err = u.RevokeRole(t.Context(), 1, "test")
 		require.NoError(t, err)
 

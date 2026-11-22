@@ -39,17 +39,14 @@ func TestSessionRepository(t *testing.T) {
 
 		repo := NewSessionRepository()
 
-		// get non-existent session
 		session, err := repo.GetByToken(t.Context(), db, "foo")
 		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, session)
 
-		// update non-existent session
 		ok, err := repo.UpdateByToken(t.Context(), db, "foo", date.Add(24*time.Hour))
 		require.NoError(t, err)
 		assert.False(t, ok)
 
-		// delete non-existent session
 		ok, err = repo.DeleteByUserID(t.Context(), db, 0)
 		require.NoError(t, err)
 		assert.False(t, ok)
@@ -69,7 +66,6 @@ func TestSessionRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, &Session{UserID: 1, Token: "token1", ExpiresAt: date.Unix()}, session)
 
-		// get non-existent session
 		session, err = repo.GetByToken(t.Context(), db, "foo")
 		require.ErrorIs(t, err, ErrNotFound)
 		assert.Nil(t, session)
@@ -81,12 +77,10 @@ func TestSessionRepository(t *testing.T) {
 
 		repo := NewSessionRepository()
 
-		// create session
 		session, err := repo.Create(t.Context(), db, 1, "digest", "token4", date)
 		require.NoError(t, err)
 		assert.Equal(t, &Session{UserID: 1, Token: "token4", ExpiresAt: date.Unix()}, session)
 
-		// create session with invalid digest
 		_, err = repo.Create(t.Context(), db, 2, "foo", "token", date)
 		require.ErrorIs(t, err, ErrInvalidCredentials)
 		session, err = repo.GetByToken(t.Context(), db, "token")

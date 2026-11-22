@@ -67,7 +67,6 @@ func TestTaskUsecase(t *testing.T) {
 
 		u := NewTaskUsecase(db)
 
-		// page 1
 		tasks, err := u.List(t.Context(), 1, "", 2, 1)
 		require.NoError(t, err)
 
@@ -77,7 +76,6 @@ func TestTaskUsecase(t *testing.T) {
 		}
 		assert.Equal(t, want, tasks)
 
-		// page 2
 		tasks, err = u.List(t.Context(), 1, "", 2, 2)
 		require.NoError(t, err)
 
@@ -86,7 +84,6 @@ func TestTaskUsecase(t *testing.T) {
 		}
 		assert.Equal(t, want, tasks)
 
-		// page 3
 		tasks, err = u.List(t.Context(), 1, "", 2, 3)
 		require.NoError(t, err)
 		assert.Equal(t, []Task{}, tasks)

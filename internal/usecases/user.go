@@ -40,7 +40,6 @@ type UserUsecase interface {
 	Get(ctx context.Context, id int) (*UserDetail, error)
 	GrantRole(ctx context.Context, id int, role string) error
 	RevokeRole(ctx context.Context, id int, role string) error
-	// Delete(ctx context.Context, id int) error
 }
 
 type userUsecase struct {
