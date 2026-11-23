@@ -20,33 +20,15 @@ func NewSessionRepository() *sessionRepository {
 var _ usecase.SessionRepository = &sessionRepository{}
 
 func (r *sessionRepository) Save(ctx context.Context, db usecase.DBTX, session domain.Session) (domain.Session, error) {
-	// Insert when no row exists for token; otherwise refresh expiry.
-	existing, err := r.FindByToken(ctx, db, session.Token())
-	if err != nil && !errors.Is(err, usecase.ErrNotFound) {
-		return domain.Session{}, err
-	}
-	if errors.Is(err, usecase.ErrNotFound) {
-		q := "INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?) RETURNING user_id, token, expires_at"
-		row := db.QueryRowContext(ctx, q, session.UserID(), session.Token(), session.ExpiresAt().Unix())
-		var owner int
-		var token string
-		var expiresUnix int64
-		if scanErr := row.Scan(&owner, &token, &expiresUnix); scanErr != nil {
-			return domain.Session{}, fmt.Errorf("execute: %w", scanErr)
-		}
-		return domain.NewSession(owner, token, time.Unix(expiresUnix, 0).UTC()), nil
-	}
-
-	_ = existing
-	q := "UPDATE sessions SET expires_at = ? WHERE token = ? RETURNING user_id, token, expires_at"
-	row := db.QueryRowContext(ctx, q, session.ExpiresAt().Unix(), session.Token())
+	q := `
+INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)
+ON CONFLICT(token) DO UPDATE SET expires_at = excluded.expires_at
+RETURNING user_id, token, expires_at`
+	row := db.QueryRowContext(ctx, q, session.UserID(), session.Token(), session.ExpiresAt().Unix())
 	var owner int
 	var token string
 	var expiresUnix int64
 	if err := row.Scan(&owner, &token, &expiresUnix); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Session{}, usecase.ErrNotFound
-		}
 		return domain.Session{}, fmt.Errorf("execute: %w", err)
 	}
 	return domain.NewSession(owner, token, time.Unix(expiresUnix, 0).UTC()), nil

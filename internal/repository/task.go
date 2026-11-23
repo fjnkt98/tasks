@@ -27,19 +27,16 @@ func scanTask(id, userID int, title, status string) (domain.Task, error) {
 }
 
 func (r *taskRepository) Save(ctx context.Context, db usecase.DBTX, task domain.Task) (domain.Task, error) {
-	if task.IsNew() {
-		q := "INSERT INTO tasks (user_id, title, status) VALUES (?, ?, ?) RETURNING id, user_id, title, status"
-		row := db.QueryRowContext(ctx, q, task.UserID(), task.Title(), string(task.Status()))
-		var id, owner int
-		var title, status string
-		if err := row.Scan(&id, &owner, &title, &status); err != nil {
-			return domain.Task{}, fmt.Errorf("execute: %w", err)
-		}
-		return scanTask(id, owner, title, status)
-	}
-
-	q := "UPDATE tasks SET title = ?, status = ?, updated_at = UNIXEPOCH() WHERE user_id = ? AND id = ? RETURNING id, user_id, title, status"
-	row := db.QueryRowContext(ctx, q, task.Title(), string(task.Status()), task.UserID(), task.ID())
+	// NULLIF(id,0): new rows get an auto id. WHERE: wrong owner → no update → ErrNotFound.
+	q := `
+INSERT INTO tasks (id, user_id, title, status) VALUES (NULLIF(?, 0), ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+	title = excluded.title,
+	status = excluded.status,
+	updated_at = UNIXEPOCH()
+WHERE tasks.user_id = excluded.user_id
+RETURNING id, user_id, title, status`
+	row := db.QueryRowContext(ctx, q, task.ID(), task.UserID(), task.Title(), string(task.Status()))
 	var id, owner int
 	var title, status string
 	if err := row.Scan(&id, &owner, &title, &status); err != nil {

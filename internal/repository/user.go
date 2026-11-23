@@ -19,27 +19,17 @@ func NewUserRepository() *userRepository {
 }
 
 func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.User) (domain.User, error) {
-	if user.IsNew() {
-		q := "INSERT INTO users (name, digest) VALUES (?, ?) RETURNING id, name, digest"
-		row := db.QueryRowContext(ctx, q, user.Name(), user.Digest())
-		var id int
-		var name, digest string
-		if err := row.Scan(&id, &name, &digest); err != nil {
-			if isUniqueConstraintError(err) {
-				return domain.User{}, usecase.ErrUniqueConstraint
-			}
-			return domain.User{}, fmt.Errorf("execute: %w", err)
-		}
-		return domain.NewUser(id, name, digest), nil
-	}
-
-	q := "UPDATE users SET digest = ?, updated_at = UNIXEPOCH() WHERE id = ? RETURNING id, name, digest"
-	row := db.QueryRowContext(ctx, q, user.Digest(), user.ID())
+	// NULLIF(id,0): new rows get an auto id; existing ids upsert digest only.
+	q := `
+INSERT INTO users (id, name, digest) VALUES (NULLIF(?, 0), ?, ?)
+ON CONFLICT(id) DO UPDATE SET digest = excluded.digest, updated_at = UNIXEPOCH()
+RETURNING id, name, digest`
+	row := db.QueryRowContext(ctx, q, user.ID(), user.Name(), user.Digest())
 	var id int
 	var name, digest string
 	if err := row.Scan(&id, &name, &digest); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.User{}, usecase.ErrNotFound
+		if isUniqueConstraintError(err) {
+			return domain.User{}, usecase.ErrUniqueConstraint
 		}
 		return domain.User{}, fmt.Errorf("execute: %w", err)
 	}

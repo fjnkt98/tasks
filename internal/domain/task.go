@@ -52,7 +52,3 @@ func (t Task) WithStatus(status TaskStatus) Task {
 func (t Task) IsDone() bool {
 	return t.status == TaskStatusDone
 }
-
-func (t Task) IsNew() bool {
-	return t.id == 0
-}
