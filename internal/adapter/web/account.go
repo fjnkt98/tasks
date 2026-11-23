@@ -396,16 +396,12 @@ func (h *SignoutHandler) Post(w http.ResponseWriter, r *http.Request) {
 }
 
 type AccountHandler struct {
-	accounts usecase.AccountUsecase
-	users    usecase.UserUsecase
-	tasks    usecase.TaskUsecase
+	users usecase.UserUsecase
 }
 
-func NewAccountHandler(accounts usecase.AccountUsecase, users usecase.UserUsecase, tasks usecase.TaskUsecase) *AccountHandler {
+func NewAccountHandler(users usecase.UserUsecase) *AccountHandler {
 	return &AccountHandler{
-		accounts: accounts,
-		users:    users,
-		tasks:    tasks,
+		users: users,
 	}
 }
 

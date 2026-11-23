@@ -58,7 +58,7 @@ func NewHandler(d Deps) http.Handler {
 	changePassword := NewChangePasswordHandler(d.Accounts)
 	deleteAccount := NewDeleteAccountHandler(d.Accounts)
 	tasks := NewTaskHandler(d.Tasks)
-	account := NewAccountHandler(d.Accounts, d.Users, d.Tasks)
+	account := NewAccountHandler(d.Users)
 	users := NewUserHandler(d.Users)
 
 	mux.Handle("GET /", m(index))
