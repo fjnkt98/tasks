@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -26,7 +25,6 @@ import (
 
 	"github.com/fjnkt98/tasks/internal/presentation"
 	"github.com/fjnkt98/tasks/internal/repository"
-	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 var serviceName = semconv.ServiceNameKey.String("tasks")
@@ -159,30 +157,6 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 
 	return server, shutdown, nil
-}
-
-func seed(ctx context.Context, db *sql.DB) error {
-	username := os.Getenv("ADMIN_USERNAME")
-	if username == "" {
-		return errors.New("admin username must be set")
-	}
-
-	password := os.Getenv("ADMIN_PASSWORD")
-	if password == "" {
-		return errors.New("admin password must be set")
-	}
-
-	sessions := repository.NewSessionRepository()
-	if _, err := sessions.DeleteExpired(ctx, db); err != nil {
-		return fmt.Errorf("delete expired session: %w", err)
-	}
-
-	admins := usecases.NewAdminUsecase(db)
-	if err := admins.Setup(ctx, username, password); err != nil {
-		return fmt.Errorf("setup admin: %w", err)
-	}
-
-	return nil
 }
 
 func serve(ctx context.Context, server *http.Server, timeout time.Duration) error {
