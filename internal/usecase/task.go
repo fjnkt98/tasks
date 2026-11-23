@@ -22,13 +22,15 @@ type TaskUsecase interface {
 type taskUsecase struct {
 	db         *sql.DB
 	tasks      TaskRepository
+	users      UserRepository
 	activities ActivityRepository
 }
 
-func NewTaskUsecase(db *sql.DB, tasks TaskRepository, activities ActivityRepository) *taskUsecase {
+func NewTaskUsecase(db *sql.DB, tasks TaskRepository, users UserRepository, activities ActivityRepository) *taskUsecase {
 	return &taskUsecase{
 		db:         db,
 		tasks:      tasks,
+		users:      users,
 		activities: activities,
 	}
 }
@@ -72,13 +74,18 @@ func (u *taskUsecase) Add(ctx context.Context, userID int, title string) (domain
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	task := domain.NewTask(0, userID, title, domain.TaskStatusCreated)
+	user, err := u.users.FindByID(ctx, tx, userID)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("find user: %w", err)
+	}
+
+	task := domain.NewTask(0, &user, title, domain.TaskStatusCreated)
 	task, err = u.tasks.Save(ctx, tx, task)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("save task: %w", err)
 	}
 
-	activity := domain.NewActivity(userID, "task", fmt.Sprintf("add task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	activity := domain.NewActivity(&user, "task", fmt.Sprintf("add task %d, title: %q", task.ID(), task.Title()), time.Time{})
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return domain.Task{}, fmt.Errorf("save activity: %w", err)
 	}
@@ -108,7 +115,7 @@ func (u *taskUsecase) UpdateTitle(ctx context.Context, userID int, id int, title
 		return domain.Task{}, fmt.Errorf("save task: %w", err)
 	}
 
-	activity := domain.NewActivity(userID, "task", fmt.Sprintf("edit task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	activity := domain.NewActivity(task.User(), "task", fmt.Sprintf("edit task %d, title: %q", task.ID(), task.Title()), time.Time{})
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return domain.Task{}, fmt.Errorf("save activity: %w", err)
 	}
@@ -148,7 +155,7 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, stat
 		action = "undone"
 	}
 
-	activity := domain.NewActivity(userID, "task", fmt.Sprintf("%s task %d, %q", action, task.ID(), task.Title()), time.Time{})
+	activity := domain.NewActivity(task.User(), "task", fmt.Sprintf("%s task %d, %q", action, task.ID(), task.Title()), time.Time{})
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return domain.Task{}, fmt.Errorf("save activity: %w", err)
 	}
@@ -167,13 +174,18 @@ func (u *taskUsecase) Delete(ctx context.Context, userID int, id int) error {
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
+	user, err := u.users.FindByID(ctx, tx, userID)
+	if err != nil {
+		return fmt.Errorf("find user: %w", err)
+	}
+
 	ok, err := u.tasks.Delete(ctx, tx, userID, id)
 	if err != nil {
 		return fmt.Errorf("delete task: %w", err)
 	}
 
 	if ok {
-		activity := domain.NewActivity(userID, "task", fmt.Sprintf("delete task %d", id), time.Time{})
+		activity := domain.NewActivity(&user, "task", fmt.Sprintf("delete task %d", id), time.Time{})
 		if err := u.activities.Save(ctx, tx, activity); err != nil {
 			return fmt.Errorf("save activity: %w", err)
 		}

@@ -10,63 +10,83 @@ import (
 	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
-type taskRepository struct{}
+type taskRepository struct {
+	users *userRepository
+}
 
 func NewTaskRepository() *taskRepository {
-	return &taskRepository{}
+	return &taskRepository{
+		users: NewUserRepository(),
+	}
 }
 
 var _ usecase.TaskRepository = &taskRepository{}
 
-func scanTask(id, userID int, title, status string) (domain.Task, error) {
+func (r *taskRepository) buildTask(id int, user *domain.User, title, status string) (domain.Task, error) {
 	st, err := domain.ParseTaskStatus(status)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return domain.NewTask(id, userID, title, st), nil
+	return domain.NewTask(id, user, title, st), nil
 }
 
 func (r *taskRepository) Save(ctx context.Context, db usecase.DBTX, task domain.Task) (domain.Task, error) {
-	if task.IsNew() {
-		q := "INSERT INTO tasks (user_id, title, status) VALUES (?, ?, ?) RETURNING id, user_id, title, status"
-		row := db.QueryRowContext(ctx, q, task.UserID(), task.Title(), string(task.Status()))
-		var id, owner int
-		var title, status string
-		if err := row.Scan(&id, &owner, &title, &status); err != nil {
-			return domain.Task{}, fmt.Errorf("execute: %w", err)
-		}
-		return scanTask(id, owner, title, status)
+	user := task.User()
+	if user == nil {
+		return domain.Task{}, fmt.Errorf("task user is required")
 	}
 
-	q := "UPDATE tasks SET title = ?, status = ?, updated_at = UNIXEPOCH() WHERE user_id = ? AND id = ? RETURNING id, user_id, title, status"
-	row := db.QueryRowContext(ctx, q, task.Title(), string(task.Status()), task.UserID(), task.ID())
-	var id, owner int
+	if task.IsNew() {
+		q := "INSERT INTO tasks (user_id, title, status) VALUES (?, ?, ?) RETURNING id, title, status"
+		row := db.QueryRowContext(ctx, q, user.ID(), task.Title(), string(task.Status()))
+		var id int
+		var title, status string
+		if err := row.Scan(&id, &title, &status); err != nil {
+			return domain.Task{}, fmt.Errorf("execute: %w", err)
+		}
+		return r.buildTask(id, user, title, status)
+	}
+
+	q := "UPDATE tasks SET title = ?, status = ?, updated_at = UNIXEPOCH() WHERE user_id = ? AND id = ? RETURNING id, title, status"
+	row := db.QueryRowContext(ctx, q, task.Title(), string(task.Status()), user.ID(), task.ID())
+	var id int
 	var title, status string
-	if err := row.Scan(&id, &owner, &title, &status); err != nil {
+	if err := row.Scan(&id, &title, &status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Task{}, usecase.ErrNotFound
 		}
 		return domain.Task{}, fmt.Errorf("execute: %w", err)
 	}
-	return scanTask(id, owner, title, status)
+	return r.buildTask(id, user, title, status)
 }
 
 func (r *taskRepository) FindByID(ctx context.Context, db usecase.DBTX, userID int, id int) (domain.Task, error) {
-	q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? AND id = ?"
+	user, err := r.users.FindByID(ctx, db, userID)
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	q := "SELECT id, title, status FROM tasks WHERE user_id = ? AND id = ?"
 	row := db.QueryRowContext(ctx, q, userID, id)
-	var taskID, owner int
+	var taskID int
 	var title, status string
-	if err := row.Scan(&taskID, &owner, &title, &status); err != nil {
+	if err := row.Scan(&taskID, &title, &status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Task{}, usecase.ErrNotFound
 		}
 		return domain.Task{}, fmt.Errorf("execute: %w", err)
 	}
-	return scanTask(taskID, owner, title, status)
+	return r.buildTask(taskID, &user, title, status)
 }
 
 func (r *taskRepository) List(ctx context.Context, db usecase.DBTX, userID int, limit int, offset int) ([]domain.Task, error) {
-	q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
+	user, err := r.users.FindByID(ctx, db, userID)
+	if err != nil {
+		return nil, err
+	}
+	owner := &user
+
+	q := "SELECT id, title, status FROM tasks WHERE user_id = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
 	rows, err := db.QueryContext(ctx, q, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
@@ -75,12 +95,12 @@ func (r *taskRepository) List(ctx context.Context, db usecase.DBTX, userID int, 
 
 	tasks := make([]domain.Task, 0)
 	for rows.Next() {
-		var id, owner int
+		var id int
 		var title, status string
-		if err := rows.Scan(&id, &owner, &title, &status); err != nil {
+		if err := rows.Scan(&id, &title, &status); err != nil {
 			return nil, fmt.Errorf("scan rows: %w", err)
 		}
-		task, err := scanTask(id, owner, title, status)
+		task, err := r.buildTask(id, owner, title, status)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +113,13 @@ func (r *taskRepository) List(ctx context.Context, db usecase.DBTX, userID int, 
 }
 
 func (r *taskRepository) ListByStatus(ctx context.Context, db usecase.DBTX, userID int, status domain.TaskStatus, limit int, offset int) ([]domain.Task, error) {
-	q := "SELECT id, user_id, title, status FROM tasks WHERE user_id = ? AND status = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
+	user, err := r.users.FindByID(ctx, db, userID)
+	if err != nil {
+		return nil, err
+	}
+	owner := &user
+
+	q := "SELECT id, title, status FROM tasks WHERE user_id = ? AND status = ? ORDER BY status ASC, id DESC LIMIT ? OFFSET ?"
 	rows, err := db.QueryContext(ctx, q, userID, string(status), limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
@@ -102,12 +128,12 @@ func (r *taskRepository) ListByStatus(ctx context.Context, db usecase.DBTX, user
 
 	tasks := make([]domain.Task, 0)
 	for rows.Next() {
-		var id, owner int
+		var id int
 		var title, st string
-		if err := rows.Scan(&id, &owner, &title, &st); err != nil {
+		if err := rows.Scan(&id, &title, &st); err != nil {
 			return nil, fmt.Errorf("scan rows: %w", err)
 		}
-		task, err := scanTask(id, owner, title, st)
+		task, err := r.buildTask(id, owner, title, st)
 		if err != nil {
 			return nil, err
 		}

@@ -11,27 +11,35 @@ import (
 	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
-type sessionRepository struct{}
+type sessionRepository struct {
+	users *userRepository
+}
 
 func NewSessionRepository() *sessionRepository {
-	return &sessionRepository{}
+	return &sessionRepository{
+		users: NewUserRepository(),
+	}
 }
 
 var _ usecase.SessionRepository = &sessionRepository{}
 
 func (r *sessionRepository) Save(ctx context.Context, db usecase.DBTX, session domain.Session) (domain.Session, error) {
+	user := session.User()
+	if user == nil {
+		return domain.Session{}, fmt.Errorf("session user is required")
+	}
+
 	q := `
 INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)
 ON CONFLICT(token) DO UPDATE SET expires_at = excluded.expires_at
-RETURNING user_id, token, expires_at`
-	row := db.QueryRowContext(ctx, q, session.UserID(), session.Token(), session.ExpiresAt().Unix())
-	var owner int
+RETURNING token, expires_at`
+	row := db.QueryRowContext(ctx, q, user.ID(), session.Token(), session.ExpiresAt().Unix())
 	var token string
 	var expiresUnix int64
-	if err := row.Scan(&owner, &token, &expiresUnix); err != nil {
+	if err := row.Scan(&token, &expiresUnix); err != nil {
 		return domain.Session{}, fmt.Errorf("execute: %w", err)
 	}
-	return domain.NewSession(owner, token, time.Unix(expiresUnix, 0).UTC()), nil
+	return domain.NewSession(user, token, time.Unix(expiresUnix, 0).UTC()), nil
 }
 
 func (r *sessionRepository) FindByToken(ctx context.Context, db usecase.DBTX, token string) (domain.Session, error) {
@@ -46,7 +54,12 @@ func (r *sessionRepository) FindByToken(ctx context.Context, db usecase.DBTX, to
 		}
 		return domain.Session{}, fmt.Errorf("execute: %w", err)
 	}
-	return domain.NewSession(owner, sessionToken, time.Unix(expiresUnix, 0).UTC()), nil
+
+	user, err := r.users.FindByID(ctx, db, owner)
+	if err != nil {
+		return domain.Session{}, err
+	}
+	return domain.NewSession(&user, sessionToken, time.Unix(expiresUnix, 0).UTC()), nil
 }
 
 func (r *sessionRepository) DeleteByToken(ctx context.Context, db usecase.DBTX, token string) (bool, error) {

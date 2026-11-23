@@ -96,13 +96,13 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	session := domain.NewSession(user.ID(), NewSessionToken(), time.Now().Add(24*time.Hour))
+	session := domain.NewSession(&user, NewSessionToken(), time.Now().Add(24*time.Hour))
 	session, err = u.sessions.Save(ctx, tx, session)
 	if err != nil {
 		return "", fmt.Errorf("save session: %w", err)
 	}
 
-	activity := domain.NewActivity(user.ID(), "account", "signin", time.Time{})
+	activity := domain.NewActivity(&user, "account", "signin", time.Time{})
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return "", fmt.Errorf("save activity: %w", err)
 	}
@@ -157,7 +157,7 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 		return fmt.Errorf("delete session by user id: %w", err)
 	}
 
-	activity := domain.NewActivity(userID, "account", "change password", time.Time{})
+	activity := domain.NewActivity(&user, "account", "change password", time.Time{})
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return fmt.Errorf("save activity: %w", err)
 	}
@@ -190,7 +190,7 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 	}
 
 	if ok {
-		activity := domain.NewActivity(session.UserID(), "account", "signout", time.Time{})
+		activity := domain.NewActivity(session.User(), "account", "signout", time.Time{})
 		if err := u.activities.Save(ctx, tx, activity); err != nil {
 			return fmt.Errorf("save activity: %w", err)
 		}

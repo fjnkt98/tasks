@@ -3,20 +3,20 @@ package domain
 import "time"
 
 type Session struct {
-	userID    int
+	user      *User
 	token     string
 	expiresAt time.Time
 }
 
-func NewSession(userID int, token string, expiresAt time.Time) Session {
+func NewSession(user *User, token string, expiresAt time.Time) Session {
 	return Session{
-		userID:    userID,
+		user:      user,
 		token:     token,
 		expiresAt: expiresAt,
 	}
 }
 
-func (s Session) UserID() int          { return s.userID }
+func (s Session) User() *User          { return s.user }
 func (s Session) Token() string        { return s.token }
 func (s Session) ExpiresAt() time.Time { return s.expiresAt }
 
