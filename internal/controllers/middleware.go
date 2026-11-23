@@ -1,4 +1,4 @@
-package web
+package controllers
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/usecase"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type Middleware func(http.Handler) http.Handler
@@ -59,7 +59,7 @@ func NewRecoveryMiddleware() Middleware {
 	}
 }
 
-func NewSessionMiddleware(sessions usecase.SessionUsecase) Middleware {
+func NewSessionMiddleware(sessions usecases.SessionUsecase) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookieName)
@@ -69,7 +69,7 @@ func NewSessionMiddleware(sessions usecase.SessionUsecase) Middleware {
 			}
 
 			session, err := sessions.Continue(r.Context(), cookie.Value)
-			if errors.Is(err, usecase.ErrSessionInvalid) {
+			if errors.Is(err, usecases.ErrSessionInvalid) {
 				http.SetCookie(w, NewAuthCookie("", -1))
 				next.ServeHTTP(w, r)
 				return

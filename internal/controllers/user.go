@@ -1,4 +1,4 @@
-package web
+package controllers
 
 import (
 	"errors"
@@ -7,14 +7,14 @@ import (
 	"strconv"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/usecase"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type UserHandler struct {
-	users usecase.UserUsecase
+	users usecases.UserUsecase
 }
 
-func NewUserHandler(users usecase.UserUsecase) *UserHandler {
+func NewUserHandler(users usecases.UserUsecase) *UserHandler {
 	return &UserHandler{
 		users: users,
 	}
@@ -95,7 +95,7 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	detail, err := h.users.Get(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, usecase.ErrNotFound) {
+		if errors.Is(err, usecases.ErrNotFound) {
 			Error(w, r, ErrorCode404)
 			return
 		}

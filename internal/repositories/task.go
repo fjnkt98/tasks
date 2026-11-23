@@ -1,4 +1,4 @@
-package repository
+package repositories
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/usecase"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type taskRepository struct {
@@ -20,7 +20,7 @@ func NewTaskRepository() *taskRepository {
 	}
 }
 
-var _ usecase.TaskRepository = &taskRepository{}
+var _ usecases.TaskRepository = &taskRepository{}
 
 func (r *taskRepository) buildTask(id int, user *domain.User, title, status string) (domain.Task, error) {
 	st, err := domain.ParseTaskStatus(status)
@@ -30,7 +30,7 @@ func (r *taskRepository) buildTask(id int, user *domain.User, title, status stri
 	return domain.NewTask(id, user, title, st)
 }
 
-func (r *taskRepository) Save(ctx context.Context, db usecase.DBTX, task domain.Task) (domain.Task, error) {
+func (r *taskRepository) Save(ctx context.Context, db usecases.DBTX, task domain.Task) (domain.Task, error) {
 	user := task.User()
 	if user == nil {
 		return domain.Task{}, fmt.Errorf("task user is required")
@@ -53,14 +53,14 @@ func (r *taskRepository) Save(ctx context.Context, db usecase.DBTX, task domain.
 	var title, status string
 	if err := row.Scan(&id, &title, &status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Task{}, usecase.ErrNotFound
+			return domain.Task{}, usecases.ErrNotFound
 		}
 		return domain.Task{}, fmt.Errorf("execute: %w", err)
 	}
 	return r.buildTask(id, user, title, status)
 }
 
-func (r *taskRepository) FindByID(ctx context.Context, db usecase.DBTX, userID int, id int) (domain.Task, error) {
+func (r *taskRepository) FindByID(ctx context.Context, db usecases.DBTX, userID int, id int) (domain.Task, error) {
 	user, err := r.users.FindByID(ctx, db, userID)
 	if err != nil {
 		return domain.Task{}, err
@@ -72,14 +72,14 @@ func (r *taskRepository) FindByID(ctx context.Context, db usecase.DBTX, userID i
 	var title, status string
 	if err := row.Scan(&taskID, &title, &status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Task{}, usecase.ErrNotFound
+			return domain.Task{}, usecases.ErrNotFound
 		}
 		return domain.Task{}, fmt.Errorf("execute: %w", err)
 	}
 	return r.buildTask(taskID, &user, title, status)
 }
 
-func (r *taskRepository) List(ctx context.Context, db usecase.DBTX, userID int, limit int, offset int) ([]domain.Task, error) {
+func (r *taskRepository) List(ctx context.Context, db usecases.DBTX, userID int, limit int, offset int) ([]domain.Task, error) {
 	user, err := r.users.FindByID(ctx, db, userID)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (r *taskRepository) List(ctx context.Context, db usecase.DBTX, userID int, 
 	return tasks, nil
 }
 
-func (r *taskRepository) ListByStatus(ctx context.Context, db usecase.DBTX, userID int, status domain.TaskStatus, limit int, offset int) ([]domain.Task, error) {
+func (r *taskRepository) ListByStatus(ctx context.Context, db usecases.DBTX, userID int, status domain.TaskStatus, limit int, offset int) ([]domain.Task, error) {
 	user, err := r.users.FindByID(ctx, db, userID)
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ func (r *taskRepository) ListByStatus(ctx context.Context, db usecase.DBTX, user
 	return tasks, nil
 }
 
-func (r *taskRepository) Delete(ctx context.Context, db usecase.DBTX, userID int, id int) (bool, error) {
+func (r *taskRepository) Delete(ctx context.Context, db usecases.DBTX, userID int, id int) (bool, error) {
 	q := "DELETE FROM tasks WHERE user_id = ? AND id = ?"
 	result, err := db.ExecContext(ctx, q, userID, id)
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *taskRepository) Delete(ctx context.Context, db usecase.DBTX, userID int
 	return count > 0, nil
 }
 
-func (r *taskRepository) Count(ctx context.Context, db usecase.DBTX, userID int) (int, error) {
+func (r *taskRepository) Count(ctx context.Context, db usecases.DBTX, userID int) (int, error) {
 	q := "SELECT COUNT(*) FROM tasks WHERE user_id = ?"
 	row := db.QueryRowContext(ctx, q, userID)
 	var count int
@@ -168,7 +168,7 @@ func (r *taskRepository) Count(ctx context.Context, db usecase.DBTX, userID int)
 	return count, nil
 }
 
-func (r *taskRepository) CountByStatus(ctx context.Context, db usecase.DBTX, userID int, status domain.TaskStatus) (int, error) {
+func (r *taskRepository) CountByStatus(ctx context.Context, db usecases.DBTX, userID int, status domain.TaskStatus) (int, error) {
 	q := "SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status = ?"
 	row := db.QueryRowContext(ctx, q, userID, string(status))
 	var count int

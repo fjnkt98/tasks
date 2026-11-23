@@ -1,4 +1,4 @@
-package repository
+package repositories
 
 import (
 	"context"
@@ -7,18 +7,18 @@ import (
 	"fmt"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/usecase"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type userRepository struct{}
 
-var _ usecase.UserRepository = &userRepository{}
+var _ usecases.UserRepository = &userRepository{}
 
 func NewUserRepository() *userRepository {
 	return &userRepository{}
 }
 
-func (r *userRepository) loadRoles(ctx context.Context, db usecase.DBTX, userID int) ([]domain.Role, error) {
+func (r *userRepository) loadRoles(ctx context.Context, db usecases.DBTX, userID int) ([]domain.Role, error) {
 	q := "SELECT role FROM user_role_relations WHERE user_id = ? ORDER BY role ASC"
 	rows, err := db.QueryContext(ctx, q, userID)
 	if err != nil {
@@ -40,7 +40,7 @@ func (r *userRepository) loadRoles(ctx context.Context, db usecase.DBTX, userID 
 	return roles, nil
 }
 
-func (r *userRepository) saveRoles(ctx context.Context, db usecase.DBTX, userID int, roles []domain.Role) error {
+func (r *userRepository) saveRoles(ctx context.Context, db usecases.DBTX, userID int, roles []domain.Role) error {
 	q := "DELETE FROM user_role_relations WHERE user_id = ?"
 	if _, err := db.ExecContext(ctx, q, userID); err != nil {
 		return fmt.Errorf("delete roles: %w", err)
@@ -54,7 +54,7 @@ func (r *userRepository) saveRoles(ctx context.Context, db usecase.DBTX, userID 
 	return nil
 }
 
-func (r *userRepository) hydrate(ctx context.Context, db usecase.DBTX, id int, name, digest string) (domain.User, error) {
+func (r *userRepository) hydrate(ctx context.Context, db usecases.DBTX, id int, name, digest string) (domain.User, error) {
 	roles, err := r.loadRoles(ctx, db, id)
 	if err != nil {
 		return domain.User{}, err
@@ -62,7 +62,7 @@ func (r *userRepository) hydrate(ctx context.Context, db usecase.DBTX, id int, n
 	return domain.NewUser(id, name, digest, roles...)
 }
 
-func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.User) (domain.User, error) {
+func (r *userRepository) Save(ctx context.Context, db usecases.DBTX, user domain.User) (domain.User, error) {
 	var id int
 	var name, digest string
 
@@ -71,7 +71,7 @@ func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.
 		row := db.QueryRowContext(ctx, q, user.Name(), user.Digest())
 		if err := row.Scan(&id, &name, &digest); err != nil {
 			if isUniqueConstraintError(err) {
-				return domain.User{}, usecase.ErrUniqueConstraint
+				return domain.User{}, usecases.ErrUniqueConstraint
 			}
 			return domain.User{}, fmt.Errorf("execute: %w", err)
 		}
@@ -80,7 +80,7 @@ func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.
 		row := db.QueryRowContext(ctx, q, user.Digest(), user.ID())
 		if err := row.Scan(&id, &name, &digest); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return domain.User{}, usecase.ErrNotFound
+				return domain.User{}, usecases.ErrNotFound
 			}
 			return domain.User{}, fmt.Errorf("execute: %w", err)
 		}
@@ -92,35 +92,35 @@ func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.
 	return domain.NewUser(id, name, digest, user.Roles()...)
 }
 
-func (r *userRepository) FindByID(ctx context.Context, db usecase.DBTX, id int) (domain.User, error) {
+func (r *userRepository) FindByID(ctx context.Context, db usecases.DBTX, id int) (domain.User, error) {
 	q := "SELECT id, name, digest FROM users WHERE id = ?"
 	row := db.QueryRowContext(ctx, q, id)
 	var userID int
 	var name, digest string
 	if err := row.Scan(&userID, &name, &digest); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.User{}, usecase.ErrNotFound
+			return domain.User{}, usecases.ErrNotFound
 		}
 		return domain.User{}, fmt.Errorf("execute: %w", err)
 	}
 	return r.hydrate(ctx, db, userID, name, digest)
 }
 
-func (r *userRepository) FindByName(ctx context.Context, db usecase.DBTX, name string) (domain.User, error) {
+func (r *userRepository) FindByName(ctx context.Context, db usecases.DBTX, name string) (domain.User, error) {
 	q := "SELECT id, name, digest FROM users WHERE name = ?"
 	row := db.QueryRowContext(ctx, q, name)
 	var id int
 	var userName, digest string
 	if err := row.Scan(&id, &userName, &digest); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.User{}, usecase.ErrNotFound
+			return domain.User{}, usecases.ErrNotFound
 		}
 		return domain.User{}, err
 	}
 	return r.hydrate(ctx, db, id, userName, digest)
 }
 
-func (r *userRepository) List(ctx context.Context, db usecase.DBTX, limit int, offset int) ([]domain.User, error) {
+func (r *userRepository) List(ctx context.Context, db usecases.DBTX, limit int, offset int) ([]domain.User, error) {
 	q := "SELECT id, name, digest FROM users ORDER BY id ASC LIMIT ? OFFSET ?"
 	rows, err := db.QueryContext(ctx, q, limit, offset)
 	if err != nil {
@@ -147,7 +147,7 @@ func (r *userRepository) List(ctx context.Context, db usecase.DBTX, limit int, o
 	return users, nil
 }
 
-func (r *userRepository) ListByRole(ctx context.Context, db usecase.DBTX, role domain.Role) ([]domain.User, error) {
+func (r *userRepository) ListByRole(ctx context.Context, db usecases.DBTX, role domain.Role) ([]domain.User, error) {
 	q := "SELECT id, name, digest FROM users WHERE id IN (SELECT user_id FROM user_role_relations WHERE role = ?)"
 	rows, err := db.QueryContext(ctx, q, string(role))
 	if err != nil {
@@ -174,7 +174,7 @@ func (r *userRepository) ListByRole(ctx context.Context, db usecase.DBTX, role d
 	return users, nil
 }
 
-func (r *userRepository) Delete(ctx context.Context, db usecase.DBTX, id int) (bool, error) {
+func (r *userRepository) Delete(ctx context.Context, db usecases.DBTX, id int) (bool, error) {
 	q := "DELETE FROM users WHERE id = ?"
 	result, err := db.ExecContext(ctx, q, id)
 	if err != nil {

@@ -1,4 +1,4 @@
-package web
+package controllers
 
 import (
 	"log/slog"
@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/usecase"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type TaskData struct {
@@ -20,10 +20,10 @@ type TaskData struct {
 }
 
 type TaskHandler struct {
-	tasks usecase.TaskUsecase
+	tasks usecases.TaskUsecase
 }
 
-func NewTaskHandler(tasks usecase.TaskUsecase) *TaskHandler {
+func NewTaskHandler(tasks usecases.TaskUsecase) *TaskHandler {
 	return &TaskHandler{
 		tasks: tasks,
 	}

@@ -15,9 +15,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/fjnkt98/tasks/internal/adapter/web"
-	"github.com/fjnkt98/tasks/internal/app"
-	"github.com/fjnkt98/tasks/internal/testutil"
+	"github.com/fjnkt98/tasks/internal/apps"
+	"github.com/fjnkt98/tasks/internal/controllers"
+	"github.com/fjnkt98/tasks/internal/testutils"
 )
 
 type env struct {
@@ -31,8 +31,8 @@ func newEnv(t *testing.T) *env {
 
 	t.Setenv("USE_SECURE_COOKIE", "false")
 
-	db := testutil.NewDB(t)
-	server := httptest.NewServer(app.NewHandler(db))
+	db := testutils.NewDB(t)
+	server := httptest.NewServer(apps.NewHandler(db))
 	t.Cleanup(server.Close)
 
 	jar, err := cookiejar.New(nil)
@@ -131,7 +131,7 @@ func signInAs(t *testing.T, e *env, username string) {
 func setupAdmin(t *testing.T, e *env, username, password string) {
 	t.Helper()
 
-	require.NoError(t, app.NewAdminUsecase(e.db).Setup(t.Context(), username, password))
+	require.NoError(t, apps.NewAdminUsecase(e.db).Setup(t.Context(), username, password))
 }
 
 func authCookie(t *testing.T, e *env) *http.Cookie {
@@ -141,7 +141,7 @@ func authCookie(t *testing.T, e *env) *http.Cookie {
 	require.NoError(t, err)
 	cookies := e.client.Jar.Cookies(u)
 	i := slices.IndexFunc(cookies, func(c *http.Cookie) bool {
-		return c.Name == web.AuthCookieName
+		return c.Name == controllers.AuthCookieName
 	})
 	if i < 0 {
 		return nil

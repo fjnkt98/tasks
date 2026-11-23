@@ -1,4 +1,4 @@
-package testutil
+package testutils
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fjnkt98/tasks/internal/schema"
+	"github.com/fjnkt98/tasks/internal/schemas"
 )
 
 func NewDBFile(t *testing.T) string {
@@ -20,7 +20,7 @@ func NewDBFile(t *testing.T) string {
 
 	file := filepath.Join(t.TempDir(), "test.db")
 	cmd := exec.CommandContext(t.Context(), "sqlite3def", file, "--apply")
-	cmd.Stdin = bytes.NewReader(schema.Schema)
+	cmd.Stdin = bytes.NewReader(schemas.Schema)
 
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("sqlite3def failed: %v\n%s", err, out)

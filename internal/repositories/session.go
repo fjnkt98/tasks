@@ -1,4 +1,4 @@
-package repository
+package repositories
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/usecase"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type sessionRepository struct {
@@ -21,9 +21,9 @@ func NewSessionRepository() *sessionRepository {
 	}
 }
 
-var _ usecase.SessionRepository = &sessionRepository{}
+var _ usecases.SessionRepository = &sessionRepository{}
 
-func (r *sessionRepository) Save(ctx context.Context, db usecase.DBTX, session domain.Session) (domain.Session, error) {
+func (r *sessionRepository) Save(ctx context.Context, db usecases.DBTX, session domain.Session) (domain.Session, error) {
 	user := session.User()
 	if user == nil {
 		return domain.Session{}, fmt.Errorf("session user is required")
@@ -42,7 +42,7 @@ RETURNING token, expires_at`
 	return domain.NewSession(user, token, time.Unix(expiresUnix, 0).UTC())
 }
 
-func (r *sessionRepository) FindByToken(ctx context.Context, db usecase.DBTX, token string) (domain.Session, error) {
+func (r *sessionRepository) FindByToken(ctx context.Context, db usecases.DBTX, token string) (domain.Session, error) {
 	q := "SELECT user_id, token, expires_at FROM sessions WHERE token = ?"
 	row := db.QueryRowContext(ctx, q, token)
 	var owner int
@@ -50,7 +50,7 @@ func (r *sessionRepository) FindByToken(ctx context.Context, db usecase.DBTX, to
 	var expiresUnix int64
 	if err := row.Scan(&owner, &sessionToken, &expiresUnix); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Session{}, usecase.ErrNotFound
+			return domain.Session{}, usecases.ErrNotFound
 		}
 		return domain.Session{}, fmt.Errorf("execute: %w", err)
 	}
@@ -62,7 +62,7 @@ func (r *sessionRepository) FindByToken(ctx context.Context, db usecase.DBTX, to
 	return domain.NewSession(&user, sessionToken, time.Unix(expiresUnix, 0).UTC())
 }
 
-func (r *sessionRepository) DeleteByToken(ctx context.Context, db usecase.DBTX, token string) (bool, error) {
+func (r *sessionRepository) DeleteByToken(ctx context.Context, db usecases.DBTX, token string) (bool, error) {
 	q := "DELETE FROM sessions WHERE token = ?"
 	result, err := db.ExecContext(ctx, q, token)
 	if err != nil {
@@ -75,7 +75,7 @@ func (r *sessionRepository) DeleteByToken(ctx context.Context, db usecase.DBTX, 
 	return count > 0, nil
 }
 
-func (r *sessionRepository) DeleteByUserID(ctx context.Context, db usecase.DBTX, userID int) (bool, error) {
+func (r *sessionRepository) DeleteByUserID(ctx context.Context, db usecases.DBTX, userID int) (bool, error) {
 	q := "DELETE FROM sessions WHERE user_id = ?"
 	result, err := db.ExecContext(ctx, q, userID)
 	if err != nil {
@@ -88,7 +88,7 @@ func (r *sessionRepository) DeleteByUserID(ctx context.Context, db usecase.DBTX,
 	return count > 0, nil
 }
 
-func (r *sessionRepository) DeleteExpired(ctx context.Context, db usecase.DBTX, now time.Time) (bool, error) {
+func (r *sessionRepository) DeleteExpired(ctx context.Context, db usecases.DBTX, now time.Time) (bool, error) {
 	q := "DELETE FROM sessions WHERE expires_at <= ?"
 	result, err := db.ExecContext(ctx, q, now.Unix())
 	if err != nil {
