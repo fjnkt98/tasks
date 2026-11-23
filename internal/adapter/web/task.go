@@ -7,12 +7,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fjnkt98/tasks/internal/domain"
 	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
 type TaskData struct {
 	LayoutData
-	Tasks     []usecase.Task
+	Tasks     []domain.Task
 	LastIndex int
 	NextPage  int
 	Limit     int
@@ -123,7 +124,7 @@ func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 			Authorized:  IsAuthorized(r.Context()),
 			AccountName: GetUserFromContext(r.Context()).Name,
 		},
-		Tasks:     []usecase.Task{*task},
+		Tasks:     []domain.Task{task},
 		LastIndex: -1,
 		NextPage:  0,
 		Limit:     0,
@@ -196,7 +197,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	data := TaskData{
 		LayoutData: LayoutData{Authorized: false, AccountName: ""},
-		Tasks:      []usecase.Task{*task},
+		Tasks:      []domain.Task{task},
 		LastIndex:  -1,
 		NextPage:   0,
 		Limit:      0,
@@ -243,7 +244,7 @@ func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 
 	data := TaskData{
 		LayoutData: LayoutData{Authorized: false, AccountName: ""},
-		Tasks:      []usecase.Task{*task},
+		Tasks:      []domain.Task{task},
 		LastIndex:  -1,
 		NextPage:   0,
 		Limit:      0,

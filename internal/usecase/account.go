@@ -12,10 +12,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/repository"
 )
 
-var ErrInvalidCredentials = errors.New("invalid credentials")
 var ErrUserAlreadyExists = errors.New("user already exists")
 
 func NewSessionToken() string {
@@ -34,15 +32,15 @@ type AccountUsecase interface {
 
 type accountUsecase struct {
 	db         *sql.DB
-	users      repository.UserRepository
-	sessions   repository.SessionRepository
-	roles      repository.RoleRepository
-	activities repository.ActivityRepository
+	users      UserRepository
+	sessions   SessionRepository
+	roles      RoleRepository
+	activities ActivityRepository
 }
 
 var _ AccountUsecase = &accountUsecase{}
 
-func NewAccountUsecase(db *sql.DB, users repository.UserRepository, sessions repository.SessionRepository, roles repository.RoleRepository, activities repository.ActivityRepository) *accountUsecase {
+func NewAccountUsecase(db *sql.DB, users UserRepository, sessions SessionRepository, roles RoleRepository, activities ActivityRepository) *accountUsecase {
 	return &accountUsecase{
 		db:         db,
 		users:      users,
@@ -64,11 +62,12 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	if _, err = u.users.Create(ctx, tx, username, digest); err != nil {
-		if errors.Is(err, repository.ErrUniqueConstraint) {
+	user := domain.NewUser(0, username, string(digest))
+	if _, err = u.users.Save(ctx, tx, user); err != nil {
+		if errors.Is(err, ErrUniqueConstraint) {
 			return ErrUserAlreadyExists
 		}
-		return fmt.Errorf("create user: %w", err)
+		return fmt.Errorf("save user: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -79,35 +78,33 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 }
 
 func (u *accountUsecase) Signin(ctx context.Context, username string, password string) (string, error) {
-	user, err := u.users.GetByName(ctx, u.db, username)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return "", ErrInvalidCredentials
-		}
-		return "", fmt.Errorf("get user by name: %w", err)
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
-		return "", ErrInvalidCredentials
-	}
-
 	tx, err := u.db.BeginTx(ctx, nil)
 	if err != nil {
 		return "", fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	session, err := u.sessions.Create(ctx, tx, user.ID(), user.Digest(), NewSessionToken(), time.Now().Add(24*time.Hour))
+	user, err := u.users.FindByName(ctx, tx, username)
 	if err != nil {
-		if errors.Is(err, repository.ErrInvalidCredentials) {
+		if errors.Is(err, ErrNotFound) {
 			return "", ErrInvalidCredentials
 		}
-		return "", fmt.Errorf("create session: %w", err)
+		return "", fmt.Errorf("find user by name: %w", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
+		return "", ErrInvalidCredentials
+	}
+
+	session := domain.NewSession(user.ID(), NewSessionToken(), time.Now().Add(24*time.Hour))
+	session, err = u.sessions.Save(ctx, tx, session)
+	if err != nil {
+		return "", fmt.Errorf("save session: %w", err)
 	}
 
 	activity := domain.NewActivity(user.ID(), "account", "signin", time.Time{})
-	if err := u.activities.Create(ctx, tx, activity); err != nil {
-		return "", fmt.Errorf("create activity: %w", err)
+	if err := u.activities.Save(ctx, tx, activity); err != nil {
+		return "", fmt.Errorf("save activity: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -124,12 +121,12 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	user, err := u.users.Get(ctx, tx, userID)
+	user, err := u.users.FindByID(ctx, tx, userID)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, ErrNotFound) {
 			return ErrInvalidCredentials
 		}
-		return fmt.Errorf("get user by id: %w", err)
+		return fmt.Errorf("find user by id: %w", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
@@ -142,20 +139,17 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 	}
 
 	user = user.WithDigest(string(digest))
-	ok, err := u.users.UpdateDigest(ctx, tx, user)
-	if err != nil {
-		return fmt.Errorf("update user digest: %w", err)
+	if _, err := u.users.Save(ctx, tx, user); err != nil {
+		return fmt.Errorf("save user: %w", err)
 	}
 
 	if _, err := u.sessions.DeleteByUserID(ctx, tx, userID); err != nil {
 		return fmt.Errorf("delete session by user id: %w", err)
 	}
 
-	if ok {
-		activity := domain.NewActivity(userID, "account", "change password", time.Time{})
-		if err := u.activities.Create(ctx, tx, activity); err != nil {
-			return fmt.Errorf("create activity: %w", err)
-		}
+	activity := domain.NewActivity(userID, "account", "change password", time.Time{})
+	if err := u.activities.Save(ctx, tx, activity); err != nil {
+		return fmt.Errorf("save activity: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -172,12 +166,12 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	session, err := u.sessions.GetByToken(ctx, tx, token)
+	session, err := u.sessions.FindByToken(ctx, tx, token)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, ErrNotFound) {
 			return nil
 		}
-		return fmt.Errorf("get session by token: %w", err)
+		return fmt.Errorf("find session by token: %w", err)
 	}
 
 	ok, err := u.sessions.DeleteByToken(ctx, tx, token)
@@ -187,8 +181,8 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 
 	if ok {
 		activity := domain.NewActivity(session.UserID(), "account", "signout", time.Time{})
-		if err := u.activities.Create(ctx, tx, activity); err != nil {
-			return fmt.Errorf("create activity: %w", err)
+		if err := u.activities.Save(ctx, tx, activity); err != nil {
+			return fmt.Errorf("save activity: %w", err)
 		}
 	}
 
@@ -200,12 +194,12 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 }
 
 func (u *accountUsecase) Delete(ctx context.Context, userID int, password string) error {
-	user, err := u.users.Get(ctx, u.db, userID)
+	user, err := u.users.FindByID(ctx, u.db, userID)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, ErrNotFound) {
 			return ErrInvalidCredentials
 		}
-		return fmt.Errorf("get user: %w", err)
+		return fmt.Errorf("find user: %w", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {

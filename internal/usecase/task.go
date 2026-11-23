@@ -7,33 +7,25 @@ import (
 	"time"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/repository"
 )
 
-type Task struct {
-	ID     int
-	UserID int
-	Title  string
-	Status string
-}
-
 type TaskUsecase interface {
-	List(ctx context.Context, userID int, status string, limit int, page int) ([]Task, error)
-	Get(ctx context.Context, userID int, id int) (*Task, error)
-	Add(ctx context.Context, userID int, title string) (*Task, error)
-	UpdateTitle(ctx context.Context, userID int, id int, title string) (*Task, error)
-	UpdateStatus(ctx context.Context, userID int, id int, status string) (*Task, error)
+	List(ctx context.Context, userID int, status string, limit int, page int) ([]domain.Task, error)
+	Get(ctx context.Context, userID int, id int) (domain.Task, error)
+	Add(ctx context.Context, userID int, title string) (domain.Task, error)
+	UpdateTitle(ctx context.Context, userID int, id int, title string) (domain.Task, error)
+	UpdateStatus(ctx context.Context, userID int, id int, status string) (domain.Task, error)
 	Delete(ctx context.Context, userID int, id int) error
 	Count(ctx context.Context, userID int, status string) (int, error)
 }
 
 type taskUsecase struct {
 	db         *sql.DB
-	tasks      repository.TaskRepository
-	activities repository.ActivityRepository
+	tasks      TaskRepository
+	activities ActivityRepository
 }
 
-func NewTaskUsecase(db *sql.DB, tasks repository.TaskRepository, activities repository.ActivityRepository) *taskUsecase {
+func NewTaskUsecase(db *sql.DB, tasks TaskRepository, activities ActivityRepository) *taskUsecase {
 	return &taskUsecase{
 		db:         db,
 		tasks:      tasks,
@@ -43,131 +35,112 @@ func NewTaskUsecase(db *sql.DB, tasks repository.TaskRepository, activities repo
 
 var _ TaskUsecase = &taskUsecase{}
 
-func taskDTO(t domain.Task) Task {
-	return Task{
-		ID:     t.ID(),
-		UserID: t.UserID(),
-		Title:  t.Title(),
-		Status: string(t.Status()),
-	}
-}
-
-func (u *taskUsecase) List(ctx context.Context, userID int, status string, limit int, page int) ([]Task, error) {
+func (u *taskUsecase) List(ctx context.Context, userID int, status string, limit int, page int) ([]domain.Task, error) {
 	offset := limit * (page - 1)
 
-	var tasks []domain.Task
-	var err error
 	if status == "" {
-		tasks, err = u.tasks.Select(ctx, u.db, userID, limit, offset)
+		tasks, err := u.tasks.List(ctx, u.db, userID, limit, offset)
 		if err != nil {
-			return nil, fmt.Errorf("select tasks: %w", err)
+			return nil, fmt.Errorf("list tasks: %w", err)
 		}
-	} else {
-		st, err := domain.ParseTaskStatus(status)
-		if err != nil {
-			return nil, err
-		}
-		tasks, err = u.tasks.SelectByStatus(ctx, u.db, userID, st, limit, offset)
-		if err != nil {
-			return nil, fmt.Errorf("select tasks by status: %w", err)
-		}
+		return tasks, nil
 	}
-
-	results := make([]Task, len(tasks))
-	for i, t := range tasks {
-		results[i] = taskDTO(t)
-	}
-
-	return results, nil
-}
-
-func (u *taskUsecase) Get(ctx context.Context, userID int, id int) (*Task, error) {
-	task, err := u.tasks.Get(ctx, u.db, userID, id)
-	if err != nil {
-		return nil, fmt.Errorf("get task by id: %w", err)
-	}
-
-	dto := taskDTO(task)
-	return &dto, nil
-}
-
-func (u *taskUsecase) Add(ctx context.Context, userID int, title string) (*Task, error) {
-	tx, err := u.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
-
-	task, err := u.tasks.Create(ctx, tx, userID, title)
-	if err != nil {
-		return nil, fmt.Errorf("create task: %w", err)
-	}
-
-	activity := domain.NewActivity(userID, "task", fmt.Sprintf("add task %d, title: %q", task.ID(), task.Title()), time.Time{})
-	if err := u.activities.Create(ctx, tx, activity); err != nil {
-		return nil, fmt.Errorf("create activity: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-
-	dto := taskDTO(task)
-	return &dto, nil
-}
-
-func (u *taskUsecase) UpdateTitle(ctx context.Context, userID int, id int, title string) (*Task, error) {
-	tx, err := u.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
-
-	task, err := u.tasks.Get(ctx, tx, userID, id)
-	if err != nil {
-		return nil, fmt.Errorf("get task: %w", err)
-	}
-
-	task = task.WithTitle(title)
-	task, err = u.tasks.UpdateTitle(ctx, tx, task)
-	if err != nil {
-		return nil, fmt.Errorf("update task title: %w", err)
-	}
-
-	activity := domain.NewActivity(userID, "task", fmt.Sprintf("edit task %d, title: %q", task.ID(), task.Title()), time.Time{})
-	if err := u.activities.Create(ctx, tx, activity); err != nil {
-		return nil, fmt.Errorf("create activity: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-
-	dto := taskDTO(task)
-	return &dto, nil
-}
-
-func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, status string) (*Task, error) {
-	tx, err := u.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	st, err := domain.ParseTaskStatus(status)
 	if err != nil {
 		return nil, err
 	}
-
-	task, err := u.tasks.Get(ctx, tx, userID, id)
+	tasks, err := u.tasks.ListByStatus(ctx, u.db, userID, st, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("get task: %w", err)
+		return nil, fmt.Errorf("list tasks by status: %w", err)
+	}
+	return tasks, nil
+}
+
+func (u *taskUsecase) Get(ctx context.Context, userID int, id int) (domain.Task, error) {
+	task, err := u.tasks.FindByID(ctx, u.db, userID, id)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("get task by id: %w", err)
+	}
+	return task, nil
+}
+
+func (u *taskUsecase) Add(ctx context.Context, userID int, title string) (domain.Task, error) {
+	tx, err := u.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
+
+	task := domain.NewTask(0, userID, title, domain.TaskStatusCreated)
+	task, err = u.tasks.Save(ctx, tx, task)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("save task: %w", err)
+	}
+
+	activity := domain.NewActivity(userID, "task", fmt.Sprintf("add task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	if err := u.activities.Save(ctx, tx, activity); err != nil {
+		return domain.Task{}, fmt.Errorf("save activity: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Task{}, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return task, nil
+}
+
+func (u *taskUsecase) UpdateTitle(ctx context.Context, userID int, id int, title string) (domain.Task, error) {
+	tx, err := u.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
+
+	task, err := u.tasks.FindByID(ctx, tx, userID, id)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("find task: %w", err)
+	}
+
+	task = task.WithTitle(title)
+	task, err = u.tasks.Save(ctx, tx, task)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("save task: %w", err)
+	}
+
+	activity := domain.NewActivity(userID, "task", fmt.Sprintf("edit task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	if err := u.activities.Save(ctx, tx, activity); err != nil {
+		return domain.Task{}, fmt.Errorf("save activity: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Task{}, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return task, nil
+}
+
+func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, status string) (domain.Task, error) {
+	tx, err := u.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
+
+	st, err := domain.ParseTaskStatus(status)
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	task, err := u.tasks.FindByID(ctx, tx, userID, id)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("find task: %w", err)
 	}
 
 	task = task.WithStatus(st)
-	task, err = u.tasks.UpdateStatus(ctx, tx, task)
+	task, err = u.tasks.Save(ctx, tx, task)
 	if err != nil {
-		return nil, fmt.Errorf("update task status: %w", err)
+		return domain.Task{}, fmt.Errorf("save task: %w", err)
 	}
 
 	action := "done"
@@ -176,16 +149,15 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, stat
 	}
 
 	activity := domain.NewActivity(userID, "task", fmt.Sprintf("%s task %d, %q", action, task.ID(), task.Title()), time.Time{})
-	if err := u.activities.Create(ctx, tx, activity); err != nil {
-		return nil, fmt.Errorf("create activity: %w", err)
+	if err := u.activities.Save(ctx, tx, activity); err != nil {
+		return domain.Task{}, fmt.Errorf("save activity: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
+		return domain.Task{}, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	dto := taskDTO(task)
-	return &dto, nil
+	return task, nil
 }
 
 func (u *taskUsecase) Delete(ctx context.Context, userID int, id int) error {
@@ -202,8 +174,8 @@ func (u *taskUsecase) Delete(ctx context.Context, userID int, id int) error {
 
 	if ok {
 		activity := domain.NewActivity(userID, "task", fmt.Sprintf("delete task %d", id), time.Time{})
-		if err := u.activities.Create(ctx, tx, activity); err != nil {
-			return fmt.Errorf("create activity: %w", err)
+		if err := u.activities.Save(ctx, tx, activity); err != nil {
+			return fmt.Errorf("save activity: %w", err)
 		}
 	}
 
@@ -215,21 +187,21 @@ func (u *taskUsecase) Delete(ctx context.Context, userID int, id int) error {
 }
 
 func (u *taskUsecase) Count(ctx context.Context, userID int, status string) (int, error) {
-	var count int
-	var err error
-
-	switch status {
-	case string(domain.TaskStatusCreated):
-		count, err = u.tasks.TodoCount(ctx, u.db, userID)
-	case string(domain.TaskStatusDone):
-		count, err = u.tasks.DoneCount(ctx, u.db, userID)
-	default:
-		count, err = u.tasks.Count(ctx, u.db, userID)
+	if status == "" {
+		count, err := u.tasks.Count(ctx, u.db, userID)
+		if err != nil {
+			return 0, fmt.Errorf("count tasks: %w", err)
+		}
+		return count, nil
 	}
 
+	st, err := domain.ParseTaskStatus(status)
+	if err != nil {
+		return 0, err
+	}
+	count, err := u.tasks.CountByStatus(ctx, u.db, userID, st)
 	if err != nil {
 		return 0, fmt.Errorf("count tasks: %w", err)
 	}
-
 	return count, nil
 }

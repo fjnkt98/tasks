@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/fjnkt98/tasks/internal/domain"
 	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
@@ -45,7 +46,7 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	data := struct {
 		LayoutData
-		Users   []usecase.User
+		Users   []domain.User
 		Prev    int
 		Current int
 		Next    int
@@ -92,7 +93,7 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.users.Get(r.Context(), id)
+	detail, err := h.users.Get(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, usecase.ErrNotFound) {
 			Error(w, r, ErrorCode404)
@@ -103,6 +104,11 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	roles := make([]string, len(detail.Roles))
+	for i, role := range detail.Roles {
+		roles[i] = string(role)
+	}
+
 	data := struct {
 		LayoutData
 		UserID     int
@@ -110,18 +116,18 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 		Roles      []string
 		TaskCount  int
 		DoneCount  int
-		Activities []usecase.Activity
+		Activities []domain.Activity
 	}{
 		LayoutData: LayoutData{
 			Authorized:  IsAuthorized(r.Context()),
 			AccountName: GetUserFromContext(r.Context()).Name,
 		},
-		UserID:     user.ID,
-		UserName:   user.Name,
-		Roles:      user.Roles,
-		TaskCount:  user.TaskCount,
-		DoneCount:  user.DoneCount,
-		Activities: user.Activities,
+		UserID:     detail.User.ID(),
+		UserName:   detail.User.Name(),
+		Roles:      roles,
+		TaskCount:  detail.TaskCount,
+		DoneCount:  detail.DoneCount,
+		Activities: detail.Activities,
 	}
 
 	body, err := RenderTemplate("page/user", data)

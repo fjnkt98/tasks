@@ -163,7 +163,7 @@ linters:
         linters:
           - gosec
       # Side-effect imports for drivers / embeds.
-      - path: internal/adapter/sqlite/database\.go
+      - path: internal/repository/database\.go
         text: "blank-imports"
         linters:
           - revive

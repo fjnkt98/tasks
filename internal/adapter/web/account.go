@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fjnkt98/tasks/internal/domain"
 	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
@@ -423,7 +424,7 @@ func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 		IsAdmin    bool
 		TaskCount  int
 		DoneCount  int
-		Activities []usecase.Activity
+		Activities []domain.Activity
 	}{
 		LayoutData: LayoutData{
 			Authorized:  IsAuthorized(r.Context()),

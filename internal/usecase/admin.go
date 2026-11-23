@@ -3,12 +3,12 @@ package usecase
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 type AdminUsecase interface {
@@ -17,12 +17,12 @@ type AdminUsecase interface {
 
 type adminUsecase struct {
 	db       *sql.DB
-	accounts repository.UserRepository
-	sessions repository.SessionRepository
-	roles    repository.RoleRepository
+	accounts UserRepository
+	sessions SessionRepository
+	roles    RoleRepository
 }
 
-func NewAdminUsecase(db *sql.DB, accounts repository.UserRepository, sessions repository.SessionRepository, roles repository.RoleRepository) *adminUsecase {
+func NewAdminUsecase(db *sql.DB, accounts UserRepository, sessions SessionRepository, roles RoleRepository) *adminUsecase {
 	return &adminUsecase{
 		db:       db,
 		accounts: accounts,
@@ -50,18 +50,28 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		return fmt.Errorf("generate digest for admin password: %w", err)
 	}
 
-	admin, err := u.accounts.CreateOrReplace(ctx, tx, username, digest)
+	admin, err := u.accounts.FindByName(ctx, tx, username)
 	if err != nil {
-		return fmt.Errorf("create or replace admin: %w", err)
+		if !errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("find admin: %w", err)
+		}
+		admin = domain.NewUser(0, username, string(digest))
+	} else {
+		admin = admin.WithDigest(string(digest))
+	}
+
+	admin, err = u.accounts.Save(ctx, tx, admin)
+	if err != nil {
+		return fmt.Errorf("save admin: %w", err)
 	}
 
 	if err := u.accounts.EnsureRole(ctx, tx, admin.ID(), role); err != nil {
 		return fmt.Errorf("grant admin role for admin user: %w", err)
 	}
 
-	users, err := u.accounts.SelectByRoles(ctx, tx, role)
+	users, err := u.accounts.ListByRole(ctx, tx, role)
 	if err != nil {
-		return fmt.Errorf("select users which have admin role: %w", err)
+		return fmt.Errorf("list users which have admin role: %w", err)
 	}
 	for _, user := range users {
 		if user.ID() == admin.ID() {
