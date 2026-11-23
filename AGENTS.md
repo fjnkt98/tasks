@@ -10,7 +10,7 @@ Prefer self-explanatory code over narrative comments. Do not add comments that o
 
 ## Layout (clean architecture)
 
-Dependency direction is inward: `controllers → usecases → domain`, and `repositories` implements ports defined in `usecases`. `domain` has no I/O. Package directories are plural except `domain`.
+Dependency direction is inward: `controllers → usecases → domain`, and `repositories` implements ports defined in `usecases`. `domain` has no I/O. Package directories are plural except `domain` and `schema`.
 
 ```
 cmd/tasks/                 # process entrypoint (calls apps)
@@ -20,7 +20,7 @@ internal/
   repositories/            # SQLite implementations of usecase ports
   apps/                    # composition root (wires repositories + usecases + controllers)
   controllers/             # HTTP controllers (request/response only)
-  schemas/                 # SQL schema for sqlite3def
+  schema/                  # SQL schema for sqlite3def
   testutils/               # shared test helpers
 e2e/                       # HTTP+DB end-to-end tests
 ```
