@@ -111,7 +111,7 @@ func (u *userUsecase) GrantRole(ctx context.Context, userID int, role string) er
 		return fmt.Errorf("find user: %w", err)
 	}
 
-	user = user.WithRole(domain.Role(role))
+	user = user.GrantRole(domain.Role(role))
 	if _, err := u.users.Save(ctx, tx, user); err != nil {
 		return fmt.Errorf("save user: %w", err)
 	}
@@ -141,7 +141,7 @@ func (u *userUsecase) RevokeRole(ctx context.Context, userID int, role string) e
 	}
 
 	had := user.HasRole(domain.Role(role))
-	user = user.WithoutRole(domain.Role(role))
+	user = user.RevokeRole(domain.Role(role))
 	if _, err := u.users.Save(ctx, tx, user); err != nil {
 		return fmt.Errorf("save user: %w", err)
 	}

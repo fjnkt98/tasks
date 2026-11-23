@@ -9,12 +9,12 @@ type User struct {
 	roles  []Role
 }
 
-func NewUser(id int, name, digest string) User {
+func NewUser(id int, name, digest string, roles ...Role) User {
 	return User{
 		id:     id,
 		name:   name,
 		digest: digest,
-		roles:  nil,
+		roles:  slices.Clone(roles),
 	}
 }
 
@@ -35,12 +35,7 @@ func (u User) WithDigest(digest string) User {
 	return u
 }
 
-func (u User) WithRoles(roles []Role) User {
-	u.roles = slices.Clone(roles)
-	return u
-}
-
-func (u User) WithRole(role Role) User {
+func (u User) GrantRole(role Role) User {
 	if u.HasRole(role) {
 		return u
 	}
@@ -48,7 +43,7 @@ func (u User) WithRole(role Role) User {
 	return u
 }
 
-func (u User) WithoutRole(role Role) User {
+func (u User) RevokeRole(role Role) User {
 	u.roles = slices.DeleteFunc(slices.Clone(u.roles), func(r Role) bool {
 		return r == role
 	})

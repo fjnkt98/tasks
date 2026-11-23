@@ -59,7 +59,7 @@ func (r *userRepository) hydrate(ctx context.Context, db usecase.DBTX, id int, n
 	if err != nil {
 		return domain.User{}, err
 	}
-	return domain.NewUser(id, name, digest).WithRoles(roles), nil
+	return domain.NewUser(id, name, digest, roles...), nil
 }
 
 func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.User) (domain.User, error) {
@@ -89,7 +89,7 @@ func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.
 	if err := r.saveRoles(ctx, db, id, user.Roles()); err != nil {
 		return domain.User{}, err
 	}
-	return domain.NewUser(id, name, digest).WithRoles(user.Roles()), nil
+	return domain.NewUser(id, name, digest, user.Roles()...), nil
 }
 
 func (r *userRepository) FindByID(ctx context.Context, db usecase.DBTX, id int) (domain.User, error) {

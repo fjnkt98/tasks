@@ -60,7 +60,7 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		admin = admin.WithDigest(string(digest))
 	}
 
-	admin = admin.WithRole(role)
+	admin = admin.GrantRole(role)
 	admin, err = u.accounts.Save(ctx, tx, admin)
 	if err != nil {
 		return fmt.Errorf("save admin: %w", err)
