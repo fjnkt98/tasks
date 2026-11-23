@@ -27,15 +27,17 @@ type sessionUsecase struct {
 	db       *sql.DB
 	users    UserRepository
 	sessions SessionRepository
+	roles    RoleRepository
 }
 
 var _ SessionUsecase = &sessionUsecase{}
 
-func NewSessionUsecase(db *sql.DB, users UserRepository, sessions SessionRepository) *sessionUsecase {
+func NewSessionUsecase(db *sql.DB, users UserRepository, sessions SessionRepository, roles RoleRepository) *sessionUsecase {
 	return &sessionUsecase{
 		db:       db,
 		users:    users,
 		sessions: sessions,
+		roles:    roles,
 	}
 }
 
@@ -70,7 +72,7 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*CurrentSe
 		return nil, fmt.Errorf("find user: %w", err)
 	}
 
-	roles, err := u.users.ListRoles(ctx, tx, session.UserID())
+	roles, err := u.roles.ListByUser(ctx, tx, session.UserID())
 	if err != nil {
 		return nil, fmt.Errorf("list roles: %w", err)
 	}

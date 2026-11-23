@@ -35,14 +35,16 @@ type userUsecase struct {
 	activities ActivityRepository
 	tasks      TaskRepository
 	users      UserRepository
+	roles      RoleRepository
 }
 
-func NewUserUsecase(db *sql.DB, users UserRepository, tasks TaskRepository, activities ActivityRepository) *userUsecase {
+func NewUserUsecase(db *sql.DB, users UserRepository, tasks TaskRepository, activities ActivityRepository, roles RoleRepository) *userUsecase {
 	return &userUsecase{
 		db:         db,
 		users:      users,
 		tasks:      tasks,
 		activities: activities,
+		roles:      roles,
 	}
 }
 
@@ -85,7 +87,7 @@ func (u *userUsecase) Get(ctx context.Context, id int) (*UserDetail, error) {
 		return nil, fmt.Errorf("count done tasks: %w", err)
 	}
 
-	roles, err := u.users.ListRoles(ctx, u.db, user.ID())
+	roles, err := u.roles.ListByUser(ctx, u.db, user.ID())
 	if err != nil {
 		return nil, fmt.Errorf("list roles: %w", err)
 	}
@@ -111,8 +113,8 @@ func (u *userUsecase) GrantRole(ctx context.Context, userID int, role string) er
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	if err := u.users.EnsureRole(ctx, tx, userID, domain.Role(role)); err != nil {
-		return fmt.Errorf("ensure role: %w", err)
+	if err := u.roles.Assign(ctx, tx, userID, domain.Role(role)); err != nil {
+		return fmt.Errorf("assign role: %w", err)
 	}
 
 	activity := domain.NewActivity(userID, "account", fmt.Sprintf("grant role: %q", role), time.Time{})
@@ -134,9 +136,9 @@ func (u *userUsecase) RevokeRole(ctx context.Context, userID int, role string) e
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	ok, err := u.users.DeleteRole(ctx, tx, userID, domain.Role(role))
+	ok, err := u.roles.Revoke(ctx, tx, userID, domain.Role(role))
 	if err != nil {
-		return fmt.Errorf("delete role: %w", err)
+		return fmt.Errorf("revoke role: %w", err)
 	}
 
 	if ok {

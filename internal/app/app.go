@@ -33,6 +33,7 @@ func NewHandler(db *sql.DB) http.Handler {
 			db,
 			repository.NewUserRepository(),
 			repository.NewSessionRepository(),
+			repository.NewRoleRepository(),
 		),
 		Tasks: usecase.NewTaskUsecase(
 			db,
@@ -44,6 +45,7 @@ func NewHandler(db *sql.DB) http.Handler {
 			repository.NewUserRepository(),
 			repository.NewTaskRepository(),
 			repository.NewActivityRepository(),
+			repository.NewRoleRepository(),
 		),
 	})
 }
