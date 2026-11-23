@@ -1,4 +1,4 @@
-package presentation
+package web
 
 import (
 	"database/sql"
@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fjnkt98/tasks/internal/usecases"
+	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
 type TaskData struct {
 	LayoutData
-	Tasks     []usecases.Task
+	Tasks     []usecase.Task
 	LastIndex int
 	NextPage  int
 	Limit     int
@@ -21,12 +21,12 @@ type TaskData struct {
 }
 
 type TaskHandler struct {
-	tasks usecases.TaskUsecase
+	tasks usecase.TaskUsecase
 }
 
 func NewTaskHandler(db *sql.DB) *TaskHandler {
 	return &TaskHandler{
-		tasks: usecases.NewTaskUsecase(db),
+		tasks: newTaskUsecase(db),
 	}
 }
 
@@ -124,7 +124,7 @@ func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 			Authorized:  IsAuthorized(r.Context()),
 			AccountName: GetUserFromContext(r.Context()).Name,
 		},
-		Tasks:     []usecases.Task{*task},
+		Tasks:     []usecase.Task{*task},
 		LastIndex: -1,
 		NextPage:  0,
 		Limit:     0,
@@ -197,7 +197,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	data := TaskData{
 		LayoutData: LayoutData{Authorized: false, AccountName: ""},
-		Tasks:      []usecases.Task{*task},
+		Tasks:      []usecase.Task{*task},
 		LastIndex:  -1,
 		NextPage:   0,
 		Limit:      0,
@@ -244,7 +244,7 @@ func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 
 	data := TaskData{
 		LayoutData: LayoutData{Authorized: false, AccountName: ""},
-		Tasks:      []usecases.Task{*task},
+		Tasks:      []usecase.Task{*task},
 		LastIndex:  -1,
 		NextPage:   0,
 		Limit:      0,

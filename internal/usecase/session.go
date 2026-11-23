@@ -1,4 +1,4 @@
-package usecases
+package usecase
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/domain"
 )
 
 type Session struct {
@@ -25,17 +25,17 @@ type SessionUsecase interface {
 
 type sessionUsecase struct {
 	db       *sql.DB
-	users    repository.UserRepository
-	sessions repository.SessionRepository
+	users    domain.UserRepository
+	sessions domain.SessionRepository
 }
 
 var _ SessionUsecase = &sessionUsecase{}
 
-func NewSessionUsecase(db *sql.DB) *sessionUsecase {
+func NewSessionUsecase(db *sql.DB, users domain.UserRepository, sessions domain.SessionRepository) *sessionUsecase {
 	return &sessionUsecase{
 		db:       db,
-		users:    repository.NewUserRepository(),
-		sessions: repository.NewSessionRepository(),
+		users:    users,
+		sessions: sessions,
 	}
 }
 
@@ -48,7 +48,7 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return nil, ErrSessionInvalid
 		}
 

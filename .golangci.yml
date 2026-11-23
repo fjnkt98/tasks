@@ -163,7 +163,7 @@ linters:
         linters:
           - gosec
       # Side-effect imports for drivers / embeds.
-      - path: internal/repository/database\.go
+      - path: internal/adapter/sqlite/database\.go
         text: "blank-imports"
         linters:
           - revive
@@ -172,11 +172,11 @@ linters:
         linters:
           - revive
       # Shutdown helpers intentionally use a fresh timeout context.
-      - path: main\.go
+      - path: cmd/tasks/main\.go
         text: "Non-inherited new context|Function `setup\\$1`"
         linters:
           - contextcheck
-      - path: internal/presentation/middleware\.go
+      - path: internal/adapter/web/middleware\.go
         text: "Function `NewRecoveryMiddleware"
         linters:
           - contextcheck

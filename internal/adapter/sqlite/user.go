@@ -1,48 +1,30 @@
-package repository
+package sqlite
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/fjnkt98/tasks/internal/domain"
 )
-
-type User struct {
-	ID     int
-	Name   string
-	Digest string
-}
-
-type UserRepository interface {
-	Create(ctx context.Context, db DBTX, name string, digest []byte) (*User, error)
-	CreateOrReplace(ctx context.Context, db DBTX, name string, digest []byte) (*User, error)
-	Get(ctx context.Context, db DBTX, id int) (*User, error)
-	GetByName(ctx context.Context, db DBTX, name string) (*User, error)
-	Select(ctx context.Context, db DBTX, limit int, offset int) ([]User, error)
-	UpdateDigest(ctx context.Context, db DBTX, id int, digest []byte) (bool, error)
-	Delete(ctx context.Context, db DBTX, id int) (bool, error)
-	SelectRoles(ctx context.Context, db DBTX, id int) ([]string, error)
-	EnsureRole(ctx context.Context, db DBTX, id int, role string) error
-	DeleteRole(ctx context.Context, db DBTX, id int, role string) (bool, error)
-	SelectByRoles(ctx context.Context, db DBTX, role string) ([]User, error)
-}
 
 type userRepository struct{}
 
-var _ UserRepository = &userRepository{}
+var _ domain.UserRepository = &userRepository{}
 
 func NewUserRepository() *userRepository {
 	return &userRepository{}
 }
 
-func (r *userRepository) Create(ctx context.Context, db DBTX, name string, digest []byte) (*User, error) {
+func (r *userRepository) Create(ctx context.Context, db domain.DBTX, name string, digest []byte) (*domain.User, error) {
 	q := "INSERT INTO users (name, digest) VALUES (?, ?) RETURNING id, name, digest"
 	row := db.QueryRowContext(ctx, q, name, string(digest))
 
-	var user User
+	var user domain.User
 	if err := row.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
 		if isUniqueConstraintError(err) {
-			return nil, ErrUniqueConstraint
+			return nil, domain.ErrUniqueConstraint
 		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
@@ -50,11 +32,11 @@ func (r *userRepository) Create(ctx context.Context, db DBTX, name string, diges
 	return &user, nil
 }
 
-func (r *userRepository) CreateOrReplace(ctx context.Context, db DBTX, name string, digest []byte) (*User, error) {
+func (r *userRepository) CreateOrReplace(ctx context.Context, db domain.DBTX, name string, digest []byte) (*domain.User, error) {
 	q := "INSERT INTO users (name, digest) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET digest = EXCLUDED.digest RETURNING id, name, digest"
 	row := db.QueryRowContext(ctx, q, name, string(digest))
 
-	var user User
+	var user domain.User
 	if err := row.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
 		return nil, fmt.Errorf("execute: %w", err)
 	}
@@ -62,14 +44,14 @@ func (r *userRepository) CreateOrReplace(ctx context.Context, db DBTX, name stri
 	return &user, nil
 }
 
-func (r *userRepository) Get(ctx context.Context, db DBTX, id int) (*User, error) {
+func (r *userRepository) Get(ctx context.Context, db domain.DBTX, id int) (*domain.User, error) {
 	q := "SELECT id, name, digest FROM users WHERE id = ?"
 	row := db.QueryRowContext(ctx, q, id)
 
-	var user User
+	var user domain.User
 	if err := row.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
@@ -77,14 +59,14 @@ func (r *userRepository) Get(ctx context.Context, db DBTX, id int) (*User, error
 	return &user, nil
 }
 
-func (r *userRepository) GetByName(ctx context.Context, db DBTX, name string) (*User, error) {
+func (r *userRepository) GetByName(ctx context.Context, db domain.DBTX, name string) (*domain.User, error) {
 	q := "SELECT id, name, digest FROM users WHERE name = ?"
 	row := db.QueryRowContext(ctx, q, name)
 
-	var user User
+	var user domain.User
 	if err := row.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, err
 	}
@@ -92,7 +74,7 @@ func (r *userRepository) GetByName(ctx context.Context, db DBTX, name string) (*
 	return &user, nil
 }
 
-func (r *userRepository) Select(ctx context.Context, db DBTX, limit int, offset int) ([]User, error) {
+func (r *userRepository) Select(ctx context.Context, db domain.DBTX, limit int, offset int) ([]domain.User, error) {
 	q := "SELECT id, name, digest FROM users ORDER BY id ASC LIMIT ? OFFSET ?"
 	rows, err := db.QueryContext(ctx, q, limit, offset)
 	if err != nil {
@@ -100,9 +82,9 @@ func (r *userRepository) Select(ctx context.Context, db DBTX, limit int, offset 
 	}
 	defer rows.Close()
 
-	users := make([]User, 0)
+	users := make([]domain.User, 0)
 	for rows.Next() {
-		var user User
+		var user domain.User
 		if err := rows.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
 			return nil, fmt.Errorf("scan rows: %w", err)
 		}
@@ -116,7 +98,7 @@ func (r *userRepository) Select(ctx context.Context, db DBTX, limit int, offset 
 	return users, nil
 }
 
-func (r *userRepository) UpdateDigest(ctx context.Context, db DBTX, id int, digest []byte) (bool, error) {
+func (r *userRepository) UpdateDigest(ctx context.Context, db domain.DBTX, id int, digest []byte) (bool, error) {
 	q := "UPDATE users SET digest = ?, updated_at = UNIXEPOCH() WHERE id = ?"
 	result, err := db.ExecContext(ctx, q, string(digest), id)
 	if err != nil {
@@ -130,7 +112,7 @@ func (r *userRepository) UpdateDigest(ctx context.Context, db DBTX, id int, dige
 	return count > 0, nil
 }
 
-func (r *userRepository) Delete(ctx context.Context, db DBTX, id int) (bool, error) {
+func (r *userRepository) Delete(ctx context.Context, db domain.DBTX, id int) (bool, error) {
 	q := "DELETE FROM users WHERE id = ?"
 	result, err := db.ExecContext(ctx, q, id)
 	if err != nil {
@@ -144,7 +126,7 @@ func (r *userRepository) Delete(ctx context.Context, db DBTX, id int) (bool, err
 	return count > 0, nil
 }
 
-func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) ([]string, error) {
+func (r *userRepository) SelectRoles(ctx context.Context, db domain.DBTX, id int) ([]string, error) {
 	q := "SELECT role FROM user_role_relations WHERE user_id = ?"
 	rows, err := db.QueryContext(ctx, q, id)
 	if err != nil {
@@ -167,7 +149,7 @@ func (r *userRepository) SelectRoles(ctx context.Context, db DBTX, id int) ([]st
 	return roles, nil
 }
 
-func (r *userRepository) EnsureRole(ctx context.Context, db DBTX, id int, role string) error {
+func (r *userRepository) EnsureRole(ctx context.Context, db domain.DBTX, id int, role string) error {
 	q := "INSERT INTO user_role_relations (user_id, role) VALUES (?, ?) ON CONFLICT (user_id, role) DO NOTHING"
 	if _, err := db.ExecContext(ctx, q, id, role); err != nil {
 		return fmt.Errorf("execute: %w", err)
@@ -175,7 +157,7 @@ func (r *userRepository) EnsureRole(ctx context.Context, db DBTX, id int, role s
 	return nil
 }
 
-func (r *userRepository) DeleteRole(ctx context.Context, db DBTX, id int, role string) (bool, error) {
+func (r *userRepository) DeleteRole(ctx context.Context, db domain.DBTX, id int, role string) (bool, error) {
 	q := "DELETE FROM user_role_relations WHERE user_id = ? AND role = ?"
 	result, err := db.ExecContext(ctx, q, id, role)
 	if err != nil {
@@ -189,7 +171,7 @@ func (r *userRepository) DeleteRole(ctx context.Context, db DBTX, id int, role s
 	return count > 0, nil
 }
 
-func (r *userRepository) SelectByRoles(ctx context.Context, db DBTX, role string) ([]User, error) {
+func (r *userRepository) SelectByRoles(ctx context.Context, db domain.DBTX, role string) ([]domain.User, error) {
 	q := "SELECT id, name, digest FROM users WHERE id IN (SELECT user_id FROM user_role_relations WHERE role = ?)"
 	rows, err := db.QueryContext(ctx, q, role)
 	if err != nil {
@@ -197,9 +179,9 @@ func (r *userRepository) SelectByRoles(ctx context.Context, db DBTX, role string
 	}
 	defer rows.Close()
 
-	users := make([]User, 0)
+	users := make([]domain.User, 0)
 	for rows.Next() {
-		var user User
+		var user domain.User
 		if err := rows.Scan(&user.ID, &user.Name, &user.Digest); err != nil {
 			return nil, fmt.Errorf("scan rows: %w", err)
 		}

@@ -86,9 +86,9 @@ run = [
 ]
 
 [tasks.serve]
-run = ["go run ."]
+run = ["go run ./cmd/tasks"]
 sources = [
     "**/*.go",
-    "internal/presentation/templates/**/*",
-    "internal/presentation/static/**/*",
+    "internal/adapter/web/templates/**/*",
+    "internal/adapter/web/static/**/*",
 ]

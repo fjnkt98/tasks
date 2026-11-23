@@ -1,0 +1,18 @@
+package domain
+
+import (
+	"context"
+	"database/sql"
+)
+
+type DBTX interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	Exec(query string, args ...any) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+var _ DBTX = &sql.DB{}
+var _ DBTX = &sql.Tx{}

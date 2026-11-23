@@ -1,4 +1,4 @@
-package usecases
+package usecase
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/domain"
 )
 
 type AdminUsecase interface {
@@ -16,17 +16,17 @@ type AdminUsecase interface {
 
 type adminUsecase struct {
 	db       *sql.DB
-	accounts repository.UserRepository
-	sessions repository.SessionRepository
-	roles    repository.RoleRepository
+	accounts domain.UserRepository
+	sessions domain.SessionRepository
+	roles    domain.RoleRepository
 }
 
-func NewAdminUsecase(db *sql.DB) *adminUsecase {
+func NewAdminUsecase(db *sql.DB, accounts domain.UserRepository, sessions domain.SessionRepository, roles domain.RoleRepository) *adminUsecase {
 	return &adminUsecase{
 		db:       db,
-		accounts: repository.NewUserRepository(),
-		sessions: repository.NewSessionRepository(),
-		roles:    repository.NewRoleRepository(),
+		accounts: accounts,
+		sessions: sessions,
+		roles:    roles,
 	}
 }
 

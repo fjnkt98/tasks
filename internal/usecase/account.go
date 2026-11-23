@@ -1,4 +1,4 @@
-package usecases
+package usecase
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/domain"
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
@@ -33,21 +33,21 @@ type AccountUsecase interface {
 
 type accountUsecase struct {
 	db         *sql.DB
-	users      repository.UserRepository
-	sessions   repository.SessionRepository
-	roles      repository.RoleRepository
-	activities repository.ActivityRepository
+	users      domain.UserRepository
+	sessions   domain.SessionRepository
+	roles      domain.RoleRepository
+	activities domain.ActivityRepository
 }
 
 var _ AccountUsecase = &accountUsecase{}
 
-func NewAccountUsecase(db *sql.DB) *accountUsecase {
+func NewAccountUsecase(db *sql.DB, users domain.UserRepository, sessions domain.SessionRepository, roles domain.RoleRepository, activities domain.ActivityRepository) *accountUsecase {
 	return &accountUsecase{
 		db:         db,
-		users:      repository.NewUserRepository(),
-		sessions:   repository.NewSessionRepository(),
-		roles:      repository.NewRoleRepository(),
-		activities: repository.NewActivityRepository(),
+		users:      users,
+		sessions:   sessions,
+		roles:      roles,
+		activities: activities,
 	}
 }
 
@@ -64,7 +64,7 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	if _, err = u.users.Create(ctx, tx, username, digest); err != nil {
-		if errors.Is(err, repository.ErrUniqueConstraint) {
+		if errors.Is(err, domain.ErrUniqueConstraint) {
 			return ErrUserAlreadyExists
 		}
 		return fmt.Errorf("create user: %w", err)
@@ -80,7 +80,7 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 func (u *accountUsecase) Signin(ctx context.Context, username string, password string) (string, error) {
 	user, err := u.users.GetByName(ctx, u.db, username)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return "", ErrInvalidCredentials
 		}
 		return "", fmt.Errorf("get user by name: %w", err)
@@ -98,7 +98,7 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 
 	session, err := u.sessions.Create(ctx, tx, user.ID, user.Digest, NewSessionToken(), time.Now().Add(24*time.Hour))
 	if err != nil {
-		if errors.Is(err, repository.ErrInvalidCredentials) {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
 			return "", ErrInvalidCredentials
 		}
 		return "", fmt.Errorf("create session: %w", err)
@@ -124,7 +124,7 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 
 	user, err := u.users.Get(ctx, tx, userID)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return ErrInvalidCredentials
 		}
 		return fmt.Errorf("get user by id: %w", err)
@@ -170,7 +170,7 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return nil
 		}
 		return fmt.Errorf("get session by token: %w", err)
@@ -197,7 +197,7 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 func (u *accountUsecase) Delete(ctx context.Context, userID int, password string) error {
 	user, err := u.users.Get(ctx, u.db, userID)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return ErrInvalidCredentials
 		}
 		return fmt.Errorf("get user: %w", err)
