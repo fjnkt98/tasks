@@ -10,6 +10,10 @@ Prefer self-explanatory code over narrative comments. Do not add comments that o
 
 ## Testing
 
+Before and during clean-architecture work, prefer **E2E tests** that exercise real HTTP endpoints (request/response shape, status, redirects, cookies) against a real SQLite DB and assert durable writes. Layer unit tests (repository / usecase / middleware in isolation) are not the source of truth for refactor safety; do not rely on them to prove endpoint or persistence compatibility.
+
+E2E tests live under `e2e/`. They should fail if routes, form fields, response codes/locations, or DB side effects change unintentionally.
+
 Always write table-driven tests (`[]struct{...}` + `t.Run`), even when there is only one case. There is no golangci-lint rule that enforces TDT yet; treat this as a project convention.
 
 Subtest names (`t.Run` の第1引数) must be Japanese descriptions of the expected state or behavior, prefixed as follows:

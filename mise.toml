@@ -49,7 +49,7 @@ run = ["govulncheck ./..."]
 
 [tasks.test]
 run = [
-    "go test -cover ./... -coverprofile=cover.out",
+    "go test -cover -coverpkg=./... ./... -coverprofile=cover.out",
     "go tool cover -html=cover.out -o cover.html",
 ]
 
