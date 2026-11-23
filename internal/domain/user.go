@@ -23,7 +23,7 @@ func (u User) Name() string   { return u.name }
 func (u User) Digest() string { return u.digest }
 
 func (u User) Roles() []Role {
-	return append([]Role(nil), u.roles...)
+	return slices.Clone(u.roles)
 }
 
 func (u User) HasRole(role Role) bool {
@@ -36,7 +36,7 @@ func (u User) WithDigest(digest string) User {
 }
 
 func (u User) WithRoles(roles []Role) User {
-	u.roles = append([]Role(nil), roles...)
+	u.roles = slices.Clone(roles)
 	return u
 }
 
@@ -44,18 +44,14 @@ func (u User) WithRole(role Role) User {
 	if u.HasRole(role) {
 		return u
 	}
-	u.roles = append(append([]Role(nil), u.roles...), role)
+	u.roles = append(slices.Clone(u.roles), role)
 	return u
 }
 
 func (u User) WithoutRole(role Role) User {
-	next := make([]Role, 0, len(u.roles))
-	for _, r := range u.roles {
-		if r != role {
-			next = append(next, r)
-		}
-	}
-	u.roles = next
+	u.roles = slices.DeleteFunc(slices.Clone(u.roles), func(r Role) bool {
+		return r == role
+	})
 	return u
 }
 
