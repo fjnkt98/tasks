@@ -10,27 +10,26 @@ Prefer self-explanatory code over narrative comments. Do not add comments that o
 
 ## Layout (clean architecture)
 
-Dependency direction is inward: `adapter/web → usecase → domain`, and `repository` implements ports defined in `usecase`. `domain` has no I/O.
+Dependency direction is inward: `controllers → usecases → domain`, and `repositories` implements ports defined in `usecases`. `domain` has no I/O. Package directories are plural except `domain` and `schema`.
 
 ```
-cmd/tasks/                 # process entrypoint (calls app)
+cmd/tasks/                 # process entrypoint (calls apps)
 internal/
   domain/                  # pure, immutable value objects (no I/O)
-  usecase/                 # orchestration + repository ports (Save domain objects)
-  repository/              # SQLite implementations of usecase ports
-  app/                     # composition root (wires repository + usecase + web)
-  adapter/
-    web/                   # HTTP controllers (request/response only)
+  usecases/                # orchestration + repository ports (Save domain objects)
+  repositories/            # SQLite implementations of usecase ports
+  apps/                    # composition root (wires repositories + usecases + controllers)
+  controllers/             # HTTP controllers (request/response only)
   schema/                  # SQL schema for sqlite3def
-  testutil/                # shared test helpers
+  testutils/               # shared test helpers
 e2e/                       # HTTP+DB end-to-end tests
 ```
 
-Domain objects are immutable: fields are unexported, and changes go through methods that return a new value (for example `WithTitle`). Repository ports accept/return domain objects (`Save`, `Find*`). Do not import `adapter/*` or `repository` from `domain` or `usecase` (except that `repository` implements `usecase` ports). Only `app` composes them.
+Domain objects are immutable: fields are unexported, and changes go through methods that return a new value (for example `WithTitle`). Repository ports accept/return domain objects (`Save`, `Find*`). Do not import `controllers` or `repositories` from `domain` or `usecases` (except that `repositories` implements `usecases` ports). Only `apps` composes them.
 
 ## Testing
 
-Before and during clean-architecture work, prefer **E2E tests** that exercise real HTTP endpoints (request/response shape, status, redirects, cookies) against a real SQLite DB and assert durable writes. Layer unit tests (repository / usecase / middleware in isolation) are not the source of truth for refactor safety; do not rely on them to prove endpoint or persistence compatibility.
+Before and during clean-architecture work, prefer **E2E tests** that exercise real HTTP endpoints (request/response shape, status, redirects, cookies) against a real SQLite DB and assert durable writes. Layer unit tests (repositories / usecases / middleware in isolation) are not the source of truth for refactor safety; do not rely on them to prove endpoint or persistence compatibility.
 
 E2E tests live under `e2e/`. They should fail if routes, form fields, response codes/locations, or DB side effects change unintentionally.
 
@@ -102,5 +101,5 @@ Optional tracing stack: `docker compose up -d` (OTel collector + Jaeger).
 
 - Keep CGO enabled (`CGO_ENABLED=1`); tests need `sqlite3def` on PATH via mise.
 - Do not weaken lint rules to hide new issues; fix code or add a specific `//nolint:linter // reason`.
-- Prefer extending the existing clean-architecture packages under `internal/` (`domain`, `usecase`, `repository`, `app`, `adapter/web`) over inventing parallel layouts.
+- Prefer extending the existing clean-architecture packages under `internal/` (`domain`, `usecases`, `repositories`, `apps`, `controllers`) over inventing parallel layouts.
 - Secrets and production deploys belong in env / GCP, not in commits.

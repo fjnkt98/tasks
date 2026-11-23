@@ -1,4 +1,4 @@
-package repository
+package repositories
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/usecase"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type activityRepository struct {
@@ -19,9 +19,9 @@ func NewActivityRepository() *activityRepository {
 	}
 }
 
-var _ usecase.ActivityRepository = &activityRepository{}
+var _ usecases.ActivityRepository = &activityRepository{}
 
-func (r *activityRepository) Save(ctx context.Context, db usecase.DBTX, activity domain.Activity) error {
+func (r *activityRepository) Save(ctx context.Context, db usecases.DBTX, activity domain.Activity) error {
 	user := activity.User()
 	if user == nil {
 		return fmt.Errorf("activity user is required")
@@ -34,7 +34,7 @@ func (r *activityRepository) Save(ctx context.Context, db usecase.DBTX, activity
 	return nil
 }
 
-func (r *activityRepository) ListByUserID(ctx context.Context, db usecase.DBTX, userID int) ([]domain.Activity, error) {
+func (r *activityRepository) ListByUserID(ctx context.Context, db usecases.DBTX, userID int) ([]domain.Activity, error) {
 	user, err := r.users.FindByID(ctx, db, userID)
 	if err != nil {
 		return nil, err

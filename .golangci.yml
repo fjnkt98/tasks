@@ -159,15 +159,15 @@ linters:
           - bodyclose
           - gosec
           - noctx
-      - path: internal/testutil/
+      - path: internal/testutils/
         linters:
           - gosec
       # Side-effect imports for drivers / embeds.
-      - path: internal/repository/database\.go
+      - path: internal/repositories/database\.go
         text: "blank-imports"
         linters:
           - revive
-      - path: internal/testutil/database\.go
+      - path: internal/testutils/database\.go
         text: "blank-imports"
         linters:
           - revive
@@ -176,7 +176,7 @@ linters:
         text: "Non-inherited new context|Function `setup\\$1`"
         linters:
           - contextcheck
-      - path: internal/adapter/web/middleware\.go
+      - path: internal/controllers/middleware\.go
         text: "Function `NewRecoveryMiddleware"
         linters:
           - contextcheck

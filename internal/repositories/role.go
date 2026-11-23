@@ -1,22 +1,22 @@
-package repository
+package repositories
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/fjnkt98/tasks/internal/domain"
-	"github.com/fjnkt98/tasks/internal/usecase"
+	"github.com/fjnkt98/tasks/internal/usecases"
 )
 
 type roleRepository struct{}
 
-var _ usecase.RoleRepository = &roleRepository{}
+var _ usecases.RoleRepository = &roleRepository{}
 
 func NewRoleRepository() *roleRepository {
 	return &roleRepository{}
 }
 
-func (r *roleRepository) Ensure(ctx context.Context, db usecase.DBTX, role domain.Role) (domain.Role, error) {
+func (r *roleRepository) Ensure(ctx context.Context, db usecases.DBTX, role domain.Role) (domain.Role, error) {
 	q := "INSERT INTO roles (name) VALUES (?) ON CONFLICT (name) DO NOTHING"
 	if _, err := db.ExecContext(ctx, q, string(role)); err != nil {
 		return "", fmt.Errorf("execute: %w", err)
@@ -31,7 +31,7 @@ func (r *roleRepository) Ensure(ctx context.Context, db usecase.DBTX, role domai
 	return domain.Role(name), nil
 }
 
-func (r *roleRepository) List(ctx context.Context, db usecase.DBTX) ([]domain.Role, error) {
+func (r *roleRepository) List(ctx context.Context, db usecases.DBTX) ([]domain.Role, error) {
 	q := "SELECT name FROM roles ORDER BY name ASC"
 	rows, err := db.QueryContext(ctx, q)
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *roleRepository) List(ctx context.Context, db usecase.DBTX) ([]domain.Ro
 	return roles, nil
 }
 
-func (r *roleRepository) Delete(ctx context.Context, db usecase.DBTX, role domain.Role) (bool, error) {
+func (r *roleRepository) Delete(ctx context.Context, db usecases.DBTX, role domain.Role) (bool, error) {
 	q := "DELETE FROM roles WHERE name = ?"
 	result, err := db.ExecContext(ctx, q, string(role))
 	if err != nil {

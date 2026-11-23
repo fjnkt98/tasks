@@ -89,6 +89,6 @@ run = [
 run = ["go run ./cmd/tasks"]
 sources = [
     "**/*.go",
-    "internal/adapter/web/templates/**/*",
-    "internal/adapter/web/static/**/*",
+    "internal/controllers/templates/**/*",
+    "internal/controllers/static/**/*",
 ]
