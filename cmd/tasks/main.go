@@ -23,8 +23,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/fjnkt98/tasks/internal/presentation"
-	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/adapter/sqlite"
+	"github.com/fjnkt98/tasks/internal/adapter/web"
 )
 
 var serviceName = semconv.ServiceNameKey.String("tasks")
@@ -145,13 +145,13 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 		return nil, shutdown, fmt.Errorf("parse PORT: %w", err)
 	}
 
-	db, err := repository.NewDB(ctx, os.Getenv("DATABASE_URL"))
+	db, err := sqlite.NewDB(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("open database: %w", err)
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return db.Close() })
 
-	server, err := presentation.NewServer(port, db)
+	server, err := web.NewServer(port, db)
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("create server: %w", err)
 	}

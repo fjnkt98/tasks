@@ -1,4 +1,4 @@
-package presentation
+package web
 
 import (
 	"bytes"

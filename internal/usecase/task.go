@@ -1,11 +1,11 @@
-package usecases
+package usecase
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 
-	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/domain"
 )
 
 type Task struct {
@@ -27,15 +27,15 @@ type TaskUsecase interface {
 
 type taskUsecase struct {
 	db         *sql.DB
-	tasks      repository.TaskRepository
-	activities repository.ActivityRepository
+	tasks      domain.TaskRepository
+	activities domain.ActivityRepository
 }
 
-func NewTaskUsecase(db *sql.DB) *taskUsecase {
+func NewTaskUsecase(db *sql.DB, tasks domain.TaskRepository, activities domain.ActivityRepository) *taskUsecase {
 	return &taskUsecase{
 		db:         db,
-		tasks:      repository.NewTaskRepository(),
-		activities: repository.NewActivityRepository(),
+		tasks:      tasks,
+		activities: activities,
 	}
 }
 
@@ -44,7 +44,7 @@ var _ TaskUsecase = &taskUsecase{}
 func (u *taskUsecase) List(ctx context.Context, userID int, status string, limit int, page int) ([]Task, error) {
 	offset := limit * (page - 1)
 
-	var tasks []repository.Task
+	var tasks []domain.Task
 	var err error
 	if status == "" {
 		tasks, err = u.tasks.Select(ctx, u.db, userID, limit, offset)

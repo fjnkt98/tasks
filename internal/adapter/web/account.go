@@ -1,4 +1,4 @@
-package presentation
+package web
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fjnkt98/tasks/internal/usecases"
+	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
 type contextKey int
@@ -61,12 +61,12 @@ func NewAuthCookie(value string, maxAge int) *http.Cookie {
 }
 
 type SignupHandler struct {
-	accounts usecases.AccountUsecase
+	accounts usecase.AccountUsecase
 }
 
 func NewSignupHandler(db *sql.DB) *SignupHandler {
 	return &SignupHandler{
-		accounts: usecases.NewAccountUsecase(db),
+		accounts: newAccountUsecase(db),
 	}
 }
 
@@ -136,7 +136,7 @@ func (h *SignupHandler) Post(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.accounts.Signup(r.Context(), username, password); err != nil {
-		if errors.Is(err, usecases.ErrUserAlreadyExists) {
+		if errors.Is(err, usecase.ErrUserAlreadyExists) {
 			h.render(w, r, "username was already used")
 			return
 		}
@@ -171,12 +171,12 @@ func (h *SignupHandler) Success(w http.ResponseWriter, r *http.Request) {
 }
 
 type SigninHandler struct {
-	accounts usecases.AccountUsecase
+	accounts usecase.AccountUsecase
 }
 
 func NewSigninHandler(db *sql.DB) *SigninHandler {
 	return &SigninHandler{
-		accounts: usecases.NewAccountUsecase(db),
+		accounts: newAccountUsecase(db),
 	}
 }
 
@@ -239,7 +239,7 @@ func (h *SigninHandler) Post(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.accounts.Signin(r.Context(), username, password)
 	if err != nil {
-		if errors.Is(err, usecases.ErrInvalidCredentials) {
+		if errors.Is(err, usecase.ErrInvalidCredentials) {
 			h.render(w, r, "invalid credentials")
 			return
 		}
@@ -253,12 +253,12 @@ func (h *SigninHandler) Post(w http.ResponseWriter, r *http.Request) {
 }
 
 type ChangePasswordHandler struct {
-	accounts usecases.AccountUsecase
+	accounts usecase.AccountUsecase
 }
 
 func NewChangePasswordHandler(db *sql.DB) *ChangePasswordHandler {
 	return &ChangePasswordHandler{
-		accounts: usecases.NewAccountUsecase(db),
+		accounts: newAccountUsecase(db),
 	}
 }
 
@@ -333,7 +333,7 @@ func (h *ChangePasswordHandler) Post(w http.ResponseWriter, r *http.Request) {
 	user := GetUserFromContext(r.Context())
 
 	if err := h.accounts.ChangePassword(r.Context(), user.ID, currentPassword, newPassword); err != nil {
-		if errors.Is(err, usecases.ErrInvalidCredentials) {
+		if errors.Is(err, usecase.ErrInvalidCredentials) {
 			h.render(w, r, "invalid credentials")
 			return
 		}
@@ -369,12 +369,12 @@ func (h *ChangePasswordHandler) Success(w http.ResponseWriter, r *http.Request) 
 }
 
 type SignoutHandler struct {
-	accounts usecases.AccountUsecase
+	accounts usecase.AccountUsecase
 }
 
 func NewSignoutHandler(db *sql.DB) *SignoutHandler {
 	return &SignoutHandler{
-		accounts: usecases.NewAccountUsecase(db),
+		accounts: newAccountUsecase(db),
 	}
 }
 
@@ -396,16 +396,16 @@ func (h *SignoutHandler) Post(w http.ResponseWriter, r *http.Request) {
 }
 
 type AccountHandler struct {
-	accounts usecases.AccountUsecase
-	users    usecases.UserUsecase
-	tasks    usecases.TaskUsecase
+	accounts usecase.AccountUsecase
+	users    usecase.UserUsecase
+	tasks    usecase.TaskUsecase
 }
 
 func NewAccountHandler(db *sql.DB) *AccountHandler {
 	return &AccountHandler{
-		accounts: usecases.NewAccountUsecase(db),
-		users:    usecases.NewUserUsecase(db),
-		tasks:    usecases.NewTaskUsecase(db),
+		accounts: newAccountUsecase(db),
+		users:    newUserUsecase(db),
+		tasks:    newTaskUsecase(db),
 	}
 }
 
@@ -424,7 +424,7 @@ func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 		IsAdmin    bool
 		TaskCount  int
 		DoneCount  int
-		Activities []usecases.Activity
+		Activities []usecase.Activity
 	}{
 		LayoutData: LayoutData{
 			Authorized:  IsAuthorized(r.Context()),
@@ -453,12 +453,12 @@ func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 type DeleteAccountHandler struct {
-	accounts usecases.AccountUsecase
+	accounts usecase.AccountUsecase
 }
 
 func NewDeleteAccountHandler(db *sql.DB) *DeleteAccountHandler {
 	return &DeleteAccountHandler{
-		accounts: usecases.NewAccountUsecase(db),
+		accounts: newAccountUsecase(db),
 	}
 }
 
@@ -521,7 +521,7 @@ func (h *DeleteAccountHandler) Post(w http.ResponseWriter, r *http.Request) {
 
 	user := GetUserFromContext(r.Context())
 	if err := h.accounts.Delete(r.Context(), user.ID, password); err != nil {
-		if errors.Is(err, usecases.ErrInvalidCredentials) {
+		if errors.Is(err, usecase.ErrInvalidCredentials) {
 			h.render(w, r, "invalid credentials")
 			return
 		}

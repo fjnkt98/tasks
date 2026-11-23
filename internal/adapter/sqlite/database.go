@@ -1,4 +1,4 @@
-package repository
+package sqlite
 
 import (
 	"context"
@@ -7,23 +7,9 @@ import (
 	"fmt"
 	"net/url"
 
-	_ "embed"
-
 	"github.com/XSAM/otelsql"
 	"github.com/mattn/go-sqlite3"
 )
-
-type DBTX interface {
-	Query(query string, args ...any) (*sql.Rows, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRow(query string, args ...any) *sql.Row
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-	Exec(query string, args ...any) (sql.Result, error)
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
-var _ DBTX = &sql.DB{}
-var _ DBTX = &sql.Tx{}
 
 //nolint:nonamedreturns // named err lets defer Close the DB on later failure and join that error
 func NewDB(ctx context.Context, dsn string) (db *sql.DB, err error) {
@@ -66,9 +52,6 @@ func EnforceForeignKeys(dsn string) (string, error) {
 
 	return u.String(), nil
 }
-
-var ErrNotFound = errors.New("not found")
-var ErrUniqueConstraint = errors.New("unique constraint violation")
 
 func isUniqueConstraintError(err error) bool {
 	var sqliteErr sqlite3.Error

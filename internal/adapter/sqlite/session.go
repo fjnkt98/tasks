@@ -1,4 +1,4 @@
-package repository
+package sqlite
 
 import (
 	"context"
@@ -6,24 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/fjnkt98/tasks/internal/domain"
 )
-
-var ErrInvalidCredentials = errors.New("invalid credentials")
-
-type Session struct {
-	UserID    int
-	Token     string
-	ExpiresAt int64
-}
-
-type SessionRepository interface {
-	Create(ctx context.Context, db DBTX, userID int, digest string, token string, expiresAt time.Time) (*Session, error)
-	GetByToken(ctx context.Context, db DBTX, token string) (*Session, error)
-	UpdateByToken(ctx context.Context, db DBTX, token string, expiresAt time.Time) (bool, error)
-	DeleteByUserID(ctx context.Context, db DBTX, userID int) (bool, error)
-	DeleteByToken(ctx context.Context, db DBTX, token string) (bool, error)
-	DeleteExpired(ctx context.Context, db DBTX) (bool, error)
-}
 
 type sessionRepository struct{}
 
@@ -31,16 +16,16 @@ func NewSessionRepository() *sessionRepository {
 	return &sessionRepository{}
 }
 
-var _ SessionRepository = &sessionRepository{}
+var _ domain.SessionRepository = &sessionRepository{}
 
-func (r *sessionRepository) Create(ctx context.Context, db DBTX, userID int, digest string, token string, expiresAt time.Time) (*Session, error) {
+func (r *sessionRepository) Create(ctx context.Context, db domain.DBTX, userID int, digest string, token string, expiresAt time.Time) (*domain.Session, error) {
 	q := "INSERT INTO sessions (user_id, token, expires_at) SELECT id, ?, ? FROM users WHERE id = ? AND digest = ? RETURNING user_id, token, expires_at"
 	row := db.QueryRowContext(ctx, q, token, expiresAt.Unix(), userID, digest)
 
-	var session Session
+	var session domain.Session
 	if err := row.Scan(&session.UserID, &session.Token, &session.ExpiresAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrInvalidCredentials
+			return nil, domain.ErrInvalidCredentials
 		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
@@ -48,14 +33,14 @@ func (r *sessionRepository) Create(ctx context.Context, db DBTX, userID int, dig
 	return &session, nil
 }
 
-func (r *sessionRepository) GetByToken(ctx context.Context, db DBTX, token string) (*Session, error) {
+func (r *sessionRepository) GetByToken(ctx context.Context, db domain.DBTX, token string) (*domain.Session, error) {
 	q := "SELECT user_id, token, expires_at FROM sessions WHERE token = ?"
 	row := db.QueryRowContext(ctx, q, token)
 
-	var session Session
+	var session domain.Session
 	if err := row.Scan(&session.UserID, &session.Token, &session.ExpiresAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, fmt.Errorf("execute: %w", err)
 	}
@@ -63,7 +48,7 @@ func (r *sessionRepository) GetByToken(ctx context.Context, db DBTX, token strin
 	return &session, nil
 }
 
-func (r *sessionRepository) UpdateByToken(ctx context.Context, db DBTX, token string, expiresAt time.Time) (bool, error) {
+func (r *sessionRepository) UpdateByToken(ctx context.Context, db domain.DBTX, token string, expiresAt time.Time) (bool, error) {
 	q := "UPDATE sessions SET expires_at = ? WHERE token = ?"
 	result, err := db.ExecContext(ctx, q, expiresAt.Unix(), token)
 	if err != nil {
@@ -77,7 +62,7 @@ func (r *sessionRepository) UpdateByToken(ctx context.Context, db DBTX, token st
 	return count > 0, nil
 }
 
-func (r *sessionRepository) DeleteByUserID(ctx context.Context, db DBTX, userID int) (bool, error) {
+func (r *sessionRepository) DeleteByUserID(ctx context.Context, db domain.DBTX, userID int) (bool, error) {
 	q := "DELETE FROM sessions WHERE user_id = ?"
 	result, err := db.ExecContext(ctx, q, userID)
 	if err != nil {
@@ -92,7 +77,7 @@ func (r *sessionRepository) DeleteByUserID(ctx context.Context, db DBTX, userID 
 	return count > 0, nil
 }
 
-func (r *sessionRepository) DeleteByToken(ctx context.Context, db DBTX, token string) (bool, error) {
+func (r *sessionRepository) DeleteByToken(ctx context.Context, db domain.DBTX, token string) (bool, error) {
 	q := "DELETE FROM sessions WHERE token = ?"
 	result, err := db.ExecContext(ctx, q, token)
 	if err != nil {
@@ -107,7 +92,7 @@ func (r *sessionRepository) DeleteByToken(ctx context.Context, db DBTX, token st
 	return count > 0, nil
 }
 
-func (r *sessionRepository) DeleteExpired(ctx context.Context, db DBTX) (bool, error) {
+func (r *sessionRepository) DeleteExpired(ctx context.Context, db domain.DBTX) (bool, error) {
 	q := "DELETE FROM sessions WHERE expires_at <= ?"
 	result, err := db.ExecContext(ctx, q, time.Now().Unix())
 	if err != nil {

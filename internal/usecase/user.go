@@ -1,4 +1,4 @@
-package usecases
+package usecase
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/domain"
 )
 
 type User struct {
@@ -44,17 +44,17 @@ type UserUsecase interface {
 
 type userUsecase struct {
 	db         *sql.DB
-	activities repository.ActivityRepository
-	tasks      repository.TaskRepository
-	users      repository.UserRepository
+	activities domain.ActivityRepository
+	tasks      domain.TaskRepository
+	users      domain.UserRepository
 }
 
-func NewUserUsecase(db *sql.DB) *userUsecase {
+func NewUserUsecase(db *sql.DB, users domain.UserRepository, tasks domain.TaskRepository, activities domain.ActivityRepository) *userUsecase {
 	return &userUsecase{
 		db:         db,
-		activities: repository.NewActivityRepository(),
-		tasks:      repository.NewTaskRepository(),
-		users:      repository.NewUserRepository(),
+		users:      users,
+		tasks:      tasks,
+		activities: activities,
 	}
 }
 
@@ -87,7 +87,7 @@ func (u *userUsecase) List(ctx context.Context, page int, limit int) (*UserList,
 func (u *userUsecase) Get(ctx context.Context, id int) (*UserDetail, error) {
 	user, err := u.users.Get(ctx, u.db, id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get user: %w", err)

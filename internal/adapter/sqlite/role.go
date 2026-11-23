@@ -1,25 +1,21 @@
-package repository
+package sqlite
 
 import (
 	"context"
 	"fmt"
-)
 
-type RoleRepository interface {
-	Ensure(ctx context.Context, db DBTX, name string) (string, error)
-	Select(ctx context.Context, db DBTX) ([]string, error)
-	Delete(ctx context.Context, db DBTX, name string) (bool, error)
-}
+	"github.com/fjnkt98/tasks/internal/domain"
+)
 
 type roleRepository struct{}
 
-var _ RoleRepository = &roleRepository{}
+var _ domain.RoleRepository = &roleRepository{}
 
 func NewRoleRepository() *roleRepository {
 	return &roleRepository{}
 }
 
-func (r *roleRepository) Ensure(ctx context.Context, db DBTX, name string) (string, error) {
+func (r *roleRepository) Ensure(ctx context.Context, db domain.DBTX, name string) (string, error) {
 	q := "INSERT INTO roles (name) VALUES (?) ON CONFLICT (name) DO NOTHING"
 	if _, err := db.ExecContext(ctx, q, name); err != nil {
 		return "", fmt.Errorf("execute: %w", err)
@@ -34,7 +30,7 @@ func (r *roleRepository) Ensure(ctx context.Context, db DBTX, name string) (stri
 	return role, nil
 }
 
-func (r *roleRepository) Select(ctx context.Context, db DBTX) ([]string, error) {
+func (r *roleRepository) Select(ctx context.Context, db domain.DBTX) ([]string, error) {
 	q := "SELECT name FROM roles ORDER BY name ASC"
 	rows, err := db.QueryContext(ctx, q)
 	if err != nil {
@@ -57,7 +53,7 @@ func (r *roleRepository) Select(ctx context.Context, db DBTX) ([]string, error) 
 	return roles, nil
 }
 
-func (r *roleRepository) Delete(ctx context.Context, db DBTX, name string) (bool, error) {
+func (r *roleRepository) Delete(ctx context.Context, db domain.DBTX, name string) (bool, error) {
 	q := "DELETE FROM roles WHERE name = ?"
 	result, err := db.ExecContext(ctx, q, name)
 	if err != nil {

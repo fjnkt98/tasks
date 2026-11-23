@@ -9,13 +9,13 @@ COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
 RUN go mod download
 
-COPY main.go /app/main.go
+COPY cmd/ /app/cmd/
 COPY internal/ /app/internal/
 
 COPY internal/schema/schema.sql /app/schema.sql
 
 ENV CGO_ENABLED=1
-RUN go build -o /app/app
+RUN go build -o /app/app ./cmd/tasks
 
 # Litestream
 FROM litestream/litestream:0.5.18-scratch@sha256:0ba1cdbb2d0be8876e27b1e646dc031309b7e3928e0ed91503ebaa73ff7e2c5d AS litestream

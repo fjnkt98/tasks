@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fjnkt98/tasks/internal/presentation"
+	"github.com/fjnkt98/tasks/internal/adapter/web"
 )
 
 func setAuthCookie(t *testing.T, e *env, value string) {
@@ -17,7 +17,7 @@ func setAuthCookie(t *testing.T, e *env, value string) {
 	u, err := url.Parse(e.server.URL)
 	require.NoError(t, err)
 	e.client.Jar.SetCookies(u, []*http.Cookie{{
-		Name:  presentation.AuthCookieName,
+		Name:  web.AuthCookieName,
 		Value: value,
 		Path:  "/",
 	}})

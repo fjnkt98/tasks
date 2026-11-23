@@ -1,4 +1,4 @@
-package presentation
+package web
 
 import (
 	"database/sql"
@@ -7,16 +7,16 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/fjnkt98/tasks/internal/usecases"
+	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
 type UserHandler struct {
-	users usecases.UserUsecase
+	users usecase.UserUsecase
 }
 
 func NewUserHandler(db *sql.DB) *UserHandler {
 	return &UserHandler{
-		users: usecases.NewUserUsecase(db),
+		users: newUserUsecase(db),
 	}
 }
 
@@ -46,7 +46,7 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	data := struct {
 		LayoutData
-		Users   []usecases.User
+		Users   []usecase.User
 		Prev    int
 		Current int
 		Next    int
@@ -95,7 +95,7 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.users.Get(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, usecases.ErrNotFound) {
+		if errors.Is(err, usecase.ErrNotFound) {
 			Error(w, r, ErrorCode404)
 			return
 		}
@@ -111,7 +111,7 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 		Roles      []string
 		TaskCount  int
 		DoneCount  int
-		Activities []usecases.Activity
+		Activities []usecase.Activity
 	}{
 		LayoutData: LayoutData{
 			Authorized:  IsAuthorized(r.Context()),

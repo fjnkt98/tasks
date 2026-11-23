@@ -1,4 +1,4 @@
-package presentation
+package web
 
 import (
 	"database/sql"
@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/usecases"
+	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
 type Middleware func(http.Handler) http.Handler
@@ -61,7 +61,7 @@ func NewRecoveryMiddleware() Middleware {
 }
 
 func NewSessionMiddleware(db *sql.DB) Middleware {
-	sessions := usecases.NewSessionUsecase(db)
+	sessions := newSessionUsecase(db)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookieName)
@@ -71,7 +71,7 @@ func NewSessionMiddleware(db *sql.DB) Middleware {
 			}
 
 			session, err := sessions.Continue(r.Context(), cookie.Value)
-			if errors.Is(err, usecases.ErrSessionInvalid) {
+			if errors.Is(err, usecase.ErrSessionInvalid) {
 				http.SetCookie(w, NewAuthCookie("", -1))
 				next.ServeHTTP(w, r)
 				return
