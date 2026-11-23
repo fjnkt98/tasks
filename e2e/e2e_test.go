@@ -60,6 +60,28 @@ func postForm(t *testing.T, e *env, path string, values url.Values) *http.Respon
 	return res
 }
 
+func signup(t *testing.T, e *env, username, password string) {
+	t.Helper()
+
+	res := postForm(t, e, "/account/signup", url.Values{
+		"username":         []string{username},
+		"password":         []string{password},
+		"confirm-password": []string{password},
+	})
+	discard(t, res.Body)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "/account/signup/success", res.Request.URL.Path)
+}
+
+func signin(t *testing.T, e *env, username, password string) *http.Response {
+	t.Helper()
+
+	return postForm(t, e, "/account/signin", url.Values{
+		"username": []string{username},
+		"password": []string{password},
+	})
+}
+
 func authCookie(t *testing.T, e *env) *http.Cookie {
 	t.Helper()
 
@@ -101,115 +123,123 @@ func taskCount(t *testing.T, db *sql.DB, title string) int {
 
 func TestAccountSignupAndSignin(t *testing.T) {
 	for _, tt := range []struct {
-		name string
+		name           string
+		signupPassword string
+		signinPassword string
+		wantStatus     int
+		wantPath       string
+		wantCookie     bool
+		wantSessions   int
 	}{
-		{name: "ok: 正しいパスワードを入力すると、サインインに成功する"},
-		{name: "ng: トリム後のパスワードでサインインすると、認証に失敗する"},
+		{
+			name:           "ok: 正しいパスワードを入力すると、サインインに成功する",
+			signupPassword: " contains whitespace ",
+			signinPassword: " contains whitespace ",
+			wantStatus:     http.StatusOK,
+			wantPath:       "/tasks",
+			wantCookie:     true,
+			wantSessions:   1,
+		},
+		{
+			name:           "ng: トリム後のパスワードでサインインすると、認証に失敗する",
+			signupPassword: " contains whitespace ",
+			signinPassword: "contains whitespace",
+			wantStatus:     http.StatusBadRequest,
+			wantPath:       "/account/signin",
+			wantCookie:     false,
+			wantSessions:   0,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
+			signup(t, e, "test", tt.signupPassword)
+			assert.Equal(t, 1, userCount(t, e.db, "test"))
 
-			res := postForm(t, e, "/account/signup", url.Values{
-				"username":         []string{"test"},
-				"password":         []string{" contains whitespace "},
-				"confirm-password": []string{" contains whitespace "},
-			})
+			res := signin(t, e, "test", tt.signinPassword)
 			discard(t, res.Body)
-			require.Equal(t, http.StatusOK, res.StatusCode)
-			require.Equal(t, "/account/signup/success", res.Request.URL.Path)
-			require.Equal(t, 1, userCount(t, e.db, "test"))
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+			assert.Equal(t, tt.wantPath, res.Request.URL.Path)
 
-			switch tt.name {
-			case "ok: 正しいパスワードを入力すると、サインインに成功する":
-				res = postForm(t, e, "/account/signin", url.Values{
-					"username": []string{"test"},
-					"password": []string{" contains whitespace "},
-				})
-				discard(t, res.Body)
-				assert.Equal(t, http.StatusOK, res.StatusCode)
-				assert.Equal(t, "/tasks", res.Request.URL.Path)
-
-				cookie := authCookie(t, e)
+			cookie := authCookie(t, e)
+			if tt.wantCookie {
 				require.NotNil(t, cookie)
 				assert.NotEmpty(t, cookie.Value)
-				assert.Equal(t, 1, sessionCount(t, e.db))
-
-			case "ng: トリム後のパスワードでサインインすると、認証に失敗する":
-				res = postForm(t, e, "/account/signin", url.Values{
-					"username": []string{"test"},
-					"password": []string{"contains whitespace"},
-				})
-				discard(t, res.Body)
-				assert.Equal(t, http.StatusBadRequest, res.StatusCode)
-				assert.Equal(t, "/account/signin", res.Request.URL.Path)
-				assert.Nil(t, authCookie(t, e))
-				assert.Equal(t, 0, sessionCount(t, e.db))
+			} else {
+				assert.Nil(t, cookie)
 			}
+			assert.Equal(t, tt.wantSessions, sessionCount(t, e.db))
 		})
 	}
 }
 
 func TestAccountSignupLimits(t *testing.T) {
 	for _, tt := range []struct {
-		name string
+		name       string
+		username   string
+		password   string
+		wantStatus int
+		wantUsers  int
 	}{
-		{name: "ng: 過大なリクエストボディを送ると、413 になる"},
+		{
+			name:       "ng: 過大なリクエストボディを送ると、413 になる",
+			username:   strings.Repeat("a", 1<<20),
+			password:   "test",
+			wantStatus: http.StatusRequestEntityTooLarge,
+			wantUsers:  0,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
 
 			res := postForm(t, e, "/account/signup", url.Values{
-				"username":         []string{strings.Repeat("a", 1<<20)},
-				"password":         []string{"test"},
-				"confirm-password": []string{"test"},
+				"username":         []string{tt.username},
+				"password":         []string{tt.password},
+				"confirm-password": []string{tt.password},
 			})
 			discard(t, res.Body)
-			assert.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
-			assert.Equal(t, 0, userCount(t, e.db, strings.Repeat("a", 1<<20)))
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+			assert.Equal(t, tt.wantUsers, userCount(t, e.db, tt.username))
 		})
 	}
 }
 
 func TestAccountPasswordChange(t *testing.T) {
 	for _, tt := range []struct {
-		name string
+		name        string
+		username    string
+		oldPassword string
+		newPassword string
+		wantPath    string
 	}{
-		{name: "ok: パスワードを変更すると、新しいパスワードでサインインできる"},
+		{
+			name:        "ok: パスワードを変更すると、新しいパスワードでサインインできる",
+			username:    "test",
+			oldPassword: "password",
+			newPassword: "new-password",
+			wantPath:    "/account/password_change/success",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
+			signup(t, e, tt.username, tt.oldPassword)
 
-			res := postForm(t, e, "/account/signup", url.Values{
-				"username":         []string{"test"},
-				"password":         []string{"password"},
-				"confirm-password": []string{"password"},
-			})
-			discard(t, res.Body)
-			require.Equal(t, http.StatusOK, res.StatusCode)
-
-			res = postForm(t, e, "/account/signin", url.Values{
-				"username": []string{"test"},
-				"password": []string{"password"},
-			})
+			res := signin(t, e, tt.username, tt.oldPassword)
 			discard(t, res.Body)
 			require.Equal(t, http.StatusOK, res.StatusCode)
 			require.Equal(t, "/tasks", res.Request.URL.Path)
 
 			res = postForm(t, e, "/account/password_change", url.Values{
-				"current-password":     []string{"password"},
-				"new-password":         []string{"new-password"},
-				"confirm-new-password": []string{"new-password"},
+				"current-password":     []string{tt.oldPassword},
+				"new-password":         []string{tt.newPassword},
+				"confirm-new-password": []string{tt.newPassword},
 			})
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/account/password_change/success", res.Request.URL.Path)
+			assert.Equal(t, tt.wantPath, res.Request.URL.Path)
 			assert.Nil(t, authCookie(t, e))
 			assert.Equal(t, 0, sessionCount(t, e.db))
 
-			res = postForm(t, e, "/account/signin", url.Values{
-				"username": []string{"test"},
-				"password": []string{"new-password"},
-			})
+			res = signin(t, e, tt.username, tt.newPassword)
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 			assert.Equal(t, "/tasks", res.Request.URL.Path)
@@ -224,85 +254,86 @@ func TestAccountPasswordChange(t *testing.T) {
 
 func TestAccountDelete(t *testing.T) {
 	for _, tt := range []struct {
-		name string
+		name         string
+		username     string
+		password     string
+		confirmation string
+		wantPath     string
 	}{
-		{name: "ok: アカウントを削除すると、ユーザー行が消える"},
+		{
+			name:         "ok: アカウントを削除すると、ユーザー行が消える",
+			username:     "test",
+			password:     "password",
+			confirmation: "delete account",
+			wantPath:     "/account/delete/success",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
+			signup(t, e, tt.username, tt.password)
+			require.Equal(t, 1, userCount(t, e.db, tt.username))
 
-			res := postForm(t, e, "/account/signup", url.Values{
-				"username":         []string{"test"},
-				"password":         []string{"password"},
-				"confirm-password": []string{"password"},
-			})
-			discard(t, res.Body)
-			require.Equal(t, http.StatusOK, res.StatusCode)
-			require.Equal(t, 1, userCount(t, e.db, "test"))
-
-			res = postForm(t, e, "/account/signin", url.Values{
-				"username": []string{"test"},
-				"password": []string{"password"},
-			})
+			res := signin(t, e, tt.username, tt.password)
 			discard(t, res.Body)
 			require.Equal(t, http.StatusOK, res.StatusCode)
 
 			res = postForm(t, e, "/account/delete", url.Values{
-				"password":     []string{"password"},
-				"confirmation": []string{"delete account"},
+				"password":     []string{tt.password},
+				"confirmation": []string{tt.confirmation},
 			})
 			discard(t, res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, "/account/delete/success", res.Request.URL.Path)
-			assert.Equal(t, 0, userCount(t, e.db, "test"))
+			assert.Equal(t, tt.wantPath, res.Request.URL.Path)
+			assert.Equal(t, 0, userCount(t, e.db, tt.username))
 			assert.Equal(t, 0, sessionCount(t, e.db))
 		})
 	}
 }
 
-func TestTasks(t *testing.T) {
+func TestTasksCreate(t *testing.T) {
 	for _, tt := range []struct {
-		name string
+		name      string
+		signedIn  bool
+		title     string
+		wantCode  int
+		wantPath  string
+		wantTasks int
 	}{
-		{name: "ok: タスクを作成すると、DB に保存される"},
-		{name: "ng: 未サインインでタスクを作ろうとすると、サインインへリダイレクトされる"},
+		{
+			name:      "ok: タスクを作成すると、DB に保存される",
+			signedIn:  true,
+			title:     "buy milk",
+			wantCode:  http.StatusCreated,
+			wantPath:  "",
+			wantTasks: 1,
+		},
+		{
+			name:      "ng: 未サインインでタスクを作ろうとすると、サインインへリダイレクトされる",
+			signedIn:  false,
+			title:     "buy milk",
+			wantCode:  http.StatusOK,
+			wantPath:  "/account/signin",
+			wantTasks: 0,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
-
-			switch tt.name {
-			case "ok: タスクを作成すると、DB に保存される":
-				res := postForm(t, e, "/account/signup", url.Values{
-					"username":         []string{"test"},
-					"password":         []string{"password"},
-					"confirm-password": []string{"password"},
-				})
+			if tt.signedIn {
+				signup(t, e, "test", "password")
+				res := signin(t, e, "test", "password")
 				discard(t, res.Body)
 				require.Equal(t, http.StatusOK, res.StatusCode)
-
-				res = postForm(t, e, "/account/signin", url.Values{
-					"username": []string{"test"},
-					"password": []string{"password"},
-				})
-				discard(t, res.Body)
-				require.Equal(t, http.StatusOK, res.StatusCode)
-
-				res = postForm(t, e, "/tasks", url.Values{
-					"title": []string{"buy milk"},
-				})
-				discard(t, res.Body)
-				assert.Equal(t, http.StatusCreated, res.StatusCode)
-				assert.Equal(t, 1, taskCount(t, e.db, "buy milk"))
-
-			case "ng: 未サインインでタスクを作ろうとすると、サインインへリダイレクトされる":
-				res := postForm(t, e, "/tasks", url.Values{
-					"title": []string{"buy milk"},
-				})
-				discard(t, res.Body)
-				assert.Equal(t, http.StatusOK, res.StatusCode)
-				assert.Equal(t, "/account/signin", res.Request.URL.Path)
-				assert.Equal(t, 0, taskCount(t, e.db, "buy milk"))
 			}
+
+			res := postForm(t, e, "/tasks", url.Values{
+				"title": []string{tt.title},
+			})
+			discard(t, res.Body)
+			assert.Equal(t, tt.wantCode, res.StatusCode)
+			if tt.wantPath != "" {
+				assert.Equal(t, tt.wantPath, res.Request.URL.Path)
+			}
+			assert.Equal(t, tt.wantTasks, taskCount(t, e.db, tt.title))
 		})
 	}
 }
