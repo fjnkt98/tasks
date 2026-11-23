@@ -20,22 +20,22 @@ func ParseTaskStatus(s string) (TaskStatus, error) {
 
 type Task struct {
 	id     int
-	userID int
+	user   *User
 	title  string
 	status TaskStatus
 }
 
-func NewTask(id, userID int, title string, status TaskStatus) Task {
+func NewTask(id int, user *User, title string, status TaskStatus) Task {
 	return Task{
 		id:     id,
-		userID: userID,
+		user:   user,
 		title:  title,
 		status: status,
 	}
 }
 
 func (t Task) ID() int            { return t.id }
-func (t Task) UserID() int        { return t.userID }
+func (t Task) User() *User        { return t.user }
 func (t Task) Title() string      { return t.title }
 func (t Task) Status() TaskStatus { return t.status }
 
