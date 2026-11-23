@@ -14,6 +14,7 @@ linters:
     - canonicalheader
     - contextcheck
     - copyloopvar
+    - depguard
     - durationcheck
     - errorlint
     - exhaustruct_v5
@@ -52,6 +53,133 @@ linters:
     - whitespace
 
   settings:
+    depguard:
+      # Clean-architecture import direction (inward only).
+      # Allowed edges: controllers→usecases→domain, controllers→views,
+      # repositories→domain|usecases, apps→controllers|usecases|repositories.
+      rules:
+        domain:
+          files:
+            - "**/internal/domain/*.go"
+          deny:
+            - pkg: github.com/fjnkt98/tasks/internal/usecases
+              desc: domain must not depend on usecases
+            - pkg: github.com/fjnkt98/tasks/internal/repositories
+              desc: domain must not depend on repositories
+            - pkg: github.com/fjnkt98/tasks/internal/controllers
+              desc: domain must not depend on controllers
+            - pkg: github.com/fjnkt98/tasks/internal/views
+              desc: domain must not depend on views
+            - pkg: github.com/fjnkt98/tasks/internal/apps
+              desc: domain must not depend on apps
+            - pkg: github.com/fjnkt98/tasks/internal/schema
+              desc: domain must not depend on schema
+            - pkg: github.com/fjnkt98/tasks/internal/testutils
+              desc: domain must not depend on testutils
+        views:
+          files:
+            - "**/internal/views/*.go"
+          deny:
+            - pkg: github.com/fjnkt98/tasks/internal/domain
+              desc: views must not depend on domain
+            - pkg: github.com/fjnkt98/tasks/internal/usecases
+              desc: views must not depend on usecases
+            - pkg: github.com/fjnkt98/tasks/internal/repositories
+              desc: views must not depend on repositories
+            - pkg: github.com/fjnkt98/tasks/internal/controllers
+              desc: views must not depend on controllers
+            - pkg: github.com/fjnkt98/tasks/internal/apps
+              desc: views must not depend on apps
+            - pkg: github.com/fjnkt98/tasks/internal/schema
+              desc: views must not depend on schema
+            - pkg: github.com/fjnkt98/tasks/internal/testutils
+              desc: views must not depend on testutils
+        schema:
+          files:
+            - "**/internal/schema/*.go"
+          deny:
+            - pkg: github.com/fjnkt98/tasks/internal/domain
+              desc: schema must not depend on domain
+            - pkg: github.com/fjnkt98/tasks/internal/usecases
+              desc: schema must not depend on usecases
+            - pkg: github.com/fjnkt98/tasks/internal/repositories
+              desc: schema must not depend on repositories
+            - pkg: github.com/fjnkt98/tasks/internal/controllers
+              desc: schema must not depend on controllers
+            - pkg: github.com/fjnkt98/tasks/internal/views
+              desc: schema must not depend on views
+            - pkg: github.com/fjnkt98/tasks/internal/apps
+              desc: schema must not depend on apps
+            - pkg: github.com/fjnkt98/tasks/internal/testutils
+              desc: schema must not depend on testutils
+        usecases:
+          files:
+            - "**/internal/usecases/*.go"
+          deny:
+            - pkg: github.com/fjnkt98/tasks/internal/repositories
+              desc: usecases must not depend on repositories (ports live in usecases)
+            - pkg: github.com/fjnkt98/tasks/internal/controllers
+              desc: usecases must not depend on controllers
+            - pkg: github.com/fjnkt98/tasks/internal/views
+              desc: usecases must not depend on views
+            - pkg: github.com/fjnkt98/tasks/internal/apps
+              desc: usecases must not depend on apps
+            - pkg: github.com/fjnkt98/tasks/internal/schema
+              desc: usecases must not depend on schema
+            - pkg: github.com/fjnkt98/tasks/internal/testutils
+              desc: usecases must not depend on testutils
+        repositories:
+          files:
+            - "**/internal/repositories/*.go"
+          deny:
+            - pkg: github.com/fjnkt98/tasks/internal/controllers
+              desc: repositories must not depend on controllers
+            - pkg: github.com/fjnkt98/tasks/internal/views
+              desc: repositories must not depend on views
+            - pkg: github.com/fjnkt98/tasks/internal/apps
+              desc: repositories must not depend on apps
+            - pkg: github.com/fjnkt98/tasks/internal/schema
+              desc: repositories must not depend on schema
+            - pkg: github.com/fjnkt98/tasks/internal/testutils
+              desc: repositories must not depend on testutils
+        controllers:
+          files:
+            - "**/internal/controllers/*.go"
+          deny:
+            - pkg: github.com/fjnkt98/tasks/internal/repositories
+              desc: controllers must not depend on repositories
+            - pkg: github.com/fjnkt98/tasks/internal/apps
+              desc: controllers must not depend on apps
+            - pkg: github.com/fjnkt98/tasks/internal/schema
+              desc: controllers must not depend on schema
+            - pkg: github.com/fjnkt98/tasks/internal/testutils
+              desc: controllers must not depend on testutils
+        apps:
+          files:
+            - "**/internal/apps/*.go"
+          deny:
+            - pkg: github.com/fjnkt98/tasks/internal/views
+              desc: apps wires controllers; leave views to controllers
+            - pkg: github.com/fjnkt98/tasks/internal/schema
+              desc: apps must not depend on schema
+            - pkg: github.com/fjnkt98/tasks/internal/testutils
+              desc: apps must not depend on testutils
+        testutils:
+          files:
+            - "**/internal/testutils/*.go"
+          deny:
+            - pkg: github.com/fjnkt98/tasks/internal/usecases
+              desc: testutils must not depend on usecases
+            - pkg: github.com/fjnkt98/tasks/internal/repositories
+              desc: testutils must not depend on repositories
+            - pkg: github.com/fjnkt98/tasks/internal/controllers
+              desc: testutils must not depend on controllers
+            - pkg: github.com/fjnkt98/tasks/internal/views
+              desc: testutils must not depend on views
+            - pkg: github.com/fjnkt98/tasks/internal/apps
+              desc: testutils must not depend on apps
+            - pkg: github.com/fjnkt98/tasks/internal/domain
+              desc: testutils must not depend on domain
     errcheck:
       check-type-assertions: true
     errorlint:
