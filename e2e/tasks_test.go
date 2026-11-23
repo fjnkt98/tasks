@@ -185,25 +185,25 @@ func TestTasksDelete(t *testing.T) {
 func TestTasksPages(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
-		pathSuffix   string
+		path         func(id int) string
 		wantCode     int
 		wantContains string
 	}{
 		{
 			name:         "ok: タスク一覧を開くと、作成したタスクが見える",
-			pathSuffix:   "",
+			path:         func(int) string { return "/tasks" },
 			wantCode:     http.StatusOK,
 			wantContains: "buy milk",
 		},
 		{
 			name:         "ok: タスク詳細を開くと、タイトルが見える",
-			pathSuffix:   "show",
+			path:         func(id int) string { return taskPath(id, "") },
 			wantCode:     http.StatusOK,
 			wantContains: "buy milk",
 		},
 		{
 			name:         "ok: タスク編集を開くと、タイトルが見える",
-			pathSuffix:   "edit",
+			path:         func(id int) string { return taskPath(id, "edit") },
 			wantCode:     http.StatusOK,
 			wantContains: "buy milk",
 		},
@@ -213,15 +213,7 @@ func TestTasksPages(t *testing.T) {
 			signInAs(t, e, "test")
 			id := createTask(t, e, "buy milk")
 
-			path := "/tasks"
-			switch tt.pathSuffix {
-			case "show":
-				path = taskPath(id, "")
-			case "edit":
-				path = taskPath(id, "edit")
-			}
-
-			res, body := get(t, e, path)
+			res, body := get(t, e, tt.path(id))
 			assert.Equal(t, tt.wantCode, res.StatusCode)
 			assert.Contains(t, body, tt.wantContains)
 		})

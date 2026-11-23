@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -215,28 +216,25 @@ func TestAccountSignout(t *testing.T) {
 
 func TestAccountMe(t *testing.T) {
 	for _, tt := range []struct {
-		name            string
-		wantContains    []string
-		wantActivityMsg string
+		name string
 	}{
-		{
-			name:            "ok: マイページを開くと、サインインのアクティビティが見える",
-			wantContains:    []string{"test"},
-			wantActivityMsg: "signin",
-		},
+		{name: "ok: マイページを開くと、アカウントとタスクのアクティビティが見える"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
 			signInAs(t, e, "test")
 			uid := userID(t, e.db, "test")
-			require.Equal(t, 1, activityCount(t, e.db, uid, "account", tt.wantActivityMsg))
+			id := createTask(t, e, "buy milk")
+			require.Equal(t, 1, activityCount(t, e.db, uid, "account", "signin"))
+			addMsg := fmt.Sprintf("add task %d, title: %q", id, "buy milk")
+			require.Equal(t, 1, activityCount(t, e.db, uid, "task", addMsg))
 
 			res, body := get(t, e, "/account/me")
 			assert.Equal(t, http.StatusOK, res.StatusCode)
-			for _, s := range tt.wantContains {
-				assert.Contains(t, body, s)
-			}
-			assert.Contains(t, body, tt.wantActivityMsg)
+			assert.Contains(t, body, "test")
+			assert.Contains(t, body, "signin")
+			assert.Contains(t, body, fmt.Sprintf("add task %d, title:", id))
+			assert.Contains(t, body, "buy milk")
 		})
 	}
 }
