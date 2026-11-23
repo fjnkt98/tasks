@@ -17,7 +17,7 @@ Subtest names (`t.Run` の第1引数) must be Japanese descriptions of the expec
 - Success / happy path: start with `ok: `
 - Failure / error path: start with `ng: `
 
-Prefer forms such as「◯◯は◯◯である」or「◯◯のとき、◯◯になる」(例: `ok: 正しいパスワードのとき、サインインに成功する`, `ng: パスワードが空のとき、登録に失敗する`).
+Prefer forms such as「◯◯は◯◯である」or「◯◯すると、◯◯になる」(例: `ok: 正しいパスワードを入力すると、サインインに成功する`, `ng: パスワードを空にすると、登録に失敗する`).
 
 ## Tooling
 
