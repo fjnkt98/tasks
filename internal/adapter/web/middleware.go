@@ -82,10 +82,14 @@ func NewSessionMiddleware(sessions usecase.SessionUsecase) Middleware {
 
 			http.SetCookie(w, NewAuthCookie(cookie.Value, 86400))
 
+			roles := make([]string, len(session.Roles))
+			for i, role := range session.Roles {
+				roles[i] = string(role)
+			}
 			ctx := SetUserIntoContext(r.Context(), User{
 				ID:    session.UserID,
 				Name:  session.UserName,
-				Roles: session.Roles,
+				Roles: roles,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

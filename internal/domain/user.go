@@ -22,3 +22,7 @@ func (u User) WithDigest(digest string) User {
 	u.digest = digest
 	return u
 }
+
+func (u User) IsNew() bool {
+	return u.id == 0
+}

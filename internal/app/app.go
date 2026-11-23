@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/adapter/sqlite"
 	"github.com/fjnkt98/tasks/internal/adapter/web"
+	"github.com/fjnkt98/tasks/internal/repository"
 	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
 func NewAdminUsecase(db *sql.DB) usecase.AdminUsecase {
 	return usecase.NewAdminUsecase(
 		db,
-		sqlite.NewUserRepository(),
-		sqlite.NewSessionRepository(),
-		sqlite.NewRoleRepository(),
+		repository.NewUserRepository(),
+		repository.NewSessionRepository(),
+		repository.NewRoleRepository(),
 	)
 }
 
@@ -24,26 +24,26 @@ func NewHandler(db *sql.DB) http.Handler {
 	return web.NewHandler(web.Deps{
 		Accounts: usecase.NewAccountUsecase(
 			db,
-			sqlite.NewUserRepository(),
-			sqlite.NewSessionRepository(),
-			sqlite.NewRoleRepository(),
-			sqlite.NewActivityRepository(),
+			repository.NewUserRepository(),
+			repository.NewSessionRepository(),
+			repository.NewRoleRepository(),
+			repository.NewActivityRepository(),
 		),
 		Sessions: usecase.NewSessionUsecase(
 			db,
-			sqlite.NewUserRepository(),
-			sqlite.NewSessionRepository(),
+			repository.NewUserRepository(),
+			repository.NewSessionRepository(),
 		),
 		Tasks: usecase.NewTaskUsecase(
 			db,
-			sqlite.NewTaskRepository(),
-			sqlite.NewActivityRepository(),
+			repository.NewTaskRepository(),
+			repository.NewActivityRepository(),
 		),
 		Users: usecase.NewUserUsecase(
 			db,
-			sqlite.NewUserRepository(),
-			sqlite.NewTaskRepository(),
-			sqlite.NewActivityRepository(),
+			repository.NewUserRepository(),
+			repository.NewTaskRepository(),
+			repository.NewActivityRepository(),
 		),
 	})
 }

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fjnkt98/tasks/internal/domain"
 	"github.com/fjnkt98/tasks/internal/usecase"
 )
 
@@ -395,16 +396,12 @@ func (h *SignoutHandler) Post(w http.ResponseWriter, r *http.Request) {
 }
 
 type AccountHandler struct {
-	accounts usecase.AccountUsecase
-	users    usecase.UserUsecase
-	tasks    usecase.TaskUsecase
+	users usecase.UserUsecase
 }
 
-func NewAccountHandler(accounts usecase.AccountUsecase, users usecase.UserUsecase, tasks usecase.TaskUsecase) *AccountHandler {
+func NewAccountHandler(users usecase.UserUsecase) *AccountHandler {
 	return &AccountHandler{
-		accounts: accounts,
-		users:    users,
-		tasks:    tasks,
+		users: users,
 	}
 }
 
@@ -423,7 +420,7 @@ func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 		IsAdmin    bool
 		TaskCount  int
 		DoneCount  int
-		Activities []usecase.Activity
+		Activities []domain.Activity
 	}{
 		LayoutData: LayoutData{
 			Authorized:  IsAuthorized(r.Context()),

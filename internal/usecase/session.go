@@ -7,31 +7,31 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/repository"
+	"github.com/fjnkt98/tasks/internal/domain"
 )
 
-type Session struct {
+// CurrentSession is the authenticated principal for a request (not the persisted domain.Session).
+type CurrentSession struct {
 	UserID   int
 	UserName string
-	Roles    []string
+	Roles    []domain.Role
 }
 
-// ErrSessionInvalid means the token is missing, expired, or no longer usable.
 var ErrSessionInvalid = errors.New("session invalid")
 
 type SessionUsecase interface {
-	Continue(ctx context.Context, token string) (*Session, error)
+	Continue(ctx context.Context, token string) (*CurrentSession, error)
 }
 
 type sessionUsecase struct {
 	db       *sql.DB
-	users    repository.UserRepository
-	sessions repository.SessionRepository
+	users    UserRepository
+	sessions SessionRepository
 }
 
 var _ SessionUsecase = &sessionUsecase{}
 
-func NewSessionUsecase(db *sql.DB, users repository.UserRepository, sessions repository.SessionRepository) *sessionUsecase {
+func NewSessionUsecase(db *sql.DB, users UserRepository, sessions SessionRepository) *sessionUsecase {
 	return &sessionUsecase{
 		db:       db,
 		users:    users,
@@ -39,20 +39,19 @@ func NewSessionUsecase(db *sql.DB, users repository.UserRepository, sessions rep
 	}
 }
 
-func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, error) {
+func (u *sessionUsecase) Continue(ctx context.Context, token string) (*CurrentSession, error) {
 	tx, err := u.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	session, err := u.sessions.GetByToken(ctx, tx, token)
+	session, err := u.sessions.FindByToken(ctx, tx, token)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, ErrNotFound) {
 			return nil, ErrSessionInvalid
 		}
-
-		return nil, fmt.Errorf("get session by token: %w", err)
+		return nil, fmt.Errorf("find session by token: %w", err)
 	}
 
 	now := time.Now()
@@ -60,46 +59,34 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 		if _, err := u.sessions.DeleteByToken(ctx, tx, session.Token()); err != nil {
 			return nil, fmt.Errorf("delete session by token: %w", err)
 		}
-
 		if err := tx.Commit(); err != nil {
 			return nil, fmt.Errorf("commit transaction: %w", err)
 		}
-
 		return nil, ErrSessionInvalid
 	}
 
-	user, err := u.users.Get(ctx, tx, session.UserID())
+	user, err := u.users.FindByID(ctx, tx, session.UserID())
 	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
+		return nil, fmt.Errorf("find user: %w", err)
 	}
 
-	roles, err := u.users.SelectRoles(ctx, tx, session.UserID())
+	roles, err := u.users.ListRoles(ctx, tx, session.UserID())
 	if err != nil {
-		return nil, fmt.Errorf("select roles: %w", err)
+		return nil, fmt.Errorf("list roles: %w", err)
 	}
 
 	session = session.WithExpiresAt(now.Add(24 * time.Hour))
-	ok, err := u.sessions.UpdateByToken(ctx, tx, session)
-	if err != nil {
-		return nil, fmt.Errorf("update session by token: %w", err)
-	}
-
-	if !ok {
-		return nil, ErrSessionInvalid
+	if _, err := u.sessions.Save(ctx, tx, session); err != nil {
+		return nil, fmt.Errorf("save session: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	roleNames := make([]string, len(roles))
-	for i, role := range roles {
-		roleNames[i] = string(role)
-	}
-
-	return &Session{
+	return &CurrentSession{
 		UserID:   user.ID(),
 		UserName: user.Name(),
-		Roles:    roleNames,
+		Roles:    roles,
 	}, nil
 }

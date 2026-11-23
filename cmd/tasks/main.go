@@ -23,8 +23,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/fjnkt98/tasks/internal/adapter/sqlite"
 	"github.com/fjnkt98/tasks/internal/app"
+	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 var serviceName = semconv.ServiceNameKey.String("tasks")
@@ -145,7 +145,7 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 		return nil, shutdown, fmt.Errorf("parse PORT: %w", err)
 	}
 
-	db, err := sqlite.NewDB(ctx, os.Getenv("DATABASE_URL"))
+	db, err := repository.NewDB(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("open database: %w", err)
 	}

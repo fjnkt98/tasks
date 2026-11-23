@@ -33,7 +33,7 @@
     hx-put="/tasks/{{ $task.ID }}/status"
     hx-swap="none"
     hx-vals="js:{status: this.checked ? 'done' : 'created'}"
-    {{ if eq $task.Status "done" }}checked{{ end }}
+    {{ if $task.IsDone }}checked{{ end }}
   />
 
   <button
