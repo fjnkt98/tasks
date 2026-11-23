@@ -5,12 +5,18 @@ import (
 	"time"
 )
 
+// Activity is the application's domain event (audit trail of what happened).
 type Activity struct {
 	user      *User
 	kind      string
 	message   string
 	createdAt time.Time
 }
+
+const (
+	ActivityKindTask    = "task"
+	ActivityKindAccount = "account"
+)
 
 func NewActivity(user *User, kind, message string, createdAt time.Time) (Activity, error) {
 	if user == nil {

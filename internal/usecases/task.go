@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/fjnkt98/tasks/internal/domain"
 )
@@ -79,7 +78,7 @@ func (u *taskUsecase) Add(ctx context.Context, userID int, title string) (domain
 		return domain.Task{}, fmt.Errorf("find user: %w", err)
 	}
 
-	task, err := domain.NewTask(0, &user, title, domain.TaskStatusCreated)
+	task, err := PrepareAddTask(user, title)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -88,12 +87,12 @@ func (u *taskUsecase) Add(ctx context.Context, userID int, title string) (domain
 		return domain.Task{}, fmt.Errorf("save task: %w", err)
 	}
 
-	activity, err := domain.NewActivity(&user, "task", fmt.Sprintf("add task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	event, err := EventTaskAdded(&user, task)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	if err := u.activities.Save(ctx, tx, activity); err != nil {
-		return domain.Task{}, fmt.Errorf("save activity: %w", err)
+	if err := saveEvents(ctx, tx, u.activities, []Event{event}); err != nil {
+		return domain.Task{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -115,7 +114,7 @@ func (u *taskUsecase) UpdateTitle(ctx context.Context, userID int, id int, title
 		return domain.Task{}, fmt.Errorf("find task: %w", err)
 	}
 
-	task, err = task.WithTitle(title)
+	task, err = PrepareUpdateTaskTitle(task, title)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -124,12 +123,12 @@ func (u *taskUsecase) UpdateTitle(ctx context.Context, userID int, id int, title
 		return domain.Task{}, fmt.Errorf("save task: %w", err)
 	}
 
-	activity, err := domain.NewActivity(task.User(), "task", fmt.Sprintf("edit task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	event, err := EventTaskTitleUpdated(task.User(), task)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	if err := u.activities.Save(ctx, tx, activity); err != nil {
-		return domain.Task{}, fmt.Errorf("save activity: %w", err)
+	if err := saveEvents(ctx, tx, u.activities, []Event{event}); err != nil {
+		return domain.Task{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -146,17 +145,12 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, stat
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	st, err := domain.ParseTaskStatus(status)
-	if err != nil {
-		return domain.Task{}, err
-	}
-
 	task, err := u.tasks.FindByID(ctx, tx, userID, id)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("find task: %w", err)
 	}
 
-	task, err = task.WithStatus(st)
+	task, st, err := PrepareUpdateTaskStatus(task, status)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -165,17 +159,12 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, stat
 		return domain.Task{}, fmt.Errorf("save task: %w", err)
 	}
 
-	action := "done"
-	if st == domain.TaskStatusCreated {
-		action = "undone"
-	}
-
-	activity, err := domain.NewActivity(task.User(), "task", fmt.Sprintf("%s task %d, %q", action, task.ID(), task.Title()), time.Time{})
+	event, err := EventTaskStatusUpdated(task.User(), task, st)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	if err := u.activities.Save(ctx, tx, activity); err != nil {
-		return domain.Task{}, fmt.Errorf("save activity: %w", err)
+	if err := saveEvents(ctx, tx, u.activities, []Event{event}); err != nil {
+		return domain.Task{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -203,12 +192,12 @@ func (u *taskUsecase) Delete(ctx context.Context, userID int, id int) error {
 	}
 
 	if ok {
-		activity, err := domain.NewActivity(&user, "task", fmt.Sprintf("delete task %d", id), time.Time{})
+		event, err := EventTaskDeleted(&user, id)
 		if err != nil {
 			return err
 		}
-		if err := u.activities.Save(ctx, tx, activity); err != nil {
-			return fmt.Errorf("save activity: %w", err)
+		if err := saveEvents(ctx, tx, u.activities, []Event{event}); err != nil {
+			return err
 		}
 	}
 
