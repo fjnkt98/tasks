@@ -79,13 +79,19 @@ func (u *taskUsecase) Add(ctx context.Context, userID int, title string) (domain
 		return domain.Task{}, fmt.Errorf("find user: %w", err)
 	}
 
-	task := domain.NewTask(0, &user, title, domain.TaskStatusCreated)
+	task, err := domain.NewTask(0, &user, title, domain.TaskStatusCreated)
+	if err != nil {
+		return domain.Task{}, err
+	}
 	task, err = u.tasks.Save(ctx, tx, task)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("save task: %w", err)
 	}
 
-	activity := domain.NewActivity(&user, "task", fmt.Sprintf("add task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	activity, err := domain.NewActivity(&user, "task", fmt.Sprintf("add task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	if err != nil {
+		return domain.Task{}, err
+	}
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return domain.Task{}, fmt.Errorf("save activity: %w", err)
 	}
@@ -109,13 +115,19 @@ func (u *taskUsecase) UpdateTitle(ctx context.Context, userID int, id int, title
 		return domain.Task{}, fmt.Errorf("find task: %w", err)
 	}
 
-	task = task.WithTitle(title)
+	task, err = task.WithTitle(title)
+	if err != nil {
+		return domain.Task{}, err
+	}
 	task, err = u.tasks.Save(ctx, tx, task)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("save task: %w", err)
 	}
 
-	activity := domain.NewActivity(task.User(), "task", fmt.Sprintf("edit task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	activity, err := domain.NewActivity(task.User(), "task", fmt.Sprintf("edit task %d, title: %q", task.ID(), task.Title()), time.Time{})
+	if err != nil {
+		return domain.Task{}, err
+	}
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return domain.Task{}, fmt.Errorf("save activity: %w", err)
 	}
@@ -144,7 +156,10 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, stat
 		return domain.Task{}, fmt.Errorf("find task: %w", err)
 	}
 
-	task = task.WithStatus(st)
+	task, err = task.WithStatus(st)
+	if err != nil {
+		return domain.Task{}, err
+	}
 	task, err = u.tasks.Save(ctx, tx, task)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("save task: %w", err)
@@ -155,7 +170,10 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, userID int, id int, stat
 		action = "undone"
 	}
 
-	activity := domain.NewActivity(task.User(), "task", fmt.Sprintf("%s task %d, %q", action, task.ID(), task.Title()), time.Time{})
+	activity, err := domain.NewActivity(task.User(), "task", fmt.Sprintf("%s task %d, %q", action, task.ID(), task.Title()), time.Time{})
+	if err != nil {
+		return domain.Task{}, err
+	}
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return domain.Task{}, fmt.Errorf("save activity: %w", err)
 	}
@@ -185,7 +203,10 @@ func (u *taskUsecase) Delete(ctx context.Context, userID int, id int) error {
 	}
 
 	if ok {
-		activity := domain.NewActivity(&user, "task", fmt.Sprintf("delete task %d", id), time.Time{})
+		activity, err := domain.NewActivity(&user, "task", fmt.Sprintf("delete task %d", id), time.Time{})
+		if err != nil {
+			return err
+		}
 		if err := u.activities.Save(ctx, tx, activity); err != nil {
 			return fmt.Errorf("save activity: %w", err)
 		}

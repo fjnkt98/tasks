@@ -1,9 +1,12 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+
+	"github.com/fjnkt98/tasks/internal/domain"
 )
 
 type ErrorCode int
@@ -34,6 +37,15 @@ var mapping = map[ErrorCode]struct {
 		template: "page/500",
 		status:   http.StatusInternalServerError,
 	},
+}
+
+func MapUsecaseError(w http.ResponseWriter, r *http.Request, err error, logMsg string) {
+	if errors.Is(err, domain.ErrValidation) {
+		Error(w, r, ErrorCode400)
+		return
+	}
+	slog.ErrorContext(r.Context(), logMsg, slog.Any("error", err))
+	Error(w, r, ErrorCode500)
 }
 
 func Error(w http.ResponseWriter, r *http.Request, code ErrorCode) {

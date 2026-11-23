@@ -51,7 +51,12 @@ func NewAccountUsecase(db *sql.DB, users UserRepository, sessions SessionReposit
 }
 
 func (u *accountUsecase) Signup(ctx context.Context, username string, password string) error {
-	digest, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	pw, err := domain.NewPassword(password)
+	if err != nil {
+		return err
+	}
+
+	digest, err := bcrypt.GenerateFromPassword([]byte(pw.String()), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest: %w", err)
 	}
@@ -62,7 +67,10 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	user := domain.NewUser(0, username, string(digest))
+	user, err := domain.NewUser(0, username, string(digest))
+	if err != nil {
+		return err
+	}
 	if _, err = u.users.Save(ctx, tx, user); err != nil {
 		if errors.Is(err, ErrUniqueConstraint) {
 			return ErrUserAlreadyExists
@@ -78,6 +86,11 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 }
 
 func (u *accountUsecase) Signin(ctx context.Context, username string, password string) (string, error) {
+	pw, err := domain.NewPassword(password)
+	if err != nil {
+		return "", err
+	}
+
 	user, err := u.users.FindByName(ctx, u.db, username)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -86,7 +99,7 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 		return "", fmt.Errorf("find user by name: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(pw.String())); err != nil {
 		return "", ErrInvalidCredentials
 	}
 
@@ -96,13 +109,19 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	session := domain.NewSession(&user, NewSessionToken(), time.Now().Add(24*time.Hour))
+	session, err := domain.NewSession(&user, NewSessionToken(), time.Now().Add(24*time.Hour))
+	if err != nil {
+		return "", err
+	}
 	session, err = u.sessions.Save(ctx, tx, session)
 	if err != nil {
 		return "", fmt.Errorf("save session: %w", err)
 	}
 
-	activity := domain.NewActivity(&user, "account", "signin", time.Time{})
+	activity, err := domain.NewActivity(&user, "account", "signin", time.Time{})
+	if err != nil {
+		return "", err
+	}
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return "", fmt.Errorf("save activity: %w", err)
 	}
@@ -115,6 +134,15 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 }
 
 func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, password string, newPassword string) error {
+	current, err := domain.NewPassword(password)
+	if err != nil {
+		return err
+	}
+	next, err := domain.NewPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
 	user, err := u.users.FindByID(ctx, u.db, userID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -123,11 +151,11 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 		return fmt.Errorf("find user by id: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(current.String())); err != nil {
 		return ErrInvalidCredentials
 	}
 
-	digest, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	digest, err := bcrypt.GenerateFromPassword([]byte(next.String()), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest for new password: %w", err)
 	}
@@ -148,7 +176,10 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 		return fmt.Errorf("find user by id: %w", err)
 	}
 
-	user = user.WithDigest(string(digest))
+	user, err = user.WithDigest(string(digest))
+	if err != nil {
+		return err
+	}
 	if _, err := u.users.Save(ctx, tx, user); err != nil {
 		return fmt.Errorf("save user: %w", err)
 	}
@@ -157,7 +188,10 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 		return fmt.Errorf("delete session by user id: %w", err)
 	}
 
-	activity := domain.NewActivity(&user, "account", "change password", time.Time{})
+	activity, err := domain.NewActivity(&user, "account", "change password", time.Time{})
+	if err != nil {
+		return err
+	}
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return fmt.Errorf("save activity: %w", err)
 	}
@@ -190,7 +224,10 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 	}
 
 	if ok {
-		activity := domain.NewActivity(session.User(), "account", "signout", time.Time{})
+		activity, err := domain.NewActivity(session.User(), "account", "signout", time.Time{})
+		if err != nil {
+			return err
+		}
 		if err := u.activities.Save(ctx, tx, activity); err != nil {
 			return fmt.Errorf("save activity: %w", err)
 		}
@@ -204,6 +241,11 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 }
 
 func (u *accountUsecase) Delete(ctx context.Context, userID int, password string) error {
+	pw, err := domain.NewPassword(password)
+	if err != nil {
+		return err
+	}
+
 	user, err := u.users.FindByID(ctx, u.db, userID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -212,7 +254,7 @@ func (u *accountUsecase) Delete(ctx context.Context, userID int, password string
 		return fmt.Errorf("find user: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(pw.String())); err != nil {
 		return ErrInvalidCredentials
 	}
 

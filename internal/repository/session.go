@@ -39,7 +39,7 @@ RETURNING token, expires_at`
 	if err := row.Scan(&token, &expiresUnix); err != nil {
 		return domain.Session{}, fmt.Errorf("execute: %w", err)
 	}
-	return domain.NewSession(user, token, time.Unix(expiresUnix, 0).UTC()), nil
+	return domain.NewSession(user, token, time.Unix(expiresUnix, 0).UTC())
 }
 
 func (r *sessionRepository) FindByToken(ctx context.Context, db usecase.DBTX, token string) (domain.Session, error) {
@@ -59,7 +59,7 @@ func (r *sessionRepository) FindByToken(ctx context.Context, db usecase.DBTX, to
 	if err != nil {
 		return domain.Session{}, err
 	}
-	return domain.NewSession(&user, sessionToken, time.Unix(expiresUnix, 0).UTC()), nil
+	return domain.NewSession(&user, sessionToken, time.Unix(expiresUnix, 0).UTC())
 }
 
 func (r *sessionRepository) DeleteByToken(ctx context.Context, db usecase.DBTX, token string) (bool, error) {

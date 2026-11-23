@@ -27,7 +27,7 @@ func (r *taskRepository) buildTask(id int, user *domain.User, title, status stri
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return domain.NewTask(id, user, title, st), nil
+	return domain.NewTask(id, user, title, st)
 }
 
 func (r *taskRepository) Save(ctx context.Context, db usecase.DBTX, task domain.Task) (domain.Task, error) {

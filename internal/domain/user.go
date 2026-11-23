@@ -1,6 +1,9 @@
 package domain
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
 type User struct {
 	id     int
@@ -9,13 +12,20 @@ type User struct {
 	roles  []Role
 }
 
-func NewUser(id int, name, digest string, roles ...Role) User {
+func NewUser(id int, name, digest string, roles ...Role) (User, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return User{}, ErrEmptyUserName
+	}
+	if digest == "" {
+		return User{}, ErrEmptyDigest
+	}
 	return User{
 		id:     id,
 		name:   name,
 		digest: digest,
 		roles:  slices.Clone(roles),
-	}
+	}, nil
 }
 
 func (u User) ID() int        { return u.id }
@@ -30,9 +40,12 @@ func (u User) HasRole(role Role) bool {
 	return slices.Contains(u.roles, role)
 }
 
-func (u User) WithDigest(digest string) User {
+func (u User) WithDigest(digest string) (User, error) {
+	if digest == "" {
+		return User{}, ErrEmptyDigest
+	}
 	u.digest = digest
-	return u
+	return u, nil
 }
 
 func (u User) GrantRole(role Role) User {

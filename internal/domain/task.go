@@ -1,6 +1,9 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type TaskStatus string
 
@@ -25,13 +28,23 @@ type Task struct {
 	status TaskStatus
 }
 
-func NewTask(id int, user *User, title string, status TaskStatus) Task {
+func NewTask(id int, user *User, title string, status TaskStatus) (Task, error) {
+	if user == nil {
+		return Task{}, ErrTaskUserRequired
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Task{}, ErrEmptyTaskTitle
+	}
+	if _, err := ParseTaskStatus(string(status)); err != nil {
+		return Task{}, err
+	}
 	return Task{
 		id:     id,
 		user:   user,
 		title:  title,
 		status: status,
-	}
+	}, nil
 }
 
 func (t Task) ID() int            { return t.id }
@@ -39,14 +52,21 @@ func (t Task) User() *User        { return t.user }
 func (t Task) Title() string      { return t.title }
 func (t Task) Status() TaskStatus { return t.status }
 
-func (t Task) WithTitle(title string) Task {
+func (t Task) WithTitle(title string) (Task, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Task{}, ErrEmptyTaskTitle
+	}
 	t.title = title
-	return t
+	return t, nil
 }
 
-func (t Task) WithStatus(status TaskStatus) Task {
+func (t Task) WithStatus(status TaskStatus) (Task, error) {
+	if _, err := ParseTaskStatus(string(status)); err != nil {
+		return Task{}, err
+	}
 	t.status = status
-	return t
+	return t, nil
 }
 
 func (t Task) IsDone() bool {

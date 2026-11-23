@@ -55,7 +55,11 @@ func (r *activityRepository) ListByUserID(ctx context.Context, db usecase.DBTX, 
 		if err := rows.Scan(&kind, &message, &createdAt); err != nil {
 			return nil, fmt.Errorf("scan rows: %w", err)
 		}
-		activities = append(activities, domain.NewActivity(owner, kind, message, time.Unix(createdAt, 0).UTC()))
+		activity, err := domain.NewActivity(owner, kind, message, time.Unix(createdAt, 0).UTC())
+		if err != nil {
+			return nil, err
+		}
+		activities = append(activities, activity)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows: %w", err)
