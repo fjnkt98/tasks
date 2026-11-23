@@ -35,16 +35,14 @@ type userUsecase struct {
 	activities ActivityRepository
 	tasks      TaskRepository
 	users      UserRepository
-	roles      RoleRepository
 }
 
-func NewUserUsecase(db *sql.DB, users UserRepository, tasks TaskRepository, activities ActivityRepository, roles RoleRepository) *userUsecase {
+func NewUserUsecase(db *sql.DB, users UserRepository, tasks TaskRepository, activities ActivityRepository) *userUsecase {
 	return &userUsecase{
 		db:         db,
 		users:      users,
 		tasks:      tasks,
 		activities: activities,
-		roles:      roles,
 	}
 }
 
@@ -87,11 +85,6 @@ func (u *userUsecase) Get(ctx context.Context, id int) (*UserDetail, error) {
 		return nil, fmt.Errorf("count done tasks: %w", err)
 	}
 
-	roles, err := u.roles.ListByUser(ctx, u.db, user.ID())
-	if err != nil {
-		return nil, fmt.Errorf("list roles: %w", err)
-	}
-
 	activities, err := u.activities.ListByUserID(ctx, u.db, user.ID())
 	if err != nil {
 		return nil, fmt.Errorf("list activities: %w", err)
@@ -101,7 +94,7 @@ func (u *userUsecase) Get(ctx context.Context, id int) (*UserDetail, error) {
 		User:       user,
 		TaskCount:  taskCount,
 		DoneCount:  doneCount,
-		Roles:      roles,
+		Roles:      user.Roles(),
 		Activities: activities,
 	}, nil
 }
@@ -113,8 +106,14 @@ func (u *userUsecase) GrantRole(ctx context.Context, userID int, role string) er
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	if err := u.roles.Assign(ctx, tx, userID, domain.Role(role)); err != nil {
-		return fmt.Errorf("assign role: %w", err)
+	user, err := u.users.FindByID(ctx, tx, userID)
+	if err != nil {
+		return fmt.Errorf("find user: %w", err)
+	}
+
+	user = user.WithRole(domain.Role(role))
+	if _, err := u.users.Save(ctx, tx, user); err != nil {
+		return fmt.Errorf("save user: %w", err)
 	}
 
 	activity := domain.NewActivity(userID, "account", fmt.Sprintf("grant role: %q", role), time.Time{})
@@ -136,12 +135,18 @@ func (u *userUsecase) RevokeRole(ctx context.Context, userID int, role string) e
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	ok, err := u.roles.Revoke(ctx, tx, userID, domain.Role(role))
+	user, err := u.users.FindByID(ctx, tx, userID)
 	if err != nil {
-		return fmt.Errorf("revoke role: %w", err)
+		return fmt.Errorf("find user: %w", err)
 	}
 
-	if ok {
+	had := user.HasRole(domain.Role(role))
+	user = user.WithoutRole(domain.Role(role))
+	if _, err := u.users.Save(ctx, tx, user); err != nil {
+		return fmt.Errorf("save user: %w", err)
+	}
+
+	if had {
 		activity := domain.NewActivity(userID, "account", fmt.Sprintf("revoke role: %q", role), time.Time{})
 		if err := u.activities.Save(ctx, tx, activity); err != nil {
 			return fmt.Errorf("save activity: %w", err)

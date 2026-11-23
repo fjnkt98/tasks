@@ -60,16 +60,13 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		admin = admin.WithDigest(string(digest))
 	}
 
+	admin = admin.WithRole(role)
 	admin, err = u.accounts.Save(ctx, tx, admin)
 	if err != nil {
 		return fmt.Errorf("save admin: %w", err)
 	}
 
-	if err := u.roles.Assign(ctx, tx, admin.ID(), role); err != nil {
-		return fmt.Errorf("grant admin role for admin user: %w", err)
-	}
-
-	users, err := u.roles.ListUsers(ctx, tx, role)
+	users, err := u.accounts.ListByRole(ctx, tx, role)
 	if err != nil {
 		return fmt.Errorf("list users which have admin role: %w", err)
 	}
