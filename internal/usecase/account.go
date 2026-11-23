@@ -78,13 +78,7 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 }
 
 func (u *accountUsecase) Signin(ctx context.Context, username string, password string) (string, error) {
-	tx, err := u.db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
-
-	user, err := u.users.FindByName(ctx, tx, username)
+	user, err := u.users.FindByName(ctx, u.db, username)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return "", ErrInvalidCredentials
@@ -95,6 +89,12 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
 		return "", ErrInvalidCredentials
 	}
+
+	tx, err := u.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	session := domain.NewSession(user.ID(), NewSessionToken(), time.Now().Add(24*time.Hour))
 	session, err = u.sessions.Save(ctx, tx, session)
@@ -115,13 +115,7 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 }
 
 func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, password string, newPassword string) error {
-	tx, err := u.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
-
-	user, err := u.users.FindByID(ctx, tx, userID)
+	user, err := u.users.FindByID(ctx, u.db, userID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return ErrInvalidCredentials
@@ -137,6 +131,12 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 	if err != nil {
 		return fmt.Errorf("generate digest for new password: %w", err)
 	}
+
+	tx, err := u.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	user = user.WithDigest(string(digest))
 	if _, err := u.users.Save(ctx, tx, user); err != nil {
