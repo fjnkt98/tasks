@@ -1,34 +1,13 @@
 package controllers
 
 import (
-	"bytes"
-	"embed"
-	"html/template"
 	"log/slog"
 	"net/http"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/fjnkt98/tasks/internal/views"
 )
-
-//go:embed static
-var statics embed.FS
-
-//go:embed templates
-var templates embed.FS
-
-var parsedTemplates = template.Must(template.ParseFS(
-	templates,
-	"templates/*.html",
-	"templates/partials/*.html",
-))
-
-func RenderTemplate(name string, data any) ([]byte, error) {
-	var buf bytes.Buffer
-	if err := parsedTemplates.ExecuteTemplate(&buf, name, data); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
 
 func IsHTMX(r *http.Request) bool {
 	return r.Header.Get("Hx-Request") == "true"
@@ -42,7 +21,7 @@ type LayoutData struct {
 func NewHandler(d Deps) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
+	mux.Handle("GET /static/", http.FileServer(http.FS(views.Static())))
 
 	m := NewChainedMiddleware(
 		NewRecoveryMiddleware(),
@@ -118,7 +97,7 @@ func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		AccountName: GetUserFromContext(r.Context()).Name,
 	}
 
-	body, err := RenderTemplate("page/index", &data)
+	body, err := views.Render("page/index", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
