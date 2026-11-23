@@ -102,5 +102,5 @@ Optional tracing stack: `docker compose up -d` (OTel collector + Jaeger).
 
 - Keep CGO enabled (`CGO_ENABLED=1`); tests need `sqlite3def` on PATH via mise.
 - Do not weaken lint rules to hide new issues; fix code or add a specific `//nolint:linter // reason`.
-- Prefer extending the existing clean-architecture packages under `internal/` (`domain`, `usecase`, `adapter/...`) over inventing parallel layouts.
+- Prefer extending the existing clean-architecture packages under `internal/` (`domain`, `repository`, `usecase`, `adapter/...`) over inventing parallel layouts.
 - Secrets and production deploys belong in env / GCP, not in commits.
