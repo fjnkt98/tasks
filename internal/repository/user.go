@@ -19,7 +19,7 @@ func NewUserRepository() *userRepository {
 }
 
 func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.User) (domain.User, error) {
-	if user.ID() == 0 {
+	if user.IsNew() {
 		q := "INSERT INTO users (name, digest) VALUES (?, ?) RETURNING id, name, digest"
 		row := db.QueryRowContext(ctx, q, user.Name(), user.Digest())
 		var id int

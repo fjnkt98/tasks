@@ -27,7 +27,7 @@ func scanTask(id, userID int, title, status string) (domain.Task, error) {
 }
 
 func (r *taskRepository) Save(ctx context.Context, db usecase.DBTX, task domain.Task) (domain.Task, error) {
-	if task.ID() == 0 {
+	if task.IsNew() {
 		q := "INSERT INTO tasks (user_id, title, status) VALUES (?, ?, ?) RETURNING id, user_id, title, status"
 		row := db.QueryRowContext(ctx, q, task.UserID(), task.Title(), string(task.Status()))
 		var id, owner int
