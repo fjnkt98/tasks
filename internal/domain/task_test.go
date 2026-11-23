@@ -16,39 +16,52 @@ func TestNewTask(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name    string
-		user    *domain.User
-		title   string
-		status  domain.TaskStatus
-		wantErr error
+		name      string
+		user      *domain.User
+		title     string
+		status    domain.TaskStatus
+		wantTitle string
+		wantErr   error
 	}{
 		{
-			name:    "ok: タイトルと所有者があればタスクを作れる",
-			user:    &user,
-			title:   "buy milk",
-			status:  domain.TaskStatusCreated,
-			wantErr: nil,
+			name:      "ok: タイトルと所有者があればタスクを作れる",
+			user:      &user,
+			title:     "buy milk",
+			status:    domain.TaskStatusCreated,
+			wantTitle: "buy milk",
+			wantErr:   nil,
 		},
 		{
-			name:    "ng: 所有者が無いとタスクを作れない",
-			user:    nil,
-			title:   "buy milk",
-			status:  domain.TaskStatusCreated,
-			wantErr: domain.ErrTaskUserRequired,
+			name:      "ok: 前後の空白はタイトルから取り除かれる",
+			user:      &user,
+			title:     "  buy milk  ",
+			status:    domain.TaskStatusCreated,
+			wantTitle: "buy milk",
+			wantErr:   nil,
 		},
 		{
-			name:    "ng: タイトルが空だとタスクを作れない",
-			user:    &user,
-			title:   "   ",
-			status:  domain.TaskStatusCreated,
-			wantErr: domain.ErrEmptyTaskTitle,
+			name:      "ng: 所有者が無いとタスクを作れない",
+			user:      nil,
+			title:     "buy milk",
+			status:    domain.TaskStatusCreated,
+			wantTitle: "",
+			wantErr:   domain.ErrTaskUserRequired,
 		},
 		{
-			name:    "ng: 不正なステータスだとタスクを作れない",
-			user:    &user,
-			title:   "buy milk",
-			status:  domain.TaskStatus("bogus"),
-			wantErr: domain.ErrInvalidTaskStatus,
+			name:      "ng: タイトルが空だとタスクを作れない",
+			user:      &user,
+			title:     "   ",
+			status:    domain.TaskStatusCreated,
+			wantTitle: "",
+			wantErr:   domain.ErrEmptyTaskTitle,
+		},
+		{
+			name:      "ng: 不正なステータスだとタスクを作れない",
+			user:      &user,
+			title:     "buy milk",
+			status:    domain.TaskStatus("bogus"),
+			wantTitle: "",
+			wantErr:   domain.ErrInvalidTaskStatus,
 		},
 	}
 
@@ -62,7 +75,7 @@ func TestNewTask(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, "buy milk", task.Title())
+			assert.Equal(t, tt.wantTitle, task.Title())
 			assert.Equal(t, domain.TaskStatusCreated, task.Status())
 		})
 	}
@@ -89,6 +102,12 @@ func TestTaskWithTitle(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name:    "ok: 更新時も前後の空白は取り除かれる",
+			title:   "  trimmed  ",
+			want:    "trimmed",
+			wantErr: nil,
+		},
+		{
 			name:    "ng: 空のタイトルには更新できない",
 			title:   "",
 			want:    "",
@@ -106,6 +125,98 @@ func TestTaskWithTitle(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.Title())
+			assert.Equal(t, "old", task.Title())
+		})
+	}
+}
+
+func TestTaskWithStatus(t *testing.T) {
+	t.Parallel()
+
+	user, err := domain.NewUser(1, "alice", "digest")
+	require.NoError(t, err)
+	task, err := domain.NewTask(1, &user, "title", domain.TaskStatusCreated)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		status  domain.TaskStatus
+		want    domain.TaskStatus
+		wantErr error
+	}{
+		{
+			name:    "ok: done に更新できる",
+			status:  domain.TaskStatusDone,
+			want:    domain.TaskStatusDone,
+			wantErr: nil,
+		},
+		{
+			name:    "ok: created に戻せる",
+			status:  domain.TaskStatusCreated,
+			want:    domain.TaskStatusCreated,
+			wantErr: nil,
+		},
+		{
+			name:    "ng: 不正なステータスには更新できない",
+			status:  domain.TaskStatus("bogus"),
+			want:    "",
+			wantErr: domain.ErrInvalidTaskStatus,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := task.WithStatus(tt.status)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got.Status())
+			assert.Equal(t, domain.TaskStatusCreated, task.Status())
+		})
+	}
+}
+
+func TestTaskPredicatesAndAccessors(t *testing.T) {
+	t.Parallel()
+
+	user, err := domain.NewUser(1, "alice", "digest")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		id       int
+		status   domain.TaskStatus
+		wantNew  bool
+		wantDone bool
+	}{
+		{
+			name:     "ok: id が 0 なら新規である",
+			id:       0,
+			status:   domain.TaskStatusCreated,
+			wantNew:  true,
+			wantDone: false,
+		},
+		{
+			name:     "ok: done なら完了である",
+			id:       10,
+			status:   domain.TaskStatusDone,
+			wantNew:  false,
+			wantDone: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			task, err := domain.NewTask(tt.id, &user, "title", tt.status)
+			require.NoError(t, err)
+			assert.Equal(t, tt.id, task.ID())
+			assert.Equal(t, &user, task.User())
+			assert.Equal(t, tt.wantNew, task.IsNew())
+			assert.Equal(t, tt.wantDone, task.IsDone())
 		})
 	}
 }

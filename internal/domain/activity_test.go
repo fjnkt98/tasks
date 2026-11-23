@@ -15,6 +15,7 @@ func TestNewActivity(t *testing.T) {
 
 	user, err := domain.NewUser(1, "alice", "digest")
 	require.NoError(t, err)
+	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	tests := []struct {
 		name    string
@@ -28,6 +29,13 @@ func TestNewActivity(t *testing.T) {
 			user:    &user,
 			kind:    "task",
 			message: "add task",
+			wantErr: nil,
+		},
+		{
+			name:    "ok: 前後の空白は種別とメッセージから取り除かれる",
+			user:    &user,
+			kind:    "  task  ",
+			message: "  add task  ",
 			wantErr: nil,
 		},
 		{
@@ -56,14 +64,17 @@ func TestNewActivity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			activity, err := domain.NewActivity(tt.user, tt.kind, tt.message, time.Time{})
+			activity, err := domain.NewActivity(tt.user, tt.kind, tt.message, createdAt)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
+				require.ErrorIs(t, err, domain.ErrValidation)
 				return
 			}
 			require.NoError(t, err)
+			assert.Equal(t, &user, activity.User())
 			assert.Equal(t, "task", activity.Kind())
 			assert.Equal(t, "add task", activity.Message())
+			assert.True(t, activity.CreatedAt().Equal(createdAt))
 		})
 	}
 }
