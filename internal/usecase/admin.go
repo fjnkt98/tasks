@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/fjnkt98/tasks/internal/domain"
+	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 type AdminUsecase interface {
@@ -16,12 +17,12 @@ type AdminUsecase interface {
 
 type adminUsecase struct {
 	db       *sql.DB
-	accounts domain.UserRepository
-	sessions domain.SessionRepository
-	roles    domain.RoleRepository
+	accounts repository.UserRepository
+	sessions repository.SessionRepository
+	roles    repository.RoleRepository
 }
 
-func NewAdminUsecase(db *sql.DB, accounts domain.UserRepository, sessions domain.SessionRepository, roles domain.RoleRepository) *adminUsecase {
+func NewAdminUsecase(db *sql.DB, accounts repository.UserRepository, sessions repository.SessionRepository, roles repository.RoleRepository) *adminUsecase {
 	return &adminUsecase{
 		db:       db,
 		accounts: accounts,
@@ -39,7 +40,7 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	role, err := u.roles.Ensure(ctx, tx, "admin")
+	role, err := u.roles.Ensure(ctx, tx, domain.RoleAdmin)
 	if err != nil {
 		return fmt.Errorf("ensure admin role: %w", err)
 	}
@@ -54,7 +55,7 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		return fmt.Errorf("create or replace admin: %w", err)
 	}
 
-	if err := u.accounts.EnsureRole(ctx, tx, admin.ID, role); err != nil {
+	if err := u.accounts.EnsureRole(ctx, tx, admin.ID(), role); err != nil {
 		return fmt.Errorf("grant admin role for admin user: %w", err)
 	}
 
@@ -63,15 +64,15 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		return fmt.Errorf("select users which have admin role: %w", err)
 	}
 	for _, user := range users {
-		if user.ID == admin.ID {
+		if user.ID() == admin.ID() {
 			continue
 		}
-		if _, err := u.accounts.Delete(ctx, tx, user.ID); err != nil {
+		if _, err := u.accounts.Delete(ctx, tx, user.ID()); err != nil {
 			return fmt.Errorf("delete old admin user: %w", err)
 		}
 	}
 
-	if _, err := u.sessions.DeleteByUserID(ctx, tx, admin.ID); err != nil {
+	if _, err := u.sessions.DeleteByUserID(ctx, tx, admin.ID()); err != nil {
 		return fmt.Errorf("delete admin's sessions: %w", err)
 	}
 

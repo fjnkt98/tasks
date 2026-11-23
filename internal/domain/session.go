@@ -1,21 +1,30 @@
 package domain
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
 type Session struct {
-	UserID    int
-	Token     string
-	ExpiresAt int64
+	userID    int
+	token     string
+	expiresAt time.Time
 }
 
-type SessionRepository interface {
-	Create(ctx context.Context, db DBTX, userID int, digest string, token string, expiresAt time.Time) (*Session, error)
-	GetByToken(ctx context.Context, db DBTX, token string) (*Session, error)
-	UpdateByToken(ctx context.Context, db DBTX, token string, expiresAt time.Time) (bool, error)
-	DeleteByUserID(ctx context.Context, db DBTX, userID int) (bool, error)
-	DeleteByToken(ctx context.Context, db DBTX, token string) (bool, error)
-	DeleteExpired(ctx context.Context, db DBTX) (bool, error)
+func NewSession(userID int, token string, expiresAt time.Time) Session {
+	return Session{
+		userID:    userID,
+		token:     token,
+		expiresAt: expiresAt,
+	}
+}
+
+func (s Session) UserID() int          { return s.userID }
+func (s Session) Token() string        { return s.token }
+func (s Session) ExpiresAt() time.Time { return s.expiresAt }
+
+func (s Session) Expired(now time.Time) bool {
+	return !s.expiresAt.After(now)
+}
+
+func (s Session) WithExpiresAt(expiresAt time.Time) Session {
+	s.expiresAt = expiresAt
+	return s
 }

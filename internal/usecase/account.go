@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/fjnkt98/tasks/internal/domain"
+	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
@@ -33,15 +34,15 @@ type AccountUsecase interface {
 
 type accountUsecase struct {
 	db         *sql.DB
-	users      domain.UserRepository
-	sessions   domain.SessionRepository
-	roles      domain.RoleRepository
-	activities domain.ActivityRepository
+	users      repository.UserRepository
+	sessions   repository.SessionRepository
+	roles      repository.RoleRepository
+	activities repository.ActivityRepository
 }
 
 var _ AccountUsecase = &accountUsecase{}
 
-func NewAccountUsecase(db *sql.DB, users domain.UserRepository, sessions domain.SessionRepository, roles domain.RoleRepository, activities domain.ActivityRepository) *accountUsecase {
+func NewAccountUsecase(db *sql.DB, users repository.UserRepository, sessions repository.SessionRepository, roles repository.RoleRepository, activities repository.ActivityRepository) *accountUsecase {
 	return &accountUsecase{
 		db:         db,
 		users:      users,
@@ -64,7 +65,7 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
 	if _, err = u.users.Create(ctx, tx, username, digest); err != nil {
-		if errors.Is(err, domain.ErrUniqueConstraint) {
+		if errors.Is(err, repository.ErrUniqueConstraint) {
 			return ErrUserAlreadyExists
 		}
 		return fmt.Errorf("create user: %w", err)
@@ -80,13 +81,13 @@ func (u *accountUsecase) Signup(ctx context.Context, username string, password s
 func (u *accountUsecase) Signin(ctx context.Context, username string, password string) (string, error) {
 	user, err := u.users.GetByName(ctx, u.db, username)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return "", ErrInvalidCredentials
 		}
 		return "", fmt.Errorf("get user by name: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
 		return "", ErrInvalidCredentials
 	}
 
@@ -96,15 +97,16 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	session, err := u.sessions.Create(ctx, tx, user.ID, user.Digest, NewSessionToken(), time.Now().Add(24*time.Hour))
+	session, err := u.sessions.Create(ctx, tx, user.ID(), user.Digest(), NewSessionToken(), time.Now().Add(24*time.Hour))
 	if err != nil {
-		if errors.Is(err, domain.ErrInvalidCredentials) {
+		if errors.Is(err, repository.ErrInvalidCredentials) {
 			return "", ErrInvalidCredentials
 		}
 		return "", fmt.Errorf("create session: %w", err)
 	}
 
-	if err := u.activities.Create(ctx, tx, user.ID, "account", "signin"); err != nil {
+	activity := domain.NewActivity(user.ID(), "account", "signin", time.Time{})
+	if err := u.activities.Create(ctx, tx, activity); err != nil {
 		return "", fmt.Errorf("create activity: %w", err)
 	}
 
@@ -112,7 +114,7 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 		return "", fmt.Errorf("commit transaction: %w", err)
 	}
 
-	return session.Token, nil
+	return session.Token(), nil
 }
 
 func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, password string, newPassword string) error {
@@ -124,13 +126,13 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 
 	user, err := u.users.Get(ctx, tx, userID)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return ErrInvalidCredentials
 		}
 		return fmt.Errorf("get user by id: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
 		return ErrInvalidCredentials
 	}
 
@@ -139,7 +141,8 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 		return fmt.Errorf("generate digest for new password: %w", err)
 	}
 
-	ok, err := u.users.UpdateDigest(ctx, tx, userID, digest)
+	user = user.WithDigest(string(digest))
+	ok, err := u.users.UpdateDigest(ctx, tx, user)
 	if err != nil {
 		return fmt.Errorf("update user digest: %w", err)
 	}
@@ -149,7 +152,8 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 	}
 
 	if ok {
-		if err := u.activities.Create(ctx, tx, userID, "account", "change password"); err != nil {
+		activity := domain.NewActivity(userID, "account", "change password", time.Time{})
+		if err := u.activities.Create(ctx, tx, activity); err != nil {
 			return fmt.Errorf("create activity: %w", err)
 		}
 	}
@@ -170,7 +174,7 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return nil
 		}
 		return fmt.Errorf("get session by token: %w", err)
@@ -182,7 +186,8 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 	}
 
 	if ok {
-		if err := u.activities.Create(ctx, tx, session.UserID, "account", "signout"); err != nil {
+		activity := domain.NewActivity(session.UserID(), "account", "signout", time.Time{})
+		if err := u.activities.Create(ctx, tx, activity); err != nil {
 			return fmt.Errorf("create activity: %w", err)
 		}
 	}
@@ -197,13 +202,13 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 func (u *accountUsecase) Delete(ctx context.Context, userID int, password string) error {
 	user, err := u.users.Get(ctx, u.db, userID)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return ErrInvalidCredentials
 		}
 		return fmt.Errorf("get user: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Digest()), []byte(password)); err != nil {
 		return ErrInvalidCredentials
 	}
 

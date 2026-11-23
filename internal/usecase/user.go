@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fjnkt98/tasks/internal/domain"
+	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 type User struct {
@@ -44,12 +45,12 @@ type UserUsecase interface {
 
 type userUsecase struct {
 	db         *sql.DB
-	activities domain.ActivityRepository
-	tasks      domain.TaskRepository
-	users      domain.UserRepository
+	activities repository.ActivityRepository
+	tasks      repository.TaskRepository
+	users      repository.UserRepository
 }
 
-func NewUserUsecase(db *sql.DB, users domain.UserRepository, tasks domain.TaskRepository, activities domain.ActivityRepository) *userUsecase {
+func NewUserUsecase(db *sql.DB, users repository.UserRepository, tasks repository.TaskRepository, activities repository.ActivityRepository) *userUsecase {
 	return &userUsecase{
 		db:         db,
 		users:      users,
@@ -70,8 +71,8 @@ func (u *userUsecase) List(ctx context.Context, page int, limit int) (*UserList,
 	results := make([]User, len(users))
 	for i, user := range users {
 		results[i] = User{
-			ID:   user.ID,
-			Name: user.Name,
+			ID:   user.ID(),
+			Name: user.Name(),
 		}
 	}
 	if len(results) > limit {
@@ -87,50 +88,55 @@ func (u *userUsecase) List(ctx context.Context, page int, limit int) (*UserList,
 func (u *userUsecase) Get(ctx context.Context, id int) (*UserDetail, error) {
 	user, err := u.users.Get(ctx, u.db, id)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	taskCount, err := u.tasks.Count(ctx, u.db, user.ID)
+	taskCount, err := u.tasks.Count(ctx, u.db, user.ID())
 	if err != nil {
 		return nil, fmt.Errorf("count tasks: %w", err)
 	}
 
-	doneCount, err := u.tasks.DoneCount(ctx, u.db, user.ID)
+	doneCount, err := u.tasks.DoneCount(ctx, u.db, user.ID())
 	if err != nil {
 		return nil, fmt.Errorf("count done tasks: %w", err)
 	}
 
-	roles, err := u.users.SelectRoles(ctx, u.db, user.ID)
+	roles, err := u.users.SelectRoles(ctx, u.db, user.ID())
 	if err != nil {
 		return nil, fmt.Errorf("select roles: %w", err)
 	}
 
-	activities, err := u.activities.Select(ctx, u.db, user.ID)
+	activities, err := u.activities.Select(ctx, u.db, user.ID())
 	if err != nil {
 		return nil, fmt.Errorf("select activities: %w", err)
+	}
+
+	roleNames := make([]string, len(roles))
+	for i, role := range roles {
+		roleNames[i] = string(role)
 	}
 
 	activities2 := make([]Activity, len(activities))
 	for i, a := range activities {
 		activities2[i] = Activity{
-			UserID:    a.UserID,
-			Kind:      a.Kind,
-			Message:   a.Message,
-			CreatedAt: time.Unix(a.CreatedAt, 0).UTC(),
+			UserID:    a.UserID(),
+			Kind:      a.Kind(),
+			Message:   a.Message(),
+			CreatedAt: a.CreatedAt(),
 		}
 	}
 
 	return &UserDetail{
 		User: User{
-			ID:   user.ID,
-			Name: user.Name,
+			ID:   user.ID(),
+			Name: user.Name(),
 		},
 		TaskCount:  taskCount,
 		DoneCount:  doneCount,
-		Roles:      roles,
+		Roles:      roleNames,
 		Activities: activities2,
 	}, nil
 }
@@ -142,11 +148,12 @@ func (u *userUsecase) GrantRole(ctx context.Context, userID int, role string) er
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	if err := u.users.EnsureRole(ctx, tx, userID, role); err != nil {
+	if err := u.users.EnsureRole(ctx, tx, userID, domain.Role(role)); err != nil {
 		return fmt.Errorf("ensure role: %w", err)
 	}
 
-	if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf("grant role: %q", role)); err != nil {
+	activity := domain.NewActivity(userID, "account", fmt.Sprintf("grant role: %q", role), time.Time{})
+	if err := u.activities.Create(ctx, tx, activity); err != nil {
 		return fmt.Errorf("create activity: %w", err)
 	}
 
@@ -164,13 +171,14 @@ func (u *userUsecase) RevokeRole(ctx context.Context, userID int, role string) e
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
-	ok, err := u.users.DeleteRole(ctx, tx, userID, role)
+	ok, err := u.users.DeleteRole(ctx, tx, userID, domain.Role(role))
 	if err != nil {
 		return fmt.Errorf("add role: %w", err)
 	}
 
 	if ok {
-		if err := u.activities.Create(ctx, tx, userID, "account", fmt.Sprintf("revoke role: %q", role)); err != nil {
+		activity := domain.NewActivity(userID, "account", fmt.Sprintf("revoke role: %q", role), time.Time{})
+		if err := u.activities.Create(ctx, tx, activity); err != nil {
 			return fmt.Errorf("create activity: %w", err)
 		}
 	}
