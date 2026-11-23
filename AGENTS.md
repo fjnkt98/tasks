@@ -30,6 +30,8 @@ Domain objects are immutable: fields are unexported, and changes go through meth
 
 Import direction is enforced by `depguard` in `.golangci.yml` (run via `mise run lint:go` / CI). Reverse or sideways dependencies between these packages fail lint. `domain` is also forbidden from importing I/O packages (`database/sql`, `net/*`, `os/*`, `log/*`, drivers, etc.).
 
+Usecase logic that decides outcomes should stay free of I/O: load at the start of `Call`, decide with pure helpers (`Prepare*`, `Event*`), then persist at the end. `domain.Activity` is the application event; usecases treat it as `Event` and save via `saveEvents` after domain writes succeed.
+
 ## Testing
 
 Before and during clean-architecture work, prefer **E2E tests** that exercise real HTTP endpoints (request/response shape, status, redirects, cookies) against a real SQLite DB and assert durable writes. Layer unit tests (repositories / usecases / middleware in isolation) are not the source of truth for refactor safety; do not rely on them to prove endpoint or persistence compatibility.

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/fjnkt98/tasks/internal/domain"
 )
@@ -111,17 +110,15 @@ func (u *userUsecase) GrantRole(ctx context.Context, userID int, role string) er
 		return fmt.Errorf("find user: %w", err)
 	}
 
-	user = user.GrantRole(domain.Role(role))
-	if _, err := u.users.Save(ctx, tx, user); err != nil {
-		return fmt.Errorf("save user: %w", err)
-	}
-
-	activity, err := domain.NewActivity(&user, "account", fmt.Sprintf("grant role: %q", role), time.Time{})
+	user, event, err := PrepareGrantRole(user, role)
 	if err != nil {
 		return err
 	}
-	if err := u.activities.Save(ctx, tx, activity); err != nil {
-		return fmt.Errorf("save activity: %w", err)
+	if _, err := u.users.Save(ctx, tx, user); err != nil {
+		return fmt.Errorf("save user: %w", err)
+	}
+	if err := saveEvents(ctx, tx, u.activities, []Event{event}); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -143,20 +140,15 @@ func (u *userUsecase) RevokeRole(ctx context.Context, userID int, role string) e
 		return fmt.Errorf("find user: %w", err)
 	}
 
-	had := user.HasRole(domain.Role(role))
-	user = user.RevokeRole(domain.Role(role))
+	user, events, err := PrepareRevokeRole(user, role)
+	if err != nil {
+		return err
+	}
 	if _, err := u.users.Save(ctx, tx, user); err != nil {
 		return fmt.Errorf("save user: %w", err)
 	}
-
-	if had {
-		activity, err := domain.NewActivity(&user, "account", fmt.Sprintf("revoke role: %q", role), time.Time{})
-		if err != nil {
-			return err
-		}
-		if err := u.activities.Save(ctx, tx, activity); err != nil {
-			return fmt.Errorf("save activity: %w", err)
-		}
+	if err := saveEvents(ctx, tx, u.activities, events); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {

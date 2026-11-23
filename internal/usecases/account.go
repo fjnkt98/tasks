@@ -118,12 +118,12 @@ func (u *accountUsecase) Signin(ctx context.Context, username string, password s
 		return "", fmt.Errorf("save session: %w", err)
 	}
 
-	activity, err := domain.NewActivity(&user, "account", "signin", time.Time{})
+	event, err := EventSignin(&user)
 	if err != nil {
 		return "", err
 	}
-	if err := u.activities.Save(ctx, tx, activity); err != nil {
-		return "", fmt.Errorf("save activity: %w", err)
+	if err := saveEvents(ctx, tx, u.activities, []Event{event}); err != nil {
+		return "", err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -188,12 +188,12 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 		return fmt.Errorf("delete session by user id: %w", err)
 	}
 
-	activity, err := domain.NewActivity(&user, "account", "change password", time.Time{})
+	event, err := EventChangePassword(&user)
 	if err != nil {
 		return err
 	}
-	if err := u.activities.Save(ctx, tx, activity); err != nil {
-		return fmt.Errorf("save activity: %w", err)
+	if err := saveEvents(ctx, tx, u.activities, []Event{event}); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -224,12 +224,12 @@ func (u *accountUsecase) Signout(ctx context.Context, token string) error {
 	}
 
 	if ok {
-		activity, err := domain.NewActivity(session.User(), "account", "signout", time.Time{})
+		event, err := EventSignout(session.User())
 		if err != nil {
 			return err
 		}
-		if err := u.activities.Save(ctx, tx, activity); err != nil {
-			return fmt.Errorf("save activity: %w", err)
+		if err := saveEvents(ctx, tx, u.activities, []Event{event}); err != nil {
+			return err
 		}
 	}
 
