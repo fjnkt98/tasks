@@ -1,23 +1,50 @@
 package domain
 
-import "context"
+import "fmt"
 
-type Task struct {
-	ID     int
-	UserID int
-	Title  string
-	Status string
+type TaskStatus string
+
+const (
+	TaskStatusCreated TaskStatus = "created"
+	TaskStatusDone    TaskStatus = "done"
+)
+
+func ParseTaskStatus(s string) (TaskStatus, error) {
+	switch TaskStatus(s) {
+	case TaskStatusCreated, TaskStatusDone:
+		return TaskStatus(s), nil
+	default:
+		return "", fmt.Errorf("%w: %q", ErrInvalidTaskStatus, s)
+	}
 }
 
-type TaskRepository interface {
-	Create(ctx context.Context, db DBTX, userID int, title string) (*Task, error)
-	Select(ctx context.Context, db DBTX, userID int, limit int, offset int) ([]Task, error)
-	SelectByStatus(ctx context.Context, db DBTX, userID int, status string, limit int, offset int) ([]Task, error)
-	Get(ctx context.Context, db DBTX, userID int, id int) (*Task, error)
-	UpdateTitle(ctx context.Context, db DBTX, userID int, id int, title string) (*Task, error)
-	UpdateStatus(ctx context.Context, db DBTX, userID int, id int, status string) (*Task, error)
-	Delete(ctx context.Context, db DBTX, userID int, id int) (bool, error)
-	Count(ctx context.Context, db DBTX, userID int) (int, error)
-	TodoCount(ctx context.Context, db DBTX, userID int) (int, error)
-	DoneCount(ctx context.Context, db DBTX, userID int) (int, error)
+type Task struct {
+	id     int
+	userID int
+	title  string
+	status TaskStatus
+}
+
+func NewTask(id, userID int, title string, status TaskStatus) Task {
+	return Task{
+		id:     id,
+		userID: userID,
+		title:  title,
+		status: status,
+	}
+}
+
+func (t Task) ID() int            { return t.id }
+func (t Task) UserID() int        { return t.userID }
+func (t Task) Title() string      { return t.title }
+func (t Task) Status() TaskStatus { return t.status }
+
+func (t Task) WithTitle(title string) Task {
+	t.title = title
+	return t
+}
+
+func (t Task) WithStatus(status TaskStatus) Task {
+	t.status = status
+	return t
 }

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fjnkt98/tasks/internal/domain"
+	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 type Session struct {
@@ -25,13 +25,13 @@ type SessionUsecase interface {
 
 type sessionUsecase struct {
 	db       *sql.DB
-	users    domain.UserRepository
-	sessions domain.SessionRepository
+	users    repository.UserRepository
+	sessions repository.SessionRepository
 }
 
 var _ SessionUsecase = &sessionUsecase{}
 
-func NewSessionUsecase(db *sql.DB, users domain.UserRepository, sessions domain.SessionRepository) *sessionUsecase {
+func NewSessionUsecase(db *sql.DB, users repository.UserRepository, sessions repository.SessionRepository) *sessionUsecase {
 	return &sessionUsecase{
 		db:       db,
 		users:    users,
@@ -48,15 +48,16 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 
 	session, err := u.sessions.GetByToken(ctx, tx, token)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrSessionInvalid
 		}
 
 		return nil, fmt.Errorf("get session by token: %w", err)
 	}
 
-	if session.ExpiresAt <= time.Now().Unix() {
-		if _, err := u.sessions.DeleteByToken(ctx, tx, session.Token); err != nil {
+	now := time.Now()
+	if session.Expired(now) {
+		if _, err := u.sessions.DeleteByToken(ctx, tx, session.Token()); err != nil {
 			return nil, fmt.Errorf("delete session by token: %w", err)
 		}
 
@@ -67,17 +68,18 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 		return nil, ErrSessionInvalid
 	}
 
-	user, err := u.users.Get(ctx, tx, session.UserID)
+	user, err := u.users.Get(ctx, tx, session.UserID())
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	roles, err := u.users.SelectRoles(ctx, tx, session.UserID)
+	roles, err := u.users.SelectRoles(ctx, tx, session.UserID())
 	if err != nil {
 		return nil, fmt.Errorf("select roles: %w", err)
 	}
 
-	ok, err := u.sessions.UpdateByToken(ctx, tx, session.Token, time.Now().Add(24*time.Hour))
+	session = session.WithExpiresAt(now.Add(24 * time.Hour))
+	ok, err := u.sessions.UpdateByToken(ctx, tx, session)
 	if err != nil {
 		return nil, fmt.Errorf("update session by token: %w", err)
 	}
@@ -90,9 +92,14 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*Session, 
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
+	roleNames := make([]string, len(roles))
+	for i, role := range roles {
+		roleNames[i] = string(role)
+	}
+
 	return &Session{
-		UserID:   user.ID,
-		UserName: user.Name,
-		Roles:    roles,
+		UserID:   user.ID(),
+		UserName: user.Name(),
+		Roles:    roleNames,
 	}, nil
 }

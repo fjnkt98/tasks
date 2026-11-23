@@ -1,9 +1,5 @@
 package domain
 
-import "context"
+type Role string
 
-type RoleRepository interface {
-	Ensure(ctx context.Context, db DBTX, name string) (string, error)
-	Select(ctx context.Context, db DBTX) ([]string, error)
-	Delete(ctx context.Context, db DBTX, name string) (bool, error)
-}
+const RoleAdmin Role = "admin"

@@ -5,32 +5,33 @@ import (
 	"fmt"
 
 	"github.com/fjnkt98/tasks/internal/domain"
+	"github.com/fjnkt98/tasks/internal/repository"
 )
 
 type roleRepository struct{}
 
-var _ domain.RoleRepository = &roleRepository{}
+var _ repository.RoleRepository = &roleRepository{}
 
 func NewRoleRepository() *roleRepository {
 	return &roleRepository{}
 }
 
-func (r *roleRepository) Ensure(ctx context.Context, db domain.DBTX, name string) (string, error) {
+func (r *roleRepository) Ensure(ctx context.Context, db repository.DBTX, role domain.Role) (domain.Role, error) {
 	q := "INSERT INTO roles (name) VALUES (?) ON CONFLICT (name) DO NOTHING"
-	if _, err := db.ExecContext(ctx, q, name); err != nil {
+	if _, err := db.ExecContext(ctx, q, string(role)); err != nil {
 		return "", fmt.Errorf("execute: %w", err)
 	}
 
 	q = "SELECT name FROM roles WHERE name = ?"
-	row := db.QueryRowContext(ctx, q, name)
-	var role string
-	if err := row.Scan(&role); err != nil {
+	row := db.QueryRowContext(ctx, q, string(role))
+	var name string
+	if err := row.Scan(&name); err != nil {
 		return "", fmt.Errorf("scan row: %w", err)
 	}
-	return role, nil
+	return domain.Role(name), nil
 }
 
-func (r *roleRepository) Select(ctx context.Context, db domain.DBTX) ([]string, error) {
+func (r *roleRepository) Select(ctx context.Context, db repository.DBTX) ([]domain.Role, error) {
 	q := "SELECT name FROM roles ORDER BY name ASC"
 	rows, err := db.QueryContext(ctx, q)
 	if err != nil {
@@ -38,13 +39,13 @@ func (r *roleRepository) Select(ctx context.Context, db domain.DBTX) ([]string, 
 	}
 	defer rows.Close()
 
-	roles := make([]string, 0)
+	roles := make([]domain.Role, 0)
 	for rows.Next() {
-		var role string
-		if err := rows.Scan(&role); err != nil {
+		var name string
+		if err := rows.Scan(&name); err != nil {
 			return nil, fmt.Errorf("scan rows: %w", err)
 		}
-		roles = append(roles, role)
+		roles = append(roles, domain.Role(name))
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows: %w", err)
@@ -53,9 +54,9 @@ func (r *roleRepository) Select(ctx context.Context, db domain.DBTX) ([]string, 
 	return roles, nil
 }
 
-func (r *roleRepository) Delete(ctx context.Context, db domain.DBTX, name string) (bool, error) {
+func (r *roleRepository) Delete(ctx context.Context, db repository.DBTX, role domain.Role) (bool, error) {
 	q := "DELETE FROM roles WHERE name = ?"
-	result, err := db.ExecContext(ctx, q, name)
+	result, err := db.ExecContext(ctx, q, string(role))
 	if err != nil {
 		return false, fmt.Errorf("execute: %w", err)
 	}
