@@ -76,6 +76,23 @@ linters:
               desc: domain must not depend on schema
             - pkg: github.com/fjnkt98/tasks/internal/testutils
               desc: domain must not depend on testutils
+            # Domain is a pure functional core: no I/O packages.
+            - pkg: database/sql
+              desc: domain must not use database/sql (no I/O)
+            - pkg: net
+              desc: domain must not use net/* (no I/O)
+            - pkg: os
+              desc: domain must not use os/* (no I/O)
+            - pkg: embed
+              desc: domain must not use embed (no I/O)
+            - pkg: log
+              desc: domain must not use log/* (no I/O)
+            - pkg: syscall
+              desc: domain must not use syscall (no I/O)
+            - pkg: io/ioutil
+              desc: domain must not use io/ioutil (no I/O)
+            - pkg: github.com/mattn/go-sqlite3
+              desc: domain must not use sqlite driver (no I/O)
         views:
           files:
             - "**/internal/views/*.go"

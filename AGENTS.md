@@ -28,7 +28,7 @@ e2e/                       # HTTP+DB end-to-end tests
 
 Domain objects are immutable: fields are unexported, and changes go through methods that return a new value (for example `WithTitle`). Repository ports accept/return domain objects (`Save`, `Find*`). Do not import `controllers`, `views`, or `repositories` from `domain` or `usecases` (except that `repositories` implements `usecases` ports). Only `apps` composes them.
 
-Import direction is enforced by `depguard` in `.golangci.yml` (run via `mise run lint:go` / CI). Reverse or sideways dependencies between these packages fail lint.
+Import direction is enforced by `depguard` in `.golangci.yml` (run via `mise run lint:go` / CI). Reverse or sideways dependencies between these packages fail lint. `domain` is also forbidden from importing I/O packages (`database/sql`, `net/*`, `os/*`, `log/*`, drivers, etc.).
 
 ## Testing
 
