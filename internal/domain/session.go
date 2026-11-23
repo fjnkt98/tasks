@@ -8,12 +8,18 @@ type Session struct {
 	expiresAt time.Time
 }
 
-func NewSession(user *User, token string, expiresAt time.Time) Session {
+func NewSession(user *User, token string, expiresAt time.Time) (Session, error) {
+	if user == nil {
+		return Session{}, ErrSessionUserRequired
+	}
+	if token == "" {
+		return Session{}, ErrEmptySessionToken
+	}
 	return Session{
 		user:      user,
 		token:     token,
 		expiresAt: expiresAt,
-	}
+	}, nil
 }
 
 func (s Session) User() *User          { return s.user }

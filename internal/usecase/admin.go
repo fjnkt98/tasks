@@ -45,7 +45,12 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		return fmt.Errorf("ensure admin role: %w", err)
 	}
 
-	digest, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	pw, err := domain.NewPassword(password)
+	if err != nil {
+		return err
+	}
+
+	digest, err := bcrypt.GenerateFromPassword([]byte(pw.String()), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("generate digest for admin password: %w", err)
 	}
@@ -55,9 +60,15 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		if !errors.Is(err, ErrNotFound) {
 			return fmt.Errorf("find admin: %w", err)
 		}
-		admin = domain.NewUser(0, username, string(digest))
+		admin, err = domain.NewUser(0, username, string(digest))
+		if err != nil {
+			return err
+		}
 	} else {
-		admin = admin.WithDigest(string(digest))
+		admin, err = admin.WithDigest(string(digest))
+		if err != nil {
+			return err
+		}
 	}
 
 	admin = admin.GrantRole(role)

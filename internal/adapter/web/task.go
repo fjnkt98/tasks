@@ -3,7 +3,6 @@ package web
 import (
 	"log/slog"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -55,8 +54,10 @@ func (h *TaskHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := values.Get("status")
-	if !slices.Contains([]string{"created", "done"}, status) {
-		status = ""
+	if status != "" {
+		if _, err := domain.ParseTaskStatus(status); err != nil {
+			status = ""
+		}
 	}
 
 	tasks, err := h.tasks.List(r.Context(), user.ID, status, limit, page)
@@ -190,8 +191,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	task, err := h.tasks.Add(r.Context(), user.ID, title)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "add task", slog.Any("error", err))
-		Error(w, r, ErrorCode500)
+		MapUsecaseError(w, r, err, "add task")
 		return
 	}
 
@@ -237,8 +237,7 @@ func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 
 	task, err := h.tasks.UpdateTitle(r.Context(), user.ID, id, title)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "update task title", slog.Any("error", err))
-		Error(w, r, ErrorCode500)
+		MapUsecaseError(w, r, err, "update task title")
 		return
 	}
 
@@ -274,7 +273,7 @@ func (h *TaskHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := r.PostForm.Get("status")
-	if !slices.Contains([]string{"created", "done"}, status) {
+	if _, err := domain.ParseTaskStatus(status); err != nil {
 		Error(w, r, ErrorCode400)
 		return
 	}
@@ -282,8 +281,7 @@ func (h *TaskHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	user := GetUserFromContext(r.Context())
 
 	if _, err := h.tasks.UpdateStatus(r.Context(), user.ID, id, status); err != nil {
-		slog.ErrorContext(r.Context(), "update task status", slog.Any("error", err))
-		Error(w, r, ErrorCode500)
+		MapUsecaseError(w, r, err, "update task status")
 		return
 	}
 

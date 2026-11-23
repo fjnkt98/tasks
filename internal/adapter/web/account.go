@@ -140,6 +140,10 @@ func (h *SignupHandler) Post(w http.ResponseWriter, r *http.Request) {
 			h.render(w, r, "username was already used")
 			return
 		}
+		if errors.Is(err, domain.ErrValidation) {
+			Error(w, r, ErrorCode400)
+			return
+		}
 		slog.ErrorContext(r.Context(), "request failed", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
 		return
@@ -243,6 +247,10 @@ func (h *SigninHandler) Post(w http.ResponseWriter, r *http.Request) {
 			h.render(w, r, "invalid credentials")
 			return
 		}
+		if errors.Is(err, domain.ErrValidation) {
+			Error(w, r, ErrorCode400)
+			return
+		}
 		slog.ErrorContext(r.Context(), "signin", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
 		return
@@ -335,6 +343,10 @@ func (h *ChangePasswordHandler) Post(w http.ResponseWriter, r *http.Request) {
 	if err := h.accounts.ChangePassword(r.Context(), user.ID, currentPassword, newPassword); err != nil {
 		if errors.Is(err, usecase.ErrInvalidCredentials) {
 			h.render(w, r, "invalid credentials")
+			return
+		}
+		if errors.Is(err, domain.ErrValidation) {
+			Error(w, r, ErrorCode400)
 			return
 		}
 		slog.ErrorContext(r.Context(), "change password", slog.Any("error", err))
@@ -519,6 +531,10 @@ func (h *DeleteAccountHandler) Post(w http.ResponseWriter, r *http.Request) {
 	if err := h.accounts.Delete(r.Context(), user.ID, password); err != nil {
 		if errors.Is(err, usecase.ErrInvalidCredentials) {
 			h.render(w, r, "invalid credentials")
+			return
+		}
+		if errors.Is(err, domain.ErrValidation) {
+			Error(w, r, ErrorCode400)
 			return
 		}
 

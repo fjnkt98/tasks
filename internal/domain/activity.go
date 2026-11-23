@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Activity struct {
 	user      *User
@@ -9,13 +12,24 @@ type Activity struct {
 	createdAt time.Time
 }
 
-func NewActivity(user *User, kind, message string, createdAt time.Time) Activity {
+func NewActivity(user *User, kind, message string, createdAt time.Time) (Activity, error) {
+	if user == nil {
+		return Activity{}, ErrActivityUserRequired
+	}
+	kind = strings.TrimSpace(kind)
+	if kind == "" {
+		return Activity{}, ErrEmptyActivityKind
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return Activity{}, ErrEmptyActivityMessage
+	}
 	return Activity{
 		user:      user,
 		kind:      kind,
 		message:   message,
 		createdAt: createdAt,
-	}
+	}, nil
 }
 
 func (a Activity) User() *User          { return a.user }
