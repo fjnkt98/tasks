@@ -19,15 +19,20 @@ func NewUserRepository() *userRepository {
 }
 
 func (r *userRepository) Save(ctx context.Context, db usecase.DBTX, user domain.User) (domain.User, error) {
-	// NULLIF(id,0): new rows get an auto id; existing ids upsert digest only.
+	// id=0 inserts; non-zero upserts only if the row still exists (no resurrection).
 	q := `
-INSERT INTO users (id, name, digest) VALUES (NULLIF(?, 0), ?, ?)
+INSERT INTO users (id, name, digest)
+SELECT NULLIF(?, 0), ?, ?
+WHERE ? = 0 OR EXISTS (SELECT 1 FROM users WHERE id = ?)
 ON CONFLICT(id) DO UPDATE SET digest = excluded.digest, updated_at = UNIXEPOCH()
 RETURNING id, name, digest`
-	row := db.QueryRowContext(ctx, q, user.ID(), user.Name(), user.Digest())
+	row := db.QueryRowContext(ctx, q, user.ID(), user.Name(), user.Digest(), user.ID(), user.ID())
 	var id int
 	var name, digest string
 	if err := row.Scan(&id, &name, &digest); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.User{}, usecase.ErrNotFound
+		}
 		if isUniqueConstraintError(err) {
 			return domain.User{}, usecase.ErrUniqueConstraint
 		}

@@ -27,16 +27,19 @@ func scanTask(id, userID int, title, status string) (domain.Task, error) {
 }
 
 func (r *taskRepository) Save(ctx context.Context, db usecase.DBTX, task domain.Task) (domain.Task, error) {
-	// NULLIF(id,0): new rows get an auto id. WHERE: wrong owner → no update → ErrNotFound.
+	// id=0 inserts; non-zero upserts only if the row still exists (no resurrection).
+	// Ownership WHERE: wrong owner → no update → ErrNotFound.
 	q := `
-INSERT INTO tasks (id, user_id, title, status) VALUES (NULLIF(?, 0), ?, ?, ?)
+INSERT INTO tasks (id, user_id, title, status)
+SELECT NULLIF(?, 0), ?, ?, ?
+WHERE ? = 0 OR EXISTS (SELECT 1 FROM tasks WHERE id = ?)
 ON CONFLICT(id) DO UPDATE SET
 	title = excluded.title,
 	status = excluded.status,
 	updated_at = UNIXEPOCH()
 WHERE tasks.user_id = excluded.user_id
 RETURNING id, user_id, title, status`
-	row := db.QueryRowContext(ctx, q, task.ID(), task.UserID(), task.Title(), string(task.Status()))
+	row := db.QueryRowContext(ctx, q, task.ID(), task.UserID(), task.Title(), string(task.Status()), task.ID(), task.ID())
 	var id, owner int
 	var title, status string
 	if err := row.Scan(&id, &owner, &title, &status); err != nil {
