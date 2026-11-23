@@ -60,13 +60,10 @@ func (u *adminUsecase) Setup(ctx context.Context, username, password string) err
 		admin = admin.WithDigest(string(digest))
 	}
 
+	admin = admin.GrantRole(role)
 	admin, err = u.accounts.Save(ctx, tx, admin)
 	if err != nil {
 		return fmt.Errorf("save admin: %w", err)
-	}
-
-	if err := u.accounts.EnsureRole(ctx, tx, admin.ID(), role); err != nil {
-		return fmt.Errorf("grant admin role for admin user: %w", err)
 	}
 
 	users, err := u.accounts.ListByRole(ctx, tx, role)

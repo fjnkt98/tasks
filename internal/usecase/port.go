@@ -40,11 +40,8 @@ type UserRepository interface {
 	FindByID(ctx context.Context, db DBTX, id int) (domain.User, error)
 	FindByName(ctx context.Context, db DBTX, name string) (domain.User, error)
 	List(ctx context.Context, db DBTX, limit int, offset int) ([]domain.User, error)
-	Delete(ctx context.Context, db DBTX, id int) (bool, error)
-	ListRoles(ctx context.Context, db DBTX, userID int) ([]domain.Role, error)
-	EnsureRole(ctx context.Context, db DBTX, userID int, role domain.Role) error
-	DeleteRole(ctx context.Context, db DBTX, userID int, role domain.Role) (bool, error)
 	ListByRole(ctx context.Context, db DBTX, role domain.Role) ([]domain.User, error)
+	Delete(ctx context.Context, db DBTX, id int) (bool, error)
 }
 
 type SessionRepository interface {

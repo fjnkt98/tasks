@@ -70,11 +70,6 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*CurrentSe
 		return nil, fmt.Errorf("find user: %w", err)
 	}
 
-	roles, err := u.users.ListRoles(ctx, tx, session.UserID())
-	if err != nil {
-		return nil, fmt.Errorf("list roles: %w", err)
-	}
-
 	session = session.WithExpiresAt(now.Add(24 * time.Hour))
 	if _, err := u.sessions.Save(ctx, tx, session); err != nil {
 		return nil, fmt.Errorf("save session: %w", err)
@@ -87,6 +82,6 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*CurrentSe
 	return &CurrentSession{
 		UserID:   user.ID(),
 		UserName: user.Name(),
-		Roles:    roles,
+		Roles:    user.Roles(),
 	}, nil
 }
