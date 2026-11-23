@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/fjnkt98/tasks/internal/domain"
+	"github.com/fjnkt98/tasks/internal/views"
 )
 
 type ErrorCode int
@@ -64,7 +65,7 @@ func Error(w http.ResponseWriter, r *http.Request, code ErrorCode) {
 		AccountName: GetUserFromContext(r.Context()).Name,
 	}
 
-	body, err := RenderTemplate(metadata.template, &data)
+	body, err := views.Render(metadata.template, &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		http.Error(w, "server error", http.StatusInternalServerError)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/fjnkt98/tasks/internal/domain"
 	"github.com/fjnkt98/tasks/internal/usecases"
+	"github.com/fjnkt98/tasks/internal/views"
 )
 
 type contextKey int
@@ -82,7 +83,7 @@ func (h *SignupHandler) render(w http.ResponseWriter, r *http.Request, msg strin
 		ErrorMessage: msg,
 	}
 
-	body, err := RenderTemplate("page/signup", &data)
+	body, err := views.Render("page/signup", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -158,7 +159,7 @@ func (h *SignupHandler) Success(w http.ResponseWriter, r *http.Request) {
 		AccountName: GetUserFromContext(r.Context()).Name,
 	}
 
-	body, err := RenderTemplate("page/signup_success", &data)
+	body, err := views.Render("page/signup_success", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -196,7 +197,7 @@ func (h *SigninHandler) render(w http.ResponseWriter, r *http.Request, msg strin
 		ErrorMessage: msg,
 	}
 
-	body, err := RenderTemplate("page/signin", &data)
+	body, err := views.Render("page/signin", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -282,7 +283,7 @@ func (h *ChangePasswordHandler) render(w http.ResponseWriter, r *http.Request, m
 		ErrorMessage: msg,
 	}
 
-	body, err := RenderTemplate("page/change_password", &data)
+	body, err := views.Render("page/change_password", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -364,7 +365,7 @@ func (h *ChangePasswordHandler) Success(w http.ResponseWriter, r *http.Request) 
 		AccountName: GetUserFromContext(r.Context()).Name,
 	}
 
-	body, err := RenderTemplate("page/change_password_success", &data)
+	body, err := views.Render("page/change_password_success", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -444,7 +445,7 @@ func (h *AccountHandler) Get(w http.ResponseWriter, r *http.Request) {
 		Activities: detail.Activities,
 	}
 
-	body, err := RenderTemplate("page/account", &data)
+	body, err := views.Render("page/account", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -482,7 +483,7 @@ func (h *DeleteAccountHandler) render(w http.ResponseWriter, r *http.Request, ms
 		ErrorMessage: msg,
 	}
 
-	body, err := RenderTemplate("page/delete_account", &data)
+	body, err := views.Render("page/delete_account", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -553,7 +554,7 @@ func (h *DeleteAccountHandler) Success(w http.ResponseWriter, r *http.Request) {
 		AccountName: "",
 	}
 
-	body, err := RenderTemplate("page/delete_account_success", &data)
+	body, err := views.Render("page/delete_account_success", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)

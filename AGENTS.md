@@ -10,7 +10,7 @@ Prefer self-explanatory code over narrative comments. Do not add comments that o
 
 ## Layout (clean architecture)
 
-Dependency direction is inward: `controllers → usecases → domain`, and `repositories` implements ports defined in `usecases`. `domain` has no I/O. Package directories are plural except `domain` and `schema`.
+Dependency direction is inward: `controllers → usecases → domain`, and `repositories` implements ports defined in `usecases`. Controllers render through `views`. `domain` has no I/O. Package directories are plural except `domain` and `schema`.
 
 ```
 cmd/tasks/                 # process entrypoint (calls apps)
@@ -20,12 +20,13 @@ internal/
   repositories/            # SQLite implementations of usecase ports
   apps/                    # composition root (wires repositories + usecases + controllers)
   controllers/             # HTTP controllers (request/response only)
+  views/                   # HTML templates and static assets
   schema/                  # SQL schema for sqlite3def
   testutils/               # shared test helpers
 e2e/                       # HTTP+DB end-to-end tests
 ```
 
-Domain objects are immutable: fields are unexported, and changes go through methods that return a new value (for example `WithTitle`). Repository ports accept/return domain objects (`Save`, `Find*`). Do not import `controllers` or `repositories` from `domain` or `usecases` (except that `repositories` implements `usecases` ports). Only `apps` composes them.
+Domain objects are immutable: fields are unexported, and changes go through methods that return a new value (for example `WithTitle`). Repository ports accept/return domain objects (`Save`, `Find*`). Do not import `controllers`, `views`, or `repositories` from `domain` or `usecases` (except that `repositories` implements `usecases` ports). Only `apps` composes them.
 
 ## Testing
 
@@ -101,5 +102,5 @@ Optional tracing stack: `docker compose up -d` (OTel collector + Jaeger).
 
 - Keep CGO enabled (`CGO_ENABLED=1`); tests need `sqlite3def` on PATH via mise.
 - Do not weaken lint rules to hide new issues; fix code or add a specific `//nolint:linter // reason`.
-- Prefer extending the existing clean-architecture packages under `internal/` (`domain`, `usecases`, `repositories`, `apps`, `controllers`) over inventing parallel layouts.
+- Prefer extending the existing clean-architecture packages under `internal/` (`domain`, `usecases`, `repositories`, `apps`, `controllers`, `views`) over inventing parallel layouts.
 - Secrets and production deploys belong in env / GCP, not in commits.

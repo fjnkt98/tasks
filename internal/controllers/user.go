@@ -8,6 +8,7 @@ import (
 
 	"github.com/fjnkt98/tasks/internal/domain"
 	"github.com/fjnkt98/tasks/internal/usecases"
+	"github.com/fjnkt98/tasks/internal/views"
 )
 
 type UserHandler struct {
@@ -67,9 +68,9 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	var body []byte
 	if IsHTMX(r) {
-		body, err = RenderTemplate("partial/users", &data)
+		body, err = views.Render("partial/users", &data)
 	} else {
-		body, err = RenderTemplate("page/users", &data)
+		body, err = views.Render("page/users", &data)
 	}
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
@@ -130,7 +131,7 @@ func (h *UserHandler) Show(w http.ResponseWriter, r *http.Request) {
 		Activities: detail.Activities,
 	}
 
-	body, err := RenderTemplate("page/user", data)
+	body, err := views.Render("page/user", data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)

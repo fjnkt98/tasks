@@ -8,6 +8,7 @@ import (
 
 	"github.com/fjnkt98/tasks/internal/domain"
 	"github.com/fjnkt98/tasks/internal/usecases"
+	"github.com/fjnkt98/tasks/internal/views"
 )
 
 type TaskData struct {
@@ -84,9 +85,9 @@ func (h *TaskHandler) Index(w http.ResponseWriter, r *http.Request) {
 
 	var body []byte
 	if IsHTMX(r) {
-		body, err = RenderTemplate("partial/tasks", &data)
+		body, err = views.Render("partial/tasks", &data)
 	} else {
-		body, err = RenderTemplate("page/tasks", &data)
+		body, err = views.Render("page/tasks", &data)
 	}
 
 	if err != nil {
@@ -132,7 +133,7 @@ func (h *TaskHandler) Show(w http.ResponseWriter, r *http.Request) {
 		Status:    "",
 	}
 
-	body, err := RenderTemplate("partial/tasks", &data)
+	body, err := views.Render("partial/tasks", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -164,7 +165,7 @@ func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := RenderTemplate("partial/task_edit", task)
+	body, err := views.Render("partial/task_edit", task)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -204,7 +205,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Status:     "",
 	}
 
-	body, err := RenderTemplate("partial/tasks", &data)
+	body, err := views.Render("partial/tasks", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
@@ -250,7 +251,7 @@ func (h *TaskHandler) UpdateTitle(w http.ResponseWriter, r *http.Request) {
 		Status:     "",
 	}
 
-	body, err := RenderTemplate("partial/tasks", &data)
+	body, err := views.Render("partial/tasks", &data)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "render template", slog.Any("error", err))
 		Error(w, r, ErrorCode500)
