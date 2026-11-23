@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"database/sql"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -56,6 +57,23 @@ func postForm(t *testing.T, e *env, path string, values url.Values) *http.Respon
 	t.Helper()
 
 	res, err := e.client.PostForm(e.server.URL+path, values)
+	require.NoError(t, err)
+	return res
+}
+
+func doForm(t *testing.T, e *env, method, path string, values url.Values) *http.Response {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		method,
+		e.server.URL+path,
+		strings.NewReader(values.Encode()),
+	)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	res, err := e.client.Do(req)
 	require.NoError(t, err)
 	return res
 }
@@ -119,6 +137,44 @@ func taskCount(t *testing.T, db *sql.DB, title string) int {
 	var n int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE title = ?`, title).Scan(&n))
 	return n
+}
+
+func createTask(t *testing.T, e *env, title string) int {
+	t.Helper()
+
+	res := postForm(t, e, "/tasks", url.Values{"title": []string{title}})
+	discard(t, res.Body)
+	require.Equal(t, http.StatusCreated, res.StatusCode)
+
+	var id int
+	require.NoError(t, e.db.QueryRow(`SELECT id FROM tasks WHERE title = ?`, title).Scan(&id))
+	return id
+}
+
+func taskTitle(t *testing.T, db *sql.DB, id int) string {
+	t.Helper()
+
+	var title string
+	require.NoError(t, db.QueryRow(`SELECT title FROM tasks WHERE id = ?`, id).Scan(&title))
+	return title
+}
+
+func taskStatus(t *testing.T, db *sql.DB, id int) string {
+	t.Helper()
+
+	var status string
+	require.NoError(t, db.QueryRow(`SELECT status FROM tasks WHERE id = ?`, id).Scan(&status))
+	return status
+}
+
+func signInAs(t *testing.T, e *env, username, password string) {
+	t.Helper()
+
+	signup(t, e, username, password)
+	res := signin(t, e, username, password)
+	discard(t, res.Body)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "/tasks", res.Request.URL.Path)
 }
 
 func TestAccountSignupAndSignin(t *testing.T) {
@@ -319,10 +375,7 @@ func TestTasksCreate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
 			if tt.signedIn {
-				signup(t, e, "test", "password")
-				res := signin(t, e, "test", "password")
-				discard(t, res.Body)
-				require.Equal(t, http.StatusOK, res.StatusCode)
+				signInAs(t, e, "test", "password")
 			}
 
 			res := postForm(t, e, "/tasks", url.Values{
@@ -334,6 +387,80 @@ func TestTasksCreate(t *testing.T) {
 				assert.Equal(t, tt.wantPath, res.Request.URL.Path)
 			}
 			assert.Equal(t, tt.wantTasks, taskCount(t, e.db, tt.title))
+		})
+	}
+}
+
+func TestTasksUpdateTitle(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		initial   string
+		newTitle  string
+		wantCode  int
+		wantTitle string
+	}{
+		{
+			name:      "ok: タイトルを更新すると、DB のタイトルが変わる",
+			initial:   "buy milk",
+			newTitle:  "buy oat milk",
+			wantCode:  http.StatusOK,
+			wantTitle: "buy oat milk",
+		},
+		{
+			name:      "ng: 空のタイトルで更新すると、400 になる",
+			initial:   "buy milk",
+			newTitle:  "   ",
+			wantCode:  http.StatusBadRequest,
+			wantTitle: "buy milk",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newEnv(t)
+			signInAs(t, e, "test", "password")
+			id := createTask(t, e, tt.initial)
+
+			res := doForm(t, e, http.MethodPut, fmt.Sprintf("/tasks/%d/title", id), url.Values{
+				"title": []string{tt.newTitle},
+			})
+			discard(t, res.Body)
+			assert.Equal(t, tt.wantCode, res.StatusCode)
+			assert.Equal(t, tt.wantTitle, taskTitle(t, e.db, id))
+		})
+	}
+}
+
+func TestTasksUpdateStatus(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		status     string
+		wantCode   int
+		wantStatus string
+	}{
+		{
+			name:       "ok: ステータスを done にすると、DB のステータスが変わる",
+			status:     "done",
+			wantCode:   http.StatusNoContent,
+			wantStatus: "done",
+		},
+		{
+			name:       "ng: 不正なステータスで更新すると、400 になる",
+			status:     "archived",
+			wantCode:   http.StatusBadRequest,
+			wantStatus: "created",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newEnv(t)
+			signInAs(t, e, "test", "password")
+			id := createTask(t, e, "buy milk")
+			require.Equal(t, "created", taskStatus(t, e.db, id))
+
+			res := doForm(t, e, http.MethodPut, fmt.Sprintf("/tasks/%d/status", id), url.Values{
+				"status": []string{tt.status},
+			})
+			discard(t, res.Body)
+			assert.Equal(t, tt.wantCode, res.StatusCode)
+			assert.Equal(t, tt.wantStatus, taskStatus(t, e.db, id))
 		})
 	}
 }
