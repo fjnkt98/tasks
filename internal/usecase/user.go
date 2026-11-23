@@ -116,7 +116,7 @@ func (u *userUsecase) GrantRole(ctx context.Context, userID int, role string) er
 		return fmt.Errorf("save user: %w", err)
 	}
 
-	activity := domain.NewActivity(userID, "account", fmt.Sprintf("grant role: %q", role), time.Time{})
+	activity := domain.NewActivity(&user, "account", fmt.Sprintf("grant role: %q", role), time.Time{})
 	if err := u.activities.Save(ctx, tx, activity); err != nil {
 		return fmt.Errorf("save activity: %w", err)
 	}
@@ -147,7 +147,7 @@ func (u *userUsecase) RevokeRole(ctx context.Context, userID int, role string) e
 	}
 
 	if had {
-		activity := domain.NewActivity(userID, "account", fmt.Sprintf("revoke role: %q", role), time.Time{})
+		activity := domain.NewActivity(&user, "account", fmt.Sprintf("revoke role: %q", role), time.Time{})
 		if err := u.activities.Save(ctx, tx, activity); err != nil {
 			return fmt.Errorf("save activity: %w", err)
 		}

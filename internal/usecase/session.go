@@ -25,16 +25,14 @@ type SessionUsecase interface {
 
 type sessionUsecase struct {
 	db       *sql.DB
-	users    UserRepository
 	sessions SessionRepository
 }
 
 var _ SessionUsecase = &sessionUsecase{}
 
-func NewSessionUsecase(db *sql.DB, users UserRepository, sessions SessionRepository) *sessionUsecase {
+func NewSessionUsecase(db *sql.DB, sessions SessionRepository) *sessionUsecase {
 	return &sessionUsecase{
 		db:       db,
-		users:    users,
 		sessions: sessions,
 	}
 }
@@ -65,9 +63,9 @@ func (u *sessionUsecase) Continue(ctx context.Context, token string) (*CurrentSe
 		return nil, ErrSessionInvalid
 	}
 
-	user, err := u.users.FindByID(ctx, tx, session.UserID())
-	if err != nil {
-		return nil, fmt.Errorf("find user: %w", err)
+	user := session.User()
+	if user == nil {
+		return nil, fmt.Errorf("session user is missing")
 	}
 
 	session = session.WithExpiresAt(now.Add(24 * time.Hour))

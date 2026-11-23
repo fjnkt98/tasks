@@ -31,7 +31,6 @@ func NewHandler(db *sql.DB) http.Handler {
 		),
 		Sessions: usecase.NewSessionUsecase(
 			db,
-			repository.NewUserRepository(),
 			repository.NewSessionRepository(),
 		),
 		Tasks: usecase.NewTaskUsecase(
