@@ -138,6 +138,16 @@ func (u *accountUsecase) ChangePassword(ctx context.Context, userID int, passwor
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback errors after Commit are expected
 
+	// Reload inside the tx so Save does not clobber concurrent role changes
+	// with the snapshot taken before bcrypt.
+	user, err = u.users.FindByID(ctx, tx, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ErrInvalidCredentials
+		}
+		return fmt.Errorf("find user by id: %w", err)
+	}
+
 	user = user.WithDigest(string(digest))
 	if _, err := u.users.Save(ctx, tx, user); err != nil {
 		return fmt.Errorf("save user: %w", err)
