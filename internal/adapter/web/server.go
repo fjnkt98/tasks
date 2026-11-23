@@ -2,13 +2,10 @@ package web
 
 import (
 	"bytes"
-	"database/sql"
 	"embed"
-	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -42,19 +39,7 @@ type LayoutData struct {
 	AccountName string
 }
 
-func NewServer(port int, db *sql.DB) (*http.Server, error) {
-	server := &http.Server{
-		Addr:              fmt.Sprintf(":%d", port),
-		Handler:           NewHandler(db),
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       5 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
-	return server, nil
-}
-
-func NewHandler(db *sql.DB) http.Handler {
+func NewHandler(d Deps) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(statics)))
@@ -63,18 +48,18 @@ func NewHandler(db *sql.DB) http.Handler {
 		NewRecoveryMiddleware(),
 		NewCrossOriginProtectionMiddleware(),
 		NewByteLimitMiddleware(),
-		NewSessionMiddleware(db),
+		NewSessionMiddleware(d.Sessions),
 	)
 
 	index := NewIndexHandler()
-	signup := NewSignupHandler(db)
-	signin := NewSigninHandler(db)
-	signout := NewSignoutHandler(db)
-	changePassword := NewChangePasswordHandler(db)
-	deleteAccount := NewDeleteAccountHandler(db)
-	tasks := NewTaskHandler(db)
-	account := NewAccountHandler(db)
-	users := NewUserHandler(db)
+	signup := NewSignupHandler(d.Accounts)
+	signin := NewSigninHandler(d.Accounts)
+	signout := NewSignoutHandler(d.Accounts)
+	changePassword := NewChangePasswordHandler(d.Accounts)
+	deleteAccount := NewDeleteAccountHandler(d.Accounts)
+	tasks := NewTaskHandler(d.Tasks)
+	account := NewAccountHandler(d.Accounts, d.Users, d.Tasks)
+	users := NewUserHandler(d.Users)
 
 	mux.Handle("GET /", m(index))
 	mux.Handle("GET /account/signup", m(http.HandlerFunc(signup.Get)))

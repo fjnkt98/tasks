@@ -13,20 +13,21 @@ Prefer self-explanatory code over narrative comments. Do not add comments that o
 Dependency direction is inward: `adapter → usecase → repository/domain` (usecase may depend on both `domain` and `repository` ports). `domain` has no I/O.
 
 ```
-cmd/tasks/                 # process entrypoint
+cmd/tasks/                 # process entrypoint (calls app)
 internal/
   domain/                  # pure, immutable value objects (no I/O, no repository)
   repository/              # persistence ports (interfaces) + DBTX / storage errors
   usecase/                 # application orchestration
+  app/                     # composition root (wires sqlite + usecase + web)
   adapter/
-    web/                   # HTTP handlers, templates, static; composes deps
+    web/                   # HTTP handlers, templates, static (usecase only)
     sqlite/                # implements repository ports
   schema/                  # SQL schema for sqlite3def
   testutil/                # shared test helpers
 e2e/                       # HTTP+DB end-to-end tests
 ```
 
-Domain objects are immutable: fields are unexported, and changes go through methods that return a new value (for example `WithTitle`). Do not import `adapter/*` from `domain`, `repository`, or `usecase`. Composition lives at the edge (`adapter/web`, `cmd/tasks`).
+Domain objects are immutable: fields are unexported, and changes go through methods that return a new value (for example `WithTitle`). Do not import `adapter/*` from `domain`, `repository`, or `usecase`. Only `app` (and `cmd` / e2e via `app`) may compose adapters together.
 
 ## Testing
 
@@ -102,5 +103,5 @@ Optional tracing stack: `docker compose up -d` (OTel collector + Jaeger).
 
 - Keep CGO enabled (`CGO_ENABLED=1`); tests need `sqlite3def` on PATH via mise.
 - Do not weaken lint rules to hide new issues; fix code or add a specific `//nolint:linter // reason`.
-- Prefer extending the existing clean-architecture packages under `internal/` (`domain`, `repository`, `usecase`, `adapter/...`) over inventing parallel layouts.
+- Prefer extending the existing clean-architecture packages under `internal/` (`domain`, `repository`, `usecase`, `app`, `adapter/...`) over inventing parallel layouts.
 - Secrets and production deploys belong in env / GCP, not in commits.

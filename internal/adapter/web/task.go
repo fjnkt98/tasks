@@ -1,7 +1,6 @@
 package web
 
 import (
-	"database/sql"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -24,9 +23,9 @@ type TaskHandler struct {
 	tasks usecase.TaskUsecase
 }
 
-func NewTaskHandler(db *sql.DB) *TaskHandler {
+func NewTaskHandler(tasks usecase.TaskUsecase) *TaskHandler {
 	return &TaskHandler{
-		tasks: newTaskUsecase(db),
+		tasks: tasks,
 	}
 }
 

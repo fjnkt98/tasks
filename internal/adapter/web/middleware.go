@@ -1,7 +1,6 @@
 package web
 
 import (
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -60,8 +59,7 @@ func NewRecoveryMiddleware() Middleware {
 	}
 }
 
-func NewSessionMiddleware(db *sql.DB) Middleware {
-	sessions := newSessionUsecase(db)
+func NewSessionMiddleware(sessions usecase.SessionUsecase) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookieName)

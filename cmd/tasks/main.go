@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/fjnkt98/tasks/internal/adapter/sqlite"
-	"github.com/fjnkt98/tasks/internal/adapter/web"
+	"github.com/fjnkt98/tasks/internal/app"
 )
 
 var serviceName = semconv.ServiceNameKey.String("tasks")
@@ -151,7 +151,7 @@ func setup(ctx context.Context) (*http.Server, func() error, error) {
 	}
 	shutdowns = append(shutdowns, func(context.Context) error { return db.Close() })
 
-	server, err := web.NewServer(port, db)
+	server, err := app.NewServer(port, db)
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("create server: %w", err)
 	}
