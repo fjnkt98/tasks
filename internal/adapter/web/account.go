@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -64,9 +63,9 @@ type SignupHandler struct {
 	accounts usecase.AccountUsecase
 }
 
-func NewSignupHandler(db *sql.DB) *SignupHandler {
+func NewSignupHandler(accounts usecase.AccountUsecase) *SignupHandler {
 	return &SignupHandler{
-		accounts: newAccountUsecase(db),
+		accounts: accounts,
 	}
 }
 
@@ -174,9 +173,9 @@ type SigninHandler struct {
 	accounts usecase.AccountUsecase
 }
 
-func NewSigninHandler(db *sql.DB) *SigninHandler {
+func NewSigninHandler(accounts usecase.AccountUsecase) *SigninHandler {
 	return &SigninHandler{
-		accounts: newAccountUsecase(db),
+		accounts: accounts,
 	}
 }
 
@@ -256,9 +255,9 @@ type ChangePasswordHandler struct {
 	accounts usecase.AccountUsecase
 }
 
-func NewChangePasswordHandler(db *sql.DB) *ChangePasswordHandler {
+func NewChangePasswordHandler(accounts usecase.AccountUsecase) *ChangePasswordHandler {
 	return &ChangePasswordHandler{
-		accounts: newAccountUsecase(db),
+		accounts: accounts,
 	}
 }
 
@@ -372,9 +371,9 @@ type SignoutHandler struct {
 	accounts usecase.AccountUsecase
 }
 
-func NewSignoutHandler(db *sql.DB) *SignoutHandler {
+func NewSignoutHandler(accounts usecase.AccountUsecase) *SignoutHandler {
 	return &SignoutHandler{
-		accounts: newAccountUsecase(db),
+		accounts: accounts,
 	}
 }
 
@@ -401,11 +400,11 @@ type AccountHandler struct {
 	tasks    usecase.TaskUsecase
 }
 
-func NewAccountHandler(db *sql.DB) *AccountHandler {
+func NewAccountHandler(accounts usecase.AccountUsecase, users usecase.UserUsecase, tasks usecase.TaskUsecase) *AccountHandler {
 	return &AccountHandler{
-		accounts: newAccountUsecase(db),
-		users:    newUserUsecase(db),
-		tasks:    newTaskUsecase(db),
+		accounts: accounts,
+		users:    users,
+		tasks:    tasks,
 	}
 }
 
@@ -456,9 +455,9 @@ type DeleteAccountHandler struct {
 	accounts usecase.AccountUsecase
 }
 
-func NewDeleteAccountHandler(db *sql.DB) *DeleteAccountHandler {
+func NewDeleteAccountHandler(accounts usecase.AccountUsecase) *DeleteAccountHandler {
 	return &DeleteAccountHandler{
-		accounts: newAccountUsecase(db),
+		accounts: accounts,
 	}
 }
 

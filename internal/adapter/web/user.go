@@ -1,7 +1,6 @@
 package web
 
 import (
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -14,9 +13,9 @@ type UserHandler struct {
 	users usecase.UserUsecase
 }
 
-func NewUserHandler(db *sql.DB) *UserHandler {
+func NewUserHandler(users usecase.UserUsecase) *UserHandler {
 	return &UserHandler{
-		users: newUserUsecase(db),
+		users: users,
 	}
 }
 

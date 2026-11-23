@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/fjnkt98/tasks/internal/adapter/web"
+	"github.com/fjnkt98/tasks/internal/app"
 	"github.com/fjnkt98/tasks/internal/testutil"
 )
 
@@ -31,7 +32,7 @@ func newEnv(t *testing.T) *env {
 	t.Setenv("USE_SECURE_COOKIE", "false")
 
 	db := testutil.NewDB(t)
-	server := httptest.NewServer(web.NewHandler(db))
+	server := httptest.NewServer(app.NewHandler(db))
 	t.Cleanup(server.Close)
 
 	jar, err := cookiejar.New(nil)
@@ -130,7 +131,7 @@ func signInAs(t *testing.T, e *env, username string) {
 func setupAdmin(t *testing.T, e *env, username, password string) {
 	t.Helper()
 
-	require.NoError(t, web.NewAdminUsecase(e.db).Setup(t.Context(), username, password))
+	require.NoError(t, app.NewAdminUsecase(e.db).Setup(t.Context(), username, password))
 }
 
 func authCookie(t *testing.T, e *env) *http.Cookie {
